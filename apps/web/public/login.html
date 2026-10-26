@@ -259,8 +259,9 @@ verifyButton.addEventListener('click',async()=>{
     const response=await fetch('/api/auth/email/verify',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:activeEmail,code})});
     const data=await readJson(response);
     if(!response.ok){setStatus(codeStatus,authErrors[data.error]||'We could not verify that code. Please try again.','error');return}
-    const destination=data.isNewUser===true?'/onboarding':'/app';
-    setStatus(codeStatus,data.isNewUser===true?'Account created. Taking you to setup…':'Signed in. Opening your Keus workspace…','success');
+    const needsOnboarding=data.needsOnboarding===true||data.isNewUser===true;
+    const destination=needsOnboarding?'/onboarding':'/app';
+    setStatus(codeStatus,needsOnboarding?'Account ready. Taking you to setup…':'Signed in. Opening your Keus workspace…','success');
     setTimeout(()=>location.assign(destination),450);
   }catch{setStatus(codeStatus,'Could not reach Keus. Check your connection and try again.','error')}
   finally{verifyButton.disabled=false}
