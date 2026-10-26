@@ -28,3 +28,7 @@ services:
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
+      - key: API_HUB_ADMIN_EMAILS
+        sync: false
+      - key: API_HUB_ENCRYPTION_KEY
+        generateValue: true
