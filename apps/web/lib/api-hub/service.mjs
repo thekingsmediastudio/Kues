@@ -416,6 +416,63 @@ export function createApiHubService({
     return (await listConnectors({ ownerUserId })).find((connector) => connector.id === id);
   }
 
+  async function updateConnector({ ownerUserId, connectorId, input }) {
+    const existingResult = await db.execute({
+      sql: 'SELECT * FROM api_hub_connectors WHERE id = ? AND owner_user_id = ?',
+      args: [connectorId, ownerUserId],
+    });
+    const existing = existingResult.rows[0];
+    if (!existing) throw new ApiHubError('connector_not_found', 404);
+
+    let existingAuth;
+    try { existingAuth = JSON.parse(decryptSecret(existing, key)); }
+    catch (error) {
+      if (error instanceof ApiHubError) throw error;
+      throw new ApiHubError('connector_secret_unavailable', 503);
+    }
+
+    const authType = String(input?.authType ?? existing.auth_type).trim().toLowerCase();
+    const submittedSecret = String(input?.authSecret || '');
+    let authSecret;
+    if (authType === 'none') {
+      if (submittedSecret) throw new ApiHubError('connector_auth_secret_invalid');
+      authSecret = '';
+    } else if (submittedSecret) {
+      authSecret = submittedSecret;
+    } else if (authType === existing.auth_type && existingAuth.authSecret) {
+      // Empty secret means retain the current provider credential; never reveal it to the editor.
+      authSecret = existingAuth.authSecret;
+    } else {
+      throw new ApiHubError('connector_auth_secret_required');
+    }
+
+    const defaultHeaders = Object.hasOwn(input || {}, 'defaultHeaders')
+      ? input.defaultHeaders
+      : existingAuth.defaultHeaders;
+    const normalized = validateConnectorInput({ ...input, authType, authSecret, defaultHeaders });
+    const encrypted = encryptSecret(JSON.stringify({ authSecret: normalized.authSecret, defaultHeaders: normalized.defaultHeaders }), key);
+    const timestamp = asIso(now());
+    try {
+      const result = await db.execute({
+        sql: `UPDATE api_hub_connectors
+              SET name = ?, base_url = ?, auth_type = ?, auth_header = ?,
+                  auth_ciphertext = ?, auth_nonce = ?, auth_tag = ?, operations_json = ?, updated_at = ?
+              WHERE id = ? AND owner_user_id = ?`,
+        args: [
+          normalized.name, normalized.baseUrl, normalized.authType, normalized.authHeader,
+          encrypted.ciphertext, encrypted.nonce, encrypted.tag, JSON.stringify(normalized.operations),
+          timestamp, connectorId, ownerUserId,
+        ],
+      });
+      if (Number(result.rowsAffected || 0) !== 1) throw new ApiHubError('connector_not_found', 404);
+    } catch (error) {
+      if (error instanceof ApiHubError) throw error;
+      if (/UNIQUE constraint failed/i.test(String(error?.message || ''))) throw new ApiHubError('connector_name_exists', 409);
+      throw error;
+    }
+    return (await listConnectors({ ownerUserId })).find((connector) => connector.id === connectorId);
+  }
+
   async function deleteConnector({ ownerUserId, connectorId }) {
     const result = await db.execute({
       sql: 'DELETE FROM api_hub_connectors WHERE id = ? AND owner_user_id = ?',
@@ -653,6 +710,7 @@ export function createApiHubService({
   return Object.freeze({
     listConnectors,
     createConnector,
+    updateConnector,
     deleteConnector,
     listTokens,
     listAudit,
