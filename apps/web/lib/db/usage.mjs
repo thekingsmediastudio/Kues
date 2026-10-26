@@ -1,6 +1,10 @@
 import crypto from 'node:crypto';
 import { withWriteTransaction } from './transaction.mjs';
-import { ensureUsagePeriodInTransaction, findActiveUsageEntitlement } from './entitlements.mjs';
+import {
+  ensureAccountUsagePeriodInTransaction,
+  ensureUsagePeriodInTransaction,
+  findActiveUsageEntitlement,
+} from './entitlements.mjs';
 
 export class UsageLimitError extends Error {
   constructor({ limit, consumed, reserved, requested }) {
@@ -42,6 +46,7 @@ function rowToReservation(row, extra = {}) {
     reservationId: row.id,
     workspaceId: row.workspace_id,
     usagePeriodId: row.usage_period_id,
+    accountUsagePeriodId: row.account_usage_period_id || null,
     userId: row.user_id,
     runId: row.run_id,
     idempotencyKey: row.idempotency_key,
@@ -51,6 +56,71 @@ function rowToReservation(row, extra = {}) {
     expiresAt: row.expires_at,
     ...extra,
   };
+}
+
+async function expireStaleReservationsInWorkspacePeriod(tx, { periodId, now }) {
+  const stale = await tx.execute({
+    sql: `SELECT account_usage_period_id, SUM(reserved_tokens) AS stale_tokens
+          FROM usage_reservations
+          WHERE usage_period_id = ? AND status = 'reserved' AND expires_at <= ?
+          GROUP BY account_usage_period_id`,
+    args: [periodId, now],
+  });
+  const staleTokens = stale.rows.reduce((sum, row) => sum + Number(row.stale_tokens || 0), 0);
+  if (!staleTokens) return 0;
+
+  for (const row of stale.rows) {
+    if (!row.account_usage_period_id) continue;
+    await tx.execute({
+      sql: `UPDATE account_usage_periods
+            SET reserved_tokens = MAX(0, reserved_tokens - ?)
+            WHERE id = ?`,
+      args: [Number(row.stale_tokens), row.account_usage_period_id],
+    });
+  }
+  await tx.execute({
+    sql: 'UPDATE usage_periods SET reserved_tokens = MAX(0, reserved_tokens - ?) WHERE id = ?',
+    args: [staleTokens, periodId],
+  });
+  await tx.execute({
+    sql: `UPDATE usage_reservations SET status = 'expired'
+          WHERE usage_period_id = ? AND status = 'reserved' AND expires_at <= ?`,
+    args: [periodId, now],
+  });
+  return staleTokens;
+}
+
+async function expireStaleReservationsInAccountPeriod(tx, { accountPeriodId, now }) {
+  const stale = await tx.execute({
+    sql: `SELECT usage_period_id, SUM(reserved_tokens) AS stale_tokens
+          FROM usage_reservations
+          WHERE account_usage_period_id = ? AND status = 'reserved' AND expires_at <= ?
+          GROUP BY usage_period_id`,
+    args: [accountPeriodId, now],
+  });
+  const staleTokens = stale.rows.reduce((sum, row) => sum + Number(row.stale_tokens || 0), 0);
+  if (!staleTokens) return 0;
+
+  for (const row of stale.rows) {
+    await tx.execute({
+      sql: `UPDATE usage_periods
+            SET reserved_tokens = MAX(0, reserved_tokens - ?)
+            WHERE id = ?`,
+      args: [Number(row.stale_tokens), row.usage_period_id],
+    });
+  }
+  await tx.execute({
+    sql: `UPDATE account_usage_periods
+          SET reserved_tokens = MAX(0, reserved_tokens - ?)
+          WHERE id = ?`,
+    args: [staleTokens, accountPeriodId],
+  });
+  await tx.execute({
+    sql: `UPDATE usage_reservations SET status = 'expired'
+          WHERE account_usage_period_id = ? AND status = 'reserved' AND expires_at <= ?`,
+    args: [accountPeriodId, now],
+  });
+  return staleTokens;
 }
 
 /**
@@ -112,12 +182,21 @@ export async function reserveTokens(db, {
     const entitlement = await findActiveUsageEntitlement(tx, { workspaceId, now: checkedAt });
     if (!entitlement) throw new UsageReservationError('active_entitlement_required');
     let period;
+    let accountUsagePeriod = null;
     try {
       period = await ensureUsagePeriodInTransaction(tx, {
         workspaceId,
         entitlement,
         now: checkedAt,
       });
+      if (entitlement.source === 'competition') {
+        accountUsagePeriod = await ensureAccountUsagePeriodInTransaction(tx, {
+          userId,
+          startsAt: period.starts_at,
+          endsAt: period.ends_at,
+          tokenLimit: period.token_limit,
+        });
+      }
     } catch (error) {
       if (error?.message === 'invalid_subscription_usage_window'
           || error?.message === 'invalid_competition_usage_window') {
@@ -126,52 +205,82 @@ export async function reserveTokens(db, {
       throw error;
     }
 
-    // Expired open reservations stop consuming quota; a late completion can still be settled
-    // and recorded truthfully, after which future requests observe the actual overage.
-    const stale = await tx.execute({
-      sql: `SELECT COALESCE(SUM(reserved_tokens), 0) AS stale_tokens
-            FROM usage_reservations
-            WHERE usage_period_id = ? AND status = 'reserved' AND expires_at <= ?`,
-      args: [period.id, checkedAt],
-    });
-    const staleTokens = Number(stale.rows[0]?.stale_tokens || 0);
-    if (staleTokens > 0) {
-      await tx.execute({
-        sql: 'UPDATE usage_periods SET reserved_tokens = MAX(0, reserved_tokens - ?) WHERE id = ?',
-        args: [staleTokens, period.id],
+    // Expired open reservations stop consuming quota. Competition reservations are also
+    // expired across the user's other workspaces because their daily bucket is account-wide.
+    await expireStaleReservationsInWorkspacePeriod(tx, { periodId: period.id, now: checkedAt });
+    if (accountUsagePeriod) {
+      await expireStaleReservationsInAccountPeriod(tx, {
+        accountPeriodId: accountUsagePeriod.id,
+        now: checkedAt,
       });
-      await tx.execute({
-        sql: `UPDATE usage_reservations SET status = 'expired'
-              WHERE usage_period_id = ? AND status = 'reserved' AND expires_at <= ?`,
-        args: [period.id, checkedAt],
-      });
-      period.reserved_tokens = Math.max(0, Number(period.reserved_tokens) - staleTokens);
     }
 
-    const consumed = Number(period.consumed_tokens);
-    const reserved = Number(period.reserved_tokens);
-    const limit = Number(period.token_limit);
-    const update = await tx.execute({
-      sql: `UPDATE usage_periods
-            SET reserved_tokens = reserved_tokens + ?
-            WHERE id = ? AND consumed_tokens + reserved_tokens + ? <= token_limit`,
-      args: [estimatedTokens, period.id, estimatedTokens],
+    const workspaceTotals = await tx.execute({
+      sql: 'SELECT id, consumed_tokens, reserved_tokens, token_limit FROM usage_periods WHERE id = ?',
+      args: [period.id],
     });
-    if (Number(update.rowsAffected) !== 1) {
-      throw new UsageLimitError({ limit, consumed, reserved, requested: estimatedTokens });
+    if (!workspaceTotals.rows.length) throw new Error('usage_period_missing_after_provisioning');
+    period = workspaceTotals.rows[0];
+
+    let update;
+    let limit;
+    let consumed;
+    let reserved;
+    if (accountUsagePeriod) {
+      const accountTotals = await tx.execute({
+        sql: 'SELECT id, consumed_tokens, reserved_tokens, token_limit FROM account_usage_periods WHERE id = ?',
+        args: [accountUsagePeriod.id],
+      });
+      if (!accountTotals.rows.length) throw new Error('account_usage_period_missing_after_provisioning');
+      accountUsagePeriod = accountTotals.rows[0];
+      consumed = Number(accountUsagePeriod.consumed_tokens);
+      reserved = Number(accountUsagePeriod.reserved_tokens);
+      limit = Number(accountUsagePeriod.token_limit);
+      update = await tx.execute({
+        sql: `UPDATE account_usage_periods
+              SET reserved_tokens = reserved_tokens + ?
+              WHERE id = ? AND consumed_tokens + reserved_tokens + ? <= token_limit`,
+        args: [estimatedTokens, accountUsagePeriod.id, estimatedTokens],
+      });
+      if (Number(update.rowsAffected) !== 1) {
+        throw new UsageLimitError({ limit, consumed, reserved, requested: estimatedTokens });
+      }
+      // Keep per-workspace reporting counters, but do not enforce a workspace-wide cap
+      // for competition usage; separate accounts in one workspace each have their own cap.
+      await tx.execute({
+        sql: 'UPDATE usage_periods SET reserved_tokens = reserved_tokens + ? WHERE id = ?',
+        args: [estimatedTokens, period.id],
+      });
+    } else {
+      consumed = Number(period.consumed_tokens);
+      reserved = Number(period.reserved_tokens);
+      limit = Number(period.token_limit);
+      update = await tx.execute({
+        sql: `UPDATE usage_periods
+              SET reserved_tokens = reserved_tokens + ?
+              WHERE id = ? AND consumed_tokens + reserved_tokens + ? <= token_limit`,
+        args: [estimatedTokens, period.id, estimatedTokens],
+      });
+      if (Number(update.rowsAffected) !== 1) {
+        throw new UsageLimitError({ limit, consumed, reserved, requested: estimatedTokens });
+      }
     }
 
     const id = crypto.randomUUID();
     await tx.execute({
       sql: `INSERT INTO usage_reservations
-              (id, usage_period_id, workspace_id, user_id, run_id, idempotency_key,
-               reserved_tokens, status, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'reserved', ?)`,
-      args: [id, period.id, workspaceId, userId, runId, idempotencyKey, estimatedTokens, expiresAt],
+              (id, usage_period_id, account_usage_period_id, workspace_id, user_id, run_id,
+               idempotency_key, reserved_tokens, status, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?)`,
+      args: [
+        id, period.id, accountUsagePeriod?.id || null, workspaceId, userId, runId,
+        idempotencyKey, estimatedTokens, expiresAt,
+      ],
     });
     return {
       reservationId: id,
       usagePeriodId: period.id,
+      accountUsagePeriodId: accountUsagePeriod?.id || null,
       workspaceId,
       userId,
       runId,
@@ -239,12 +348,13 @@ export async function settleTokenReservation(db, {
     const eventId = crypto.randomUUID();
     await tx.execute({
       sql: `INSERT INTO usage_events
-              (id, workspace_id, usage_period_id, reservation_id, user_id, run_id, event_key,
-               provider, model, input_tokens, output_tokens, total_tokens, occurred_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, workspace_id, usage_period_id, account_usage_period_id, reservation_id,
+               user_id, run_id, event_key, provider, model, input_tokens, output_tokens,
+               total_tokens, occurred_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
-        eventId, workspaceId, reservation.usage_period_id, reservation.id,
-        reservation.user_id, reservation.run_id, `usage:${idempotencyKey}`,
+        eventId, workspaceId, reservation.usage_period_id, reservation.account_usage_period_id,
+        reservation.id, reservation.user_id, reservation.run_id, `usage:${idempotencyKey}`,
         provider, model, inputTokens, outputTokens, totalTokens, occurredAt,
       ],
     });
@@ -256,6 +366,22 @@ export async function settleTokenReservation(db, {
             WHERE id = ?`,
       args: [totalTokens, wasReserved ? 1 : 0, Number(reservation.reserved_tokens), reservation.usage_period_id],
     });
+    if (reservation.account_usage_period_id) {
+      await tx.execute({
+        sql: `UPDATE account_usage_periods
+              SET consumed_tokens = consumed_tokens + ?,
+                  reserved_tokens = CASE WHEN ? = 1
+                    THEN MAX(0, reserved_tokens - ?) ELSE reserved_tokens END
+              WHERE id = ?`,
+        args: [
+          totalTokens,
+          wasReserved ? 1 : 0,
+          Number(reservation.reserved_tokens),
+          reservation.account_usage_period_id,
+        ],
+      });
+    }
+
     await tx.execute({
       sql: `UPDATE usage_reservations
             SET status = 'settled', actual_tokens = ?, settled_at = ?
@@ -294,6 +420,14 @@ export async function releaseTokenReservation(db, { workspaceId, idempotencyKey 
       sql: 'UPDATE usage_periods SET reserved_tokens = MAX(0, reserved_tokens - ?) WHERE id = ?',
       args: [Number(row.reserved_tokens), row.usage_period_id],
     });
+    if (row.account_usage_period_id) {
+      await tx.execute({
+        sql: `UPDATE account_usage_periods
+              SET reserved_tokens = MAX(0, reserved_tokens - ?)
+              WHERE id = ?`,
+        args: [Number(row.reserved_tokens), row.account_usage_period_id],
+      });
+    }
     await tx.execute({
       sql: "UPDATE usage_reservations SET status = 'released' WHERE id = ? AND status = 'reserved'",
       args: [row.id],
