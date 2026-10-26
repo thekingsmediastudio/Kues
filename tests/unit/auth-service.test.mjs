@@ -47,8 +47,20 @@ test('magic link is stored as a hash, creates a one-time session, and can be rev
 
     const login = await auth.consumeEmailMagicLink({ token: sent[0].token, now });
     assert.equal(login.user.email, 'person@example.test');
+    assert.equal(login.isNewUser, true);
+    assert.equal(login.needsOnboarding, true);
     assert.ok(login.sessionToken);
     assert.deepEqual(await auth.getSession({ token: login.sessionToken, now }), login.user);
+    const provisioned = await db.execute(`
+      SELECT w.id, m.role, d.workspace_id
+      FROM workspaces w
+      JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = w.owner_user_id
+      JOIN user_default_workspaces d ON d.user_id = w.owner_user_id
+      WHERE w.owner_user_id = ?
+    `, [login.user.id]);
+    assert.equal(provisioned.rows.length, 1);
+    assert.equal(provisioned.rows[0].role, 'owner');
+    assert.equal(provisioned.rows[0].id, provisioned.rows[0].workspace_id);
 
     await assert.rejects(
       auth.consumeEmailMagicLink({ token: sent[0].token, now }),
