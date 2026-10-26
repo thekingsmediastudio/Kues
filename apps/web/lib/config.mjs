@@ -153,6 +153,42 @@ export function loadServerConfig(env = process.env) {
   if (emailProvider && emailProvider !== 'brevo') {
     issues.push('EMAIL_PROVIDER must be brevo when email delivery is enabled');
   }
+  const competitionStartRaw = String(env.KEUS_COMPETITION_START_AT || '').trim();
+  const competitionEndRaw = String(env.KEUS_COMPETITION_END_AT || '').trim();
+  const competitionLimitRaw = String(env.KEUS_COMPETITION_DAILY_TOKEN_LIMIT || '').trim();
+  const hasAnyCompetitionSetting = Boolean(competitionStartRaw || competitionEndRaw || competitionLimitRaw);
+  let competition = null;
+  if (hasAnyCompetitionSetting) {
+    if (!competitionStartRaw || !competitionEndRaw || !competitionLimitRaw) {
+      issues.push('KEUS_COMPETITION_START_AT, KEUS_COMPETITION_END_AT, and KEUS_COMPETITION_DAILY_TOKEN_LIMIT must be set together');
+    } else {
+      const explicitTimezone = (value) => /(?:Z|[+-]\d{2}:\d{2})$/i.test(value);
+      const startMs = Date.parse(competitionStartRaw);
+      const endMs = Date.parse(competitionEndRaw);
+      const dailyTokenLimit = Number(competitionLimitRaw);
+      if (!explicitTimezone(competitionStartRaw) || !Number.isFinite(startMs)) {
+        issues.push('KEUS_COMPETITION_START_AT must be an ISO-8601 timestamp with an explicit timezone');
+      }
+      if (!explicitTimezone(competitionEndRaw) || !Number.isFinite(endMs)) {
+        issues.push('KEUS_COMPETITION_END_AT must be an ISO-8601 timestamp with an explicit timezone');
+      }
+      if (!/^\d+$/.test(competitionLimitRaw) || !Number.isSafeInteger(dailyTokenLimit) || dailyTokenLimit <= 0) {
+        issues.push('KEUS_COMPETITION_DAILY_TOKEN_LIMIT must be a positive integer');
+      }
+      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs) {
+        issues.push('KEUS_COMPETITION_END_AT must follow KEUS_COMPETITION_START_AT');
+      }
+      if (explicitTimezone(competitionStartRaw) && explicitTimezone(competitionEndRaw)
+          && Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs
+          && /^\d+$/.test(competitionLimitRaw) && Number.isSafeInteger(dailyTokenLimit) && dailyTokenLimit > 0) {
+        competition = Object.freeze({
+          startAt: new Date(startMs).toISOString(),
+          endAt: new Date(endMs).toISOString(),
+          dailyTokenLimit,
+        });
+      }
+    }
+  }
   const hasEmailSettings = Boolean(emailProvider || brevoApiKey || emailFrom || appBaseUrl);
   if (authProvider === 'brevo' || hasEmailSettings) {
     if (authProvider !== 'brevo') issues.push('AUTH_PROVIDER=brevo is required for Brevo email delivery');
@@ -183,6 +219,7 @@ export function loadServerConfig(env = process.env) {
     emailProvider: emailProvider || null,
     emailDeliveryConfigured: authProvider === 'brevo' && emailProvider === 'brevo'
       && Boolean(brevoApiKey && emailFrom && appBaseUrl),
+    competition,
     allowedOrigins: Object.freeze(parsedOrigins.origins),
     apiHubEnabled: apiHubAdminEmails.length > 0,
     apiHubAdminEmails: Object.freeze(apiHubAdminEmails),
