@@ -269,6 +269,22 @@ async function resolvePublicAddresses(hostname, resolveHost) {
   return addresses;
 }
 
+export function createPinnedLookup(preferred) {
+  if (!preferred || !net.isIP(String(preferred.address || '')) || ![4, 6].includes(Number(preferred.family))) {
+    throw new TypeError('pinned_address_invalid');
+  }
+  return (_hostname, options, callback) => {
+    // Node may request all addresses for autoSelectFamily. In that mode, lookup
+    // callbacks must receive an array of { address, family } records.
+    const lookupOptions = typeof options === 'function' ? {} : (options || {});
+    const done = typeof options === 'function' ? options : callback;
+    if (typeof done !== 'function') throw new TypeError('lookup_callback_required');
+    const answer = { address: String(preferred.address), family: Number(preferred.family) };
+    if (lookupOptions.all === true) done(null, [answer]);
+    else done(null, answer.address, answer.family);
+  };
+}
+
 function requestHttps({ url, method, headers, body, addresses, maxResponseBytes = MAX_RESPONSE_BYTES }) {
   return new Promise((resolve, reject) => {
     const preferred = addresses.find((item) => item.family === 4) || addresses[0];
@@ -277,7 +293,7 @@ function requestHttps({ url, method, headers, body, addresses, maxResponseBytes 
       headers,
       agent: false,
       servername: url.hostname,
-      lookup: (_hostname, _options, callback) => callback(null, preferred.address, preferred.family),
+      lookup: createPinnedLookup(preferred),
       timeout: 12_000,
     }, (response) => {
       const chunks = [];
