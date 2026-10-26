@@ -207,7 +207,7 @@ test('WorkOS exposes email-code endpoints, creates a Keus session, and retires o
       body: JSON.stringify({ email: 'person@example.test', code: '123456' }),
     });
     assert.equal(verifyCode.status, 200);
-    assert.deepEqual(await verifyCode.json(), { authenticated: true, isNewUser: true, user: { id: 'local-1' } });
+    assert.deepEqual(await verifyCode.json(), { authenticated: true, isNewUser: true, needsOnboarding: true, user: { id: 'local-1' } });
     assert.equal(verified.code, '123456');
     assert.match(verifyCode.headers.get('set-cookie'), /kues_session=kues-code-session/);
 
