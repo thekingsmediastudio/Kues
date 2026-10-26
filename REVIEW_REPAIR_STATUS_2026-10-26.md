@@ -31,7 +31,7 @@ This note records changes and checks made to the extracted working copy after th
 - This is not a live commerce product: no Channel3, Workers AI, KERNEL, PayPal transaction, remote Turso, real email-code delivery, server-side transaction WebAuthn, purchase flow, or capture/refund flow was used or tested.
 - The production guard protects the desktop workspace aliases and `/onboarding`; it is not a complete authorization layer for future data/action APIs.
 - Non-onboarding preview-only UI state remains browser-local and is not synchronized across devices. Completed onboarding profile and its paused starter-agent record are now account/workspace-scoped in the shared database; unfinished form drafts remain account-keyed in local storage.
-- The Render file is only a proposed blueprint; no deployment is claimed.
+- Historical note: the original source-repair pass proposed the Render Blueprint but did not deploy. The later account-provisioning and account-level quota updates were deployed to the existing staging service, now returning health version 2.2.1; see `RENDER_DEPLOYMENT.md` and `KEUS_SIGNUP_PROVISIONING_IMPLEMENTATION_2026-10-26.md` for current status and remaining authenticated-signup verification.
 - No production/deployed-origin, physical-device, or formal security/accessibility certification was performed.
 - The separate `Tempo.glb` export was completed and verified on 2026-10-26; it remains a separate deliverable outside this original source-repair archive.
 
