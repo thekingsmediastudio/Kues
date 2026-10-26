@@ -46,3 +46,11 @@ The user reported a successful registration that appeared to stop without a next
 - `render.yaml` parsed successfully; service name is `keus-staging`.
 - Current port-3100 WorkOS credentials are process-memory-only; a server restart requires re-entering the test key/client ID.
 - The registration redirect still needs a fresh-inbox test after restarting the preview or on the hosted staging service.
+
+## Account provisioning and cloud onboarding update — 2026-10-26
+
+Verified sign-in now provisions one default workspace and owner membership in the same shared Turso database, then routes accounts whose workspace setup is incomplete to `/onboarding`. The authenticated onboarding API persists the completed setup and paused preview agent; desktop reloads that data through `/api/workspace/bootstrap`. See `KEUS_SIGNUP_PROVISIONING_IMPLEMENTATION_2026-10-26.md` for schema/API details and current limitations.
+
+Competition free access is configurable as a daily UTC AI-token cap. On 2026-10-26, the owner confirmed 7,000,000 tokens per account/default workspace per day and selected PayPal as the intended future subscription provider. The staging Blueprint is configured for the PayPal AI Hackathon period from submission opening (1 Oct 2026, 5:15 PM WAT) through judging end (15 Dec 2026, 5:00 PM WAT). This configuration is in source only until deployment; it is not yet live. After the competition entitlement expires, access fails closed unless the workspace has a valid active paid-subscription entitlement. PayPal subscription checkout/webhooks are not implemented. Google/GitHub OAuth remains disabled pending WorkOS provider configuration; detailed rollout steps are in `KEUS_SOCIAL_SIGNIN_PLAN_2026-10-26.md`.
+
+Verification after the source/config update: after reinstalling excluded dependencies with `npm ci`, `npm test` **75/75 passed**; configured competition values parsed to the expected UTC window and 7,000,000-token limit; `npm audit --omit=dev` reported **0 vulnerabilities**. No live deploy or full browser signup test has been performed yet.
