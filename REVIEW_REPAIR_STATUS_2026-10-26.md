@@ -10,7 +10,7 @@ This note records changes and checks made to the extracted working copy after th
 - Sentinel fails closed when required amount or policy context is missing or invalid.
 - Node is pinned to `24.22.1` (LTS as of this review date).
 - Onboarding styles are restored for all five steps; desktop passkey is described as planned/not connected, and virtual control is preview-only. Avatar color carries across the supported artwork.
-- Onboarding-created agents are restored from browser-local storage when the desktop page reloads. This is local preview persistence, not account/cloud persistence.
+- Earlier in this repair pass, onboarding-created agents were restored from browser-local storage only. That UI-only behavior has since been superseded by `KEUS_SIGNUP_PROVISIONING_IMPLEMENTATION_2026-10-26.md`: completed onboarding now saves to the signed-in account workspace and desktop bootstrap reloads it from the shared database.
 - Desktop app options and sample shopping, seller, approval, and watch states are clearly labelled as preview-only/not connected.
 - New Agent dialog has dialog semantics, initial focus, Tab containment, Escape/backdrop closing, and focus restoration.
 - Static page routing and assets are explicitly allowlisted; unknown paths return 404. In production, desktop workspace aliases require a valid Keus session and fail closed if auth storage is unavailable.
@@ -30,7 +30,7 @@ This note records changes and checks made to the extracted working copy after th
 
 - This is not a live commerce product: no Channel3, Workers AI, KERNEL, PayPal transaction, remote Turso, real email-code delivery, server-side transaction WebAuthn, purchase flow, or capture/refund flow was used or tested.
 - The production guard protects the desktop workspace aliases and `/onboarding`; it is not a complete authorization layer for future data/action APIs.
-- Browser-local preview state is not synchronized across browsers/devices or associated with a signed-in account.
+- Non-onboarding preview-only UI state remains browser-local and is not synchronized across devices. Completed onboarding profile and its paused starter-agent record are now account/workspace-scoped in the shared database; unfinished form drafts remain account-keyed in local storage.
 - The Render file is only a proposed blueprint; no deployment is claimed.
 - No production/deployed-origin, physical-device, or formal security/accessibility certification was performed.
 - The separate `Tempo.glb` export was completed and verified on 2026-10-26; it remains a separate deliverable outside this original source-repair archive.
