@@ -30,6 +30,36 @@ test('server config defaults to sandbox and does not expose secrets', () => {
   assert.equal(JSON.stringify(config).includes('not-returned'), false);
 });
 
+test('competition configuration requires a complete timezone-explicit window and positive daily token cap', () => {
+  assert.equal(loadServerConfig({}).competition, null);
+  const configured = loadServerConfig({
+    KEUS_COMPETITION_START_AT: '2026-11-01T00:00:00-04:00',
+    KEUS_COMPETITION_END_AT: '2026-11-30T23:59:59Z',
+    KEUS_COMPETITION_DAILY_TOKEN_LIMIT: '25000',
+  });
+  assert.deepEqual(configured.competition, {
+    startAt: '2026-11-01T04:00:00.000Z',
+    endAt: '2026-11-30T23:59:59.000Z',
+    dailyTokenLimit: 25000,
+  });
+  assert.throws(() => loadServerConfig({ KEUS_COMPETITION_START_AT: '2026-11-01T00:00:00Z' }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    KEUS_COMPETITION_START_AT: '2026-11-01T00:00:00',
+    KEUS_COMPETITION_END_AT: '2026-11-30T00:00:00Z',
+    KEUS_COMPETITION_DAILY_TOKEN_LIMIT: '1000',
+  }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    KEUS_COMPETITION_START_AT: '2026-12-01T00:00:00Z',
+    KEUS_COMPETITION_END_AT: '2026-11-30T00:00:00Z',
+    KEUS_COMPETITION_DAILY_TOKEN_LIMIT: '1000',
+  }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    KEUS_COMPETITION_START_AT: '2026-11-01T00:00:00Z',
+    KEUS_COMPETITION_END_AT: '2026-11-30T00:00:00Z',
+    KEUS_COMPETITION_DAILY_TOKEN_LIMIT: '0',
+  }), ConfigError);
+});
+
 test('WorkOS config is explicit, complete, callback-bound, database-backed, and secret-free', () => {
   const config = loadServerConfig({
     AUTH_PROVIDER: 'workos',
