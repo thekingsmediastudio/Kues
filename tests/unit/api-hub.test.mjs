@@ -63,6 +63,99 @@ test('connector credentials are encrypted at rest and excluded from management v
   }
 });
 
+test('connector edits preserve existing encrypted credentials and fixed headers unless replaced', async () => {
+  const outbound = [];
+  const { db, service } = await createHub({
+    fetchImpl: async (request) => {
+      outbound.push(request);
+      return { status: 200, contentType: 'application/json', body: Buffer.from('{"ok":true}') };
+    },
+  });
+  try {
+    const created = await service.createConnector({ ownerUserId: ownerId, input: connectorInput() });
+    const updated = await service.updateConnector({
+      ownerUserId: ownerId,
+      connectorId: created.id,
+      input: {
+        name: 'GitHub Kues',
+        baseUrl: 'https://api.example.com/v2',
+        authType: 'bearer',
+        authSecret: '',
+        operations: [{ name: 'get-user', method: 'GET', path: '/users/{username}' }],
+      },
+    });
+    assert.equal(updated.name, 'GitHub Kues');
+    assert.equal(updated.baseUrl, 'https://api.example.com/v2/');
+    assert.deepEqual(updated.operations.map((item) => item.name), ['get-user']);
+    assert.equal(JSON.stringify(updated).includes('provider-secret-123456'), false);
+
+    const access = await service.createAccessToken({
+      ownerUserId: ownerId,
+      label: 'edited connector read key',
+      scopes: [`${created.id}:get-user`],
+    });
+    await service.invoke({
+      token: access.token,
+      connectorId: created.id,
+      operation: 'get-user',
+      pathParams: { username: 'keus' },
+    });
+    assert.equal(outbound[0].url.toString(), 'https://api.example.com/v2/users/keus');
+    assert.equal(outbound[0].headers.authorization, 'Bearer provider-secret-123456');
+    assert.equal(outbound[0].headers.accept, 'application/vnd.github+json');
+
+    const replaced = await service.updateConnector({
+      ownerUserId: ownerId,
+      connectorId: created.id,
+      input: {
+        name: 'GitHub Kues',
+        baseUrl: 'https://api.example.com/v2',
+        authType: 'header',
+        authHeader: 'X-API-Key',
+        authSecret: 'replacement-secret-098765',
+        defaultHeaders: {},
+        operations: [{ name: 'get-user', method: 'GET', path: '/users/{username}' }],
+      },
+    });
+    assert.equal(replaced.authType, 'header');
+    await service.invoke({
+      token: access.token,
+      connectorId: created.id,
+      operation: 'get-user',
+      pathParams: { username: 'keus' },
+    });
+    assert.equal(outbound[1].headers['x-api-key'], 'replacement-secret-098765');
+    assert.equal(outbound[1].headers.accept, 'application/json, text/plain;q=0.9');
+  } finally {
+    await db.close();
+  }
+});
+
+test('connector edit requires a new secret when changing auth type and remains owner-scoped', async () => {
+  const { db, service } = await createHub();
+  try {
+    const created = await service.createConnector({ ownerUserId: ownerId, input: connectorInput() });
+    const changedAuth = {
+      name: 'GitHub staging',
+      baseUrl: 'https://api.example.com/v1',
+      authType: 'header',
+      authHeader: 'X-API-Key',
+      authSecret: '',
+      operations: [{ name: 'get-repository', method: 'GET', path: '/repos/{owner}/{repo}' }],
+    };
+    await assert.rejects(
+      service.updateConnector({ ownerUserId: ownerId, connectorId: created.id, input: changedAuth }),
+      (error) => error instanceof ApiHubError && error.code === 'connector_auth_secret_required',
+    );
+    await assert.rejects(
+      service.updateConnector({ ownerUserId: 'other-owner', connectorId: created.id, input: connectorInput() }),
+      (error) => error instanceof ApiHubError && error.code === 'connector_not_found',
+    );
+  } finally {
+    await db.close();
+  }
+});
+
 test('agent keys are hashed, scoped, manifest-limited, and provider responses are redacted', async () => {
   const outbound = [];
   const secret = 'provider-secret-123456';
