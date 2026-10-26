@@ -1,0 +1,18 @@
+{
+  "name": "kues",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm -w apps/web run dev",
+    "dev:bridge": "node apps/bridge/src/doctor.mjs",
+    "test": "node --test tests/unit/*.test.mjs",
+    "prove:money": "node scripts/prove-money.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "bridge:doctor": "node apps/bridge/src/doctor.mjs"
+  }
+}
