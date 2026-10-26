@@ -115,7 +115,13 @@ export function usageWindowForEntitlement(entitlement, now) {
     const startsAt = later(new Date(todayStartMs).toISOString(), entitlement.entitlement_starts_at);
     const endsAt = earlier(new Date(tomorrowStartMs).toISOString(), entitlement.entitlement_ends_at);
     if (Date.parse(endsAt) <= Date.parse(startsAt)) throw new Error('invalid_competition_usage_window');
-    return { startsAt, endsAt, tokenLimit: Number(entitlement.included_tokens), periodUnit: 'day' };
+    return {
+      startsAt,
+      endsAt,
+      tokenLimit: Number(entitlement.included_tokens),
+      periodUnit: 'day',
+      quotaScope: 'account',
+    };
   }
 
   if (entitlement.source === 'subscription') {
@@ -124,7 +130,13 @@ export function usageWindowForEntitlement(entitlement, now) {
     if (Date.parse(startsAt) > nowMs || Date.parse(endsAt) <= nowMs || Date.parse(endsAt) <= Date.parse(startsAt)) {
       throw new Error('invalid_subscription_usage_window');
     }
-    return { startsAt, endsAt, tokenLimit: Number(entitlement.included_tokens), periodUnit: entitlement.billing_interval };
+    return {
+      startsAt,
+      endsAt,
+      tokenLimit: Number(entitlement.included_tokens),
+      periodUnit: entitlement.billing_interval,
+      quotaScope: 'workspace',
+    };
   }
 
   throw new Error('unsupported_usage_entitlement');
@@ -142,16 +154,17 @@ export async function ensureUsagePeriodInTransaction(tx, {
   }
   await tx.execute({
     sql: `INSERT INTO usage_periods
-            (id, workspace_id, entitlement_id, plan_id, starts_at, ends_at, token_limit)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+            (id, workspace_id, entitlement_id, plan_id, starts_at, ends_at, token_limit, quota_scope)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(workspace_id, starts_at) DO UPDATE SET
             entitlement_id = excluded.entitlement_id,
             plan_id = excluded.plan_id,
             ends_at = excluded.ends_at,
-            token_limit = excluded.token_limit`,
+            token_limit = excluded.token_limit,
+            quota_scope = excluded.quota_scope`,
     args: [
       crypto.randomUUID(), workspaceId, entitlement.entitlement_id, entitlement.plan_id,
-      window.startsAt, window.endsAt, window.tokenLimit,
+      window.startsAt, window.endsAt, window.tokenLimit, window.quotaScope,
     ],
   });
   const result = await tx.execute({
@@ -163,6 +176,39 @@ export async function ensureUsagePeriodInTransaction(tx, {
   return result.rows[0];
 }
 
+/** Create the account-wide competition quota bucket shared across all of the user's workspaces. */
+export async function ensureAccountUsagePeriodInTransaction(tx, {
+  userId,
+  startsAt,
+  endsAt,
+  tokenLimit,
+}) {
+  userId = String(userId || '').trim();
+  if (!userId) throw new TypeError('user_id_required');
+  startsAt = new Date(parseTime(startsAt, 'account_usage_starts_at')).toISOString();
+  endsAt = new Date(parseTime(endsAt, 'account_usage_ends_at')).toISOString();
+  tokenLimit = Number(tokenLimit);
+  if (Date.parse(endsAt) <= Date.parse(startsAt)) throw new TypeError('account_usage_window_must_be_positive');
+  if (!Number.isSafeInteger(tokenLimit) || tokenLimit < 0) throw new TypeError('invalid_account_usage_token_limit');
+
+  await tx.execute({
+    sql: `INSERT INTO account_usage_periods
+            (id, user_id, starts_at, ends_at, token_limit)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, starts_at) DO UPDATE SET
+            ends_at = MIN(account_usage_periods.ends_at, excluded.ends_at),
+            token_limit = MIN(account_usage_periods.token_limit, excluded.token_limit)`,
+    args: [crypto.randomUUID(), userId, startsAt, endsAt, tokenLimit],
+  });
+  const result = await tx.execute({
+    sql: `SELECT * FROM account_usage_periods
+          WHERE user_id = ? AND starts_at = ?`,
+    args: [userId, startsAt],
+  });
+  if (!result.rows.length) throw new Error('account_usage_period_provisioning_failed');
+  return result.rows[0];
+}
+
 export function usageAccessView(entitlement, { now, competition }) {
   if (entitlement) {
     return {
@@ -171,6 +217,7 @@ export function usageAccessView(entitlement, { now, competition }) {
       planCode: entitlement.plan_code,
       tokenLimit: Number(entitlement.included_tokens),
       periodUnit: entitlement.source === 'competition' ? 'day' : entitlement.billing_interval,
+      quotaScope: entitlement.source === 'competition' ? 'account' : 'workspace',
       endsAt: entitlement.source === 'competition'
         ? entitlement.entitlement_ends_at
         : entitlement.current_period_end,
