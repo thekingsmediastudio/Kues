@@ -2,6 +2,10 @@
 
 This note records changes and checks made to the extracted working copy after the read-only review. The Google Drive source archive remains unchanged.
 
+## Later staging release status — 2026-10-26
+
+This later release supersedes earlier statements below that no deployment had occurred. The sign-up/account-provisioning flow and per-account daily token ledger are deployed to `https://keus-staging.onrender.com` at health version **2.2.1**. Health returns 200; unauthenticated workspace-bootstrap and same-origin onboarding requests return the expected 401. Email sign-in is enabled; Google/GitHub remain disabled. No authenticated signup, direct live data read-back, production AI-call path, or live commerce/payment flow has been verified. The owner should test with their own staging account; no account or verification email was created or sent on their behalf. See `RENDER_DEPLOYMENT.md` and `KEUS_SIGNUP_PROVISIONING_IMPLEMENTATION_2026-10-26.md` for release details.
+
 ## Repairs verified in the working copy
 
 - Money policy and agent-envelope validation now reject malformed, non-finite, fractional, missing, non-positive, or out-of-envelope amounts and invalid policy limits.
@@ -107,7 +111,7 @@ Verification:
 - Screenshots/results: `cueclaw-review/qa/sign-in-after-1440.png`, `sign-in-after-390.png`, and `sign-in-responsive-results.json`.
 - Full source snapshot backed up as `Keus_Sign_In_Web_Foundation_2026-10-26_v4.zip`, 6,851,611 bytes, SHA-256 `0d743259dedcc3737e5ff104727f6d385cae864af81d0455c4008ec351961927`; Drive archive ID `19QXe9UoRFRtiaQR6LU0uerSihlr9mU6K`, checksum ID `1JYPghH7RICKnfh1fY64BUNMEq564tNvs`. The local ZIP was removed after upload to stay within workspace storage quota; its checksum sidecar, source, and QA remain local.
 
-Next website stage can proceed from this sign-in entry into onboarding. Real sign-in requires WorkOS/email delivery setup; that has not been configured or deployed.
+Historical note from the original sign-in foundation pass: the next website stage was onboarding, and real sign-in still required WorkOS/email-delivery setup. That setup and the account-provisioning flow were completed and deployed later; the current staging status is summarized at the top of this file.
 
 ## Active Keus branding update — 2026-10-26
 
@@ -115,7 +119,7 @@ The active website surfaces now use Keus branding and a new local Keus SVG icon/
 
 - Unit tests after this change: **51/51 passed**.
 - Details: `KEUS_BRANDING_UPDATE_2026-10-26.md`.
-- No live auth provider, email delivery, or production deployment was configured or claimed.
+- Historical note from the branding-update checkpoint: no live auth provider, email delivery, or production deployment was configured or claimed at that time. The later staging rollout is recorded at the top of this file; there is still no claim of a production deployment or live commerce/payment integration.
 
 ## Sign-in and sign-up methods — 2026-10-26
 
@@ -131,7 +135,7 @@ User-reported verification update (2026-10-26): test-mode WorkOS email-code logi
 
 ## Registration handoff repair and free-hosting plan — 2026-10-26
 
-The user reported that email registration created an account but appeared to do nothing afterward. Keus identity provisioning now returns `isNewUser`. First-time email and social accounts are directed to `/onboarding`; existing accounts continue to `/app`. The onboarding route is included in the production session guard and is available in the sign-in-only preview. The behavior is covered by unit tests, but still needs a new-account browser test after restarting the preview or on the hosted service.
+The user reported that email registration created an account but appeared to do nothing afterward. Keus identity provisioning now returns `isNewUser`. First-time email and social accounts are directed to `/onboarding`; existing accounts continue to `/app`. The onboarding route is included in the production session guard and is available in the sign-in-only preview. The behavior is covered by unit tests and is deployed on staging; an owner-run authenticated browser signup and persisted-data read-back still remain to be tested.
 
 The proposed free demo/staging host is Render Free plus Turso Free. `render.yaml` now uses the `keus-staging` service name, keeps Google/GitHub disabled by default, and uses Turso for remote auth/session persistence. No repository, Render service, or Turso database has been connected or deployed. Render states that Free services are not for production; they spin down after 15 minutes without traffic and their local files are ephemeral. See `RENDER_DEPLOYMENT.md` for setup steps and limits.
 

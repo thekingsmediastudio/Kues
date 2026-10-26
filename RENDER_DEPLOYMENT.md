@@ -17,7 +17,7 @@ The server awaits its startup migration runner before listening; the deployed 2.
 
 ## Deployment and remaining verification
 
-1. **Repository and deploy:** the user explicitly changed the fixed publishing destination to `thekingsmediastudio/Kues` after `thekingsmedia/Kues` returned 404. The source was published to the selected private repo, merged once to `main`, and the new workspace route is live on the existing Render service.
+1. **Repository and deploy:** the user explicitly changed the fixed publishing destination to `thekingsmediastudio/Kues` after `thekingsmedia/Kues` returned 404. The source and follow-up quota/release updates were published to that private repository in scoped merges to `main`; the new workspace routes and account-quota migration are live on the existing Render service.
 2. **Turso/migration:** a database was configured in Render. The startup runner applies ordered migrations before the service listens. The deployment reached the ready state, but no authenticated insert/read-back test has yet verified a real signup, owner workspace, or onboarding record in Turso.
 3. **WorkOS:** staging email sign-in is active. Keep `API_HUB_ADMIN_EMAILS` limited to the exact verified WorkOS email and preserve the Render-generated `API_HUB_ENCRYPTION_KEY`. Never commit secrets or send them in chat.
 4. **Service origin:** `https://keus-staging.onrender.com`. WorkOS derives the Keus callback as `<service-origin>/auth/callback` from `RENDER_EXTERNAL_URL` unless `WORKOS_REDIRECT_URI` is explicitly overridden.
