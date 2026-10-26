@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="/keus-icon.svg">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark">
+<title>Verify sign-in · Keus</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 50% 0%,#202522 0,transparent 48%),#101116;color:#f4f3ef;font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}.card{width:min(100%,440px);padding:32px;border:1px solid #30313a;border-radius:22px;background:linear-gradient(145deg,#1a1b21,#14151a);box-shadow:0 26px 80px #0008}.brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}.mark{width:42px;height:32px;color:#91d77b}h1{font-size:24px;margin:0 0 8px}p{color:#a5a6b0;margin:0}.status{margin-top:18px;color:#91d77b}.status.error{color:#ff9b91}.link{display:inline-block;margin-top:20px;color:#d5d6dc;text-decoration:none}.link:hover{text-decoration:underline}
+</style>
+</head>
+<body><main class="card"><div class="brand"><svg class="mark" viewBox="0 0 64 44" fill="none" aria-hidden="true"><path d="M14 34h35a10 10 0 0 0 1-20 18 18 0 0 0-34-2 11 11 0 0 0-2 22Z" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M24 24h18" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg><strong>Keus</strong></div><h1>Verifying your sign-in</h1><p id="message" class="status" role="status" aria-live="polite">Checking your one-time link…</p><a class="link" href="/login">Return to sign in</a></main>
+<script>
+(async()=>{
+ const message=document.getElementById('message');
+ const params=new URLSearchParams(location.search);const token=params.get('token');
+ history.replaceState(null,'',location.pathname);
+ if(!token){message.textContent='This sign-in link is missing or invalid.';message.classList.add('error');return}
+ try{
+  const response=await fetch('/api/auth/email/consume',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({token})});
+  const data=await response.json();
+  if(!response.ok){const errors={link_already_used:'This sign-in link has already been used.',invalid_or_expired_link:'This sign-in link is invalid or has expired.'};throw new Error(errors[data.error]||'We could not verify this link.')}
+  message.textContent='Signed in. Opening your Keus workspace…';
+  setTimeout(()=>location.assign('/app'),500);
+ }catch(error){message.textContent=error.message||'We could not verify this link.';message.classList.add('error')}
+})();
+</script></body></html>
