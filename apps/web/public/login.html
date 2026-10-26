@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/svg+xml" href="/keus-icon.svg">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080808">
+<title>Sign in · Keus</title>
+<style>
+:root{color-scheme:dark;--bg:#080808;--card:#191919;--card-line:#303030;--input:#242424;--input-line:#3c3c3c;--text:#f4f4f1;--muted:#a2a2a2;--green:#32d583;--red:#ff9b91}
+*{box-sizing:border-box}html,body{min-width:320px;min-height:100%;margin:0}body{min-height:100vh;display:grid;place-items:center;padding:28px 18px;background:radial-gradient(ellipse at 50% 8%,#181818 0,transparent 38%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit}.page{width:min(100%,402px)}.brand{display:flex;align-items:center;justify-content:center;gap:9px;margin:0 auto 24px;color:#f5f4ef;font-size:16px;font-weight:690;letter-spacing:-.035em}.brand svg{display:block;width:27px;height:27px}.heading{text-align:center;margin:0 0 20px}.heading h1{margin:0;color:#f3f3f3;font-size:24px;font-weight:610;letter-spacing:-.04em;line-height:1.25}.heading p{margin:7px 0 0;color:#9b9b9b;font-size:13px}
+.card{padding:26px 26px 24px;border:1px solid var(--card-line);border-radius:14px;background:var(--card);box-shadow:0 16px 46px #0005}.field{display:grid;gap:8px;margin:0 0 14px}label{color:#e4e4e4;font-size:12px;font-weight:560}.input-wrap{position:relative}input{width:100%;height:46px;padding:0 13px;border:1px solid var(--input-line);border-radius:7px;background:var(--input);color:#f3f3f3;outline:none;transition:border-color .16s,box-shadow .16s}input::placeholder{color:#777}input:focus{border-color:#8e8e8e;box-shadow:0 0 0 2px #fff1}.code-input{padding:0 14px;text-align:center;font-size:22px;letter-spacing:.48em;font-variant-numeric:tabular-nums}.primary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:45px;padding:0 14px;border:0;border-radius:7px;background:#f1f1f1;color:#111;font-size:13px;font-weight:670;cursor:pointer;transition:background .15s,opacity .15s}.primary:not(:disabled):hover{background:#fff}.primary:disabled{opacity:.48;cursor:not-allowed}.status{min-height:19px;margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.5}.status.error{color:var(--red)}.status.success{color:var(--green)}.status:empty{min-height:0;margin-top:0}.hint{margin:12px 0 0;color:#929292;font-size:11px;line-height:1.6}.hint strong{color:#e0e0e0;font-weight:580;overflow-wrap:anywhere}.divider{display:flex;align-items:center;gap:13px;margin:20px 0;color:#8a8a8a;font-size:11px}.divider:before,.divider:after{content:"";height:1px;flex:1;background:#343434}.secondary{width:100%;min-height:44px;padding:0 13px;border:1px solid #444;border-radius:7px;background:transparent;color:#efefef;font-size:13px;font-weight:550;cursor:pointer;transition:background .15s,border-color .15s}.secondary:hover:not(:disabled){background:#242424;border-color:#5b5b5b}.secondary:disabled{opacity:.42;cursor:not-allowed}.alt-note{margin:10px 0 0;color:#858585;font-size:10px;line-height:1.55;text-align:center}.code-head{margin-bottom:19px}.code-head h2{margin:0;color:#f3f3f3;font-size:18px;font-weight:600;letter-spacing:-.025em}.code-head p{margin:5px 0 0;color:#aaa;font-size:12px;line-height:1.6}.code-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}.text-button{padding:3px 0;border:0;background:none;color:#b8b8b8;font-size:11px;cursor:pointer}.text-button:hover:not(:disabled){color:#fff;text-decoration:underline}.text-button:disabled{color:#686868;cursor:not-allowed}.signed{padding:20px;border:1px solid #384a3e;border-radius:9px;background:#182019;text-align:center}.signed-mark{width:34px;height:34px;margin:0 auto 11px}.signed h2{margin:0 0 5px;font-size:18px;letter-spacing:-.03em}.signed p{margin:0 0 16px;color:#aaa;font-size:12px}.signed .secondary{max-width:140px}.footer{margin:19px 0 0;color:#777;font-size:10px;text-align:center}.footer a{color:#aaa;text-decoration:none}.footer a:hover{color:#fff}.secure-note{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:15px;color:#777;font-size:10px}.secure-note svg{width:12px;height:12px;color:#858585}[hidden]{display:none!important}
+@media(max-width:420px){body{padding:18px 14px}.card{padding:23px 19px 20px}.brand{margin-bottom:21px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important}}
+
+
+/* Sign-in foundation: product story + one focused, honest authentication panel. */
+:root { --keus-ink:#0c0e11; --keus-panel:#15181c; --keus-line:rgba(255,255,255,.095); --keus-gold:#e9c77f; }
+html,body { min-height:100%; }
+body { display:block; min-height:100vh; min-height:100dvh; padding:clamp(16px,3vw,40px); overflow-x:hidden; background:radial-gradient(ellipse at 5% 8%,rgba(50,213,131,.12),transparent 32%),radial-gradient(ellipse at 92% 88%,rgba(233,185,93,.09),transparent 34%),#090b0e; }
+.auth-shell { width:min(1280px,100%); min-height:min(840px,calc(100dvh - 2 * clamp(16px,3vw,40px))); margin:auto; display:grid; grid-template-columns:minmax(0,1.05fr) minmax(420px,.95fr); overflow:hidden; border:1px solid rgba(255,255,255,.1); border-radius:28px; background:#101216; box-shadow:0 32px 110px rgba(0,0,0,.52),inset 0 1px 0 rgba(255,255,255,.035); }
+.auth-story { position:relative; isolation:isolate; min-width:0; display:flex; flex-direction:column; justify-content:space-between; gap:32px; overflow:hidden; padding:clamp(30px,5vw,66px); border-right:1px solid rgba(255,255,255,.07); background:radial-gradient(ellipse at 72% 20%,rgba(50,213,131,.15),transparent 42%),linear-gradient(145deg,#151a1a 0%,#111619 54%,#131513 100%); }
+.auth-story::before { content:""; position:absolute; z-index:-1; inset:0; opacity:.34; background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px); background-size:42px 42px; mask-image:linear-gradient(135deg,#000 0%,transparent 72%); }
+.auth-story::after { content:""; position:absolute; z-index:-1; width:320px; height:320px; right:-135px; top:28%; border:1px solid rgba(50,213,131,.15); border-radius:50%; box-shadow:0 0 0 34px rgba(50,213,131,.025),0 0 0 70px rgba(50,213,131,.018); pointer-events:none; }
+.story-brand { display:inline-flex; align-items:center; gap:11px; width:max-content; color:#f7f5ef; }
+.story-brand svg { width:38px; height:38px; filter:drop-shadow(0 6px 16px rgba(50,213,131,.2)); }
+.story-brand b { display:block; font-size:16px; font-weight:720; letter-spacing:-.04em; }
+.story-brand small { display:block; margin-top:2px; color:#8b9690; font-size:8px; font-weight:680; letter-spacing:.16em; }
+.story-copy { max-width:520px; margin:auto 0 0; }
+.story-eyebrow { display:flex; align-items:center; gap:9px; margin-bottom:18px; color:#aab7af; font-size:10px; font-weight:650; letter-spacing:.15em; }
+.story-eyebrow span { width:18px; height:1px; background:#54d99a; box-shadow:0 0 10px rgba(50,213,131,.65); }
+.story-copy h2 { margin:0; color:#f4f2ed; font-size:clamp(42px,5vw,68px); font-weight:570; letter-spacing:-.065em; line-height:1.02; }
+.story-copy h2 em { color:#90e4b7; font-style:normal; }
+.story-copy p { max-width:450px; margin:18px 0 0; color:#a3aaa6; font-size:15px; line-height:1.75; }
+.example-team { width:min(100%,500px); padding:16px 18px 13px; border:1px solid rgba(255,255,255,.11); border-radius:18px; background:linear-gradient(145deg,rgba(30,35,35,.88),rgba(19,23,24,.88)); box-shadow:0 18px 50px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.045); backdrop-filter:blur(14px); }
+.team-top { display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:11px; border-bottom:1px solid rgba(255,255,255,.075); color:#9ba49e; font-size:9px; font-weight:660; letter-spacing:.12em; }
+.preview-tag { flex:none; padding:4px 8px; border:1px solid rgba(233,199,127,.24); border-radius:999px; background:rgba(233,185,93,.08); color:#e8c77f; font-size:8px; letter-spacing:.06em; }
+.team-row { min-width:0; display:flex; align-items:center; gap:11px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.055); }
+.team-avatar { width:34px; height:34px; flex:none; display:grid; place-items:center; border:1px solid rgba(255,255,255,.1); border-radius:11px; }
+.team-avatar svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.team-avatar.mint { background:rgba(50,213,131,.11); color:#71e5ab; }.team-avatar.blue { background:rgba(120,169,255,.11); color:#8bb6ff; }
+.team-copy { min-width:0; flex:1; }
+.team-copy b,.team-copy small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.team-copy b { color:#e9e9e4; font-size:12px; font-weight:630; }.team-copy small { margin-top:3px; color:#858e89; font-size:10px; }
+.sample-dot { flex:none; color:#85918a; font-size:8px; font-weight:650; letter-spacing:.08em; }
+.team-note { display:flex; align-items:center; gap:7px; padding-top:11px; color:#929c96; font-size:10px; line-height:1.4; }
+.note-lock { width:16px; height:16px; flex:none; display:grid; place-items:center; border-radius:50%; background:rgba(50,213,131,.1); color:#70dba5; font-size:10px; }
+.story-bottom { display:flex; align-items:center; justify-content:space-between; gap:16px; color:#76817a; font-size:9px; font-weight:600; letter-spacing:.11em; }
+.auth-main { width:auto; min-width:0; min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:clamp(30px,5vw,68px); background:radial-gradient(ellipse at 78% 0%,rgba(255,255,255,.025),transparent 42%),linear-gradient(180deg,#121519,#101216); }
+.auth-main .brand { display:none; }
+.auth-main .heading { width:100%; margin:0 0 24px; text-align:left; }
+.auth-main .heading h1 { color:#f5f4ef; font-size:clamp(29px,3vw,36px); font-weight:620; letter-spacing:-.055em; }
+.auth-main .heading p { margin-top:7px; color:#9da39f; font-size:13px; }
+.auth-main .card { width:100%; padding:25px; border-color:rgba(255,255,255,.09); border-radius:17px; background:linear-gradient(145deg,rgba(27,30,34,.97),rgba(21,24,28,.98)); box-shadow:0 18px 56px rgba(0,0,0,.27),inset 0 1px 0 rgba(255,255,255,.035); }
+.auth-main label { color:#dfe3df; font-size:12px; font-weight:600; }
+.auth-main input { height:50px; border-color:rgba(255,255,255,.13); border-radius:10px; background:#111418; }
+.auth-main input:focus { border-color:rgba(233,199,127,.6); box-shadow:0 0 0 3px rgba(233,199,127,.12); }
+.auth-main .primary { min-height:50px; border:1px solid rgba(233,199,127,.34); border-radius:10px; background:linear-gradient(120deg,#f0d492,#dfb45d); color:#211a0e; box-shadow:0 7px 22px rgba(233,185,93,.12); }
+.auth-main .primary:not(:disabled):hover { background:linear-gradient(120deg,#f8e1a9,#edc76e); transform:translateY(-1px); }
+.auth-main .primary:disabled { border-color:rgba(255,255,255,.06); background:rgba(255,255,255,.075); color:#7d827f; box-shadow:none; opacity:1; }
+.auth-main .secondary { min-height:48px; border-color:rgba(255,255,255,.14); border-radius:10px; background:rgba(255,255,255,.025); }
+.auth-main .secondary:hover:not(:disabled) { border-color:rgba(255,255,255,.26); background:rgba(255,255,255,.06); }
+.auth-main .status { min-height:18px; margin-top:11px; font-size:11px; }
+.auth-main .status.error { color:#ff9b91; }.auth-main .status.success { color:#79dba7; }.auth-main .status.notice { color:#e3c982; }
+.auth-main .status.notice::before { content:""; display:inline-block; width:6px; height:6px; margin:0 7px 1px 0; border-radius:50%; background:#e9c77f; box-shadow:0 0 0 3px rgba(233,199,127,.1); }
+.auth-main .hint { color:#929b95; font-size:11px; }.auth-main .hint strong { color:#e9ebe7; }
+.auth-main .divider { margin:18px 0; color:#808983; }.auth-main .divider::before,.auth-main .divider::after { background:rgba(255,255,255,.1); }
+.auth-main .alt-note { color:#86908a; }
+.auth-main .code-input { height:56px; font-size:24px; letter-spacing:.52em; }
+.auth-main .text-button { min-height:32px; color:#b7c0ba; }.auth-main .text-button:hover:not(:disabled) { color:#fff; }
+.auth-main .secure-note { margin-top:16px; color:#89918c; font-size:10px; }.auth-main .secure-note svg { color:#67d69c; }
+.auth-main .footer { margin-top:12px; color:#76807a; }.auth-main .footer a { color:#a4ada7; }
+.auth-main button:focus-visible,.auth-main input:focus-visible,.auth-main a:focus-visible { outline:2px solid rgba(233,199,127,.78); outline-offset:3px; }
+.auth-main .signed { width:100%; border-color:rgba(98,215,160,.25); border-radius:15px; background:linear-gradient(145deg,rgba(31,54,39,.62),rgba(22,35,27,.8)); }
+@media(max-width:900px) {
+  body { padding:0; background:radial-gradient(ellipse at 50% 0,rgba(50,213,131,.1),transparent 36%),#090b0e; }
+  .auth-shell { width:100%; min-height:100vh; min-height:100dvh; display:flex; justify-content:center; border:0; border-radius:0; box-shadow:none; background:transparent; }
+  .auth-story { display:none; }
+  .auth-main { width:100%; min-height:100vh; min-height:100dvh; padding:clamp(24px,7vh,64px) 22px; background:transparent; }
+  .auth-main .brand { display:flex; justify-content:flex-start; width:100%; max-width:430px; margin:0 auto 38px; font-size:15px; }
+  .auth-main .brand svg { width:31px; height:31px; }
+  .auth-main .heading,.auth-main .card,.auth-main .secure-note,.auth-main .footer { width:100%; max-width:430px; }
+}
+@media(max-width:420px) {
+  .auth-main { align-items:stretch; padding:24px 18px max(24px,env(safe-area-inset-bottom)); }
+  .auth-main .brand { margin-bottom:32px; }
+  .auth-main .heading { margin-bottom:21px; }
+  .auth-main .heading h1 { font-size:30px; }
+  .auth-main .card { padding:20px 18px 19px; border-radius:15px; }
+  .auth-main .field { gap:7px; margin-bottom:13px; }
+  .auth-main input { height:49px; }
+  .auth-main .primary { min-height:50px; }
+  .auth-main .code-actions { align-items:flex-start; }
+}
+@media(max-height:640px) and (max-width:900px) {
+  .auth-main { justify-content:flex-start; padding-top:18px; padding-bottom:20px; }
+  .auth-main .brand { margin-bottom:20px; }
+  .auth-main .heading { margin-bottom:15px; }
+}
+@media(prefers-reduced-motion:reduce) { .auth-main .primary:not(:disabled):hover { transform:none; } }
+
+
+/* Email and social-provider account modes. */
+.account-mode{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 0 19px;padding:4px;border:1px solid #363636;border-radius:9px;background:#111}.account-mode button{min-height:35px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#aaa;font-size:12px;font-weight:590;cursor:pointer;transition:background .15s,color .15s}.account-mode button[aria-pressed="true"]{background:#292929;color:#f5f5f5;box-shadow:0 1px 3px #0005}.account-mode button:focus-visible,.social-button:focus-visible{outline:2px solid #9bdcb9;outline-offset:2px}.social-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px}.social-button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:43px;padding:0 10px;font-size:12px}.social-button svg{width:18px;height:18px;flex:none}.social-button:disabled{opacity:.42;cursor:not-allowed}.social-note{margin:10px 0 0;color:#888;font-size:10px;line-height:1.55;text-align:center}.divider{margin:18px 0 13px}
+@media(max-width:360px){.social-buttons{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="auth-shell">
+  <aside class="auth-story" aria-label="About Keus">
+    <div class="story-brand" aria-label="Keus personal agents">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg>
+      <span><b>Keus</b><small>PERSONAL AGENTS</small></span>
+    </div>
+    <div class="story-copy">
+      <div class="story-eyebrow"><span></span> A WORKSPACE THAT WORKS WITH YOU</div>
+      <h2>A calmer way<br>to work with <em>AI.</em></h2>
+      <p>Bring your teammate agents into one clear workspace. Set the boundaries, stay in the loop, and keep the final say.</p>
+    </div>
+    <div class="example-team" aria-label="Illustrative Keus teammates">
+      <div class="team-top"><span>MEET YOUR EXAMPLE TEAM</span><span class="preview-tag">SAMPLE PREVIEW</span></div>
+      <div class="team-row">
+        <span class="team-avatar mint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.4L21 8H6"/><circle cx="10" cy="20" r="1.2"/><circle cx="18" cy="20" r="1.2"/></svg></span>
+        <span class="team-copy"><b>Shopping Crew</b><small>Product comparisons · sample</small></span>
+        <span class="sample-dot">EXAMPLE</span>
+      </div>
+      <div class="team-row">
+        <span class="team-avatar blue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 20 6v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <span class="team-copy"><b>Aegis</b><small>Approval preview · not connected</small></span>
+        <span class="sample-dot">EXAMPLE</span>
+      </div>
+      <div class="team-note"><span class="note-lock">✓</span> Illustrative only · no tasks or services run here</div>
+    </div>
+    <div class="story-bottom"><span>YOU SET THE PACE</span><span>Keus · preview build</span></div>
+  </aside>
+  <main class="page auth-main">
+
+  <div class="brand" aria-label="Keus">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg>
+    <span>Keus</span>
+  </div>
+  <header class="heading"><h1 id="pageTitle">Sign in</h1><p id="pageSubtitle">Continue to your Keus account</p></header>
+  <section class="card" id="signInPanel">
+    <div class="account-mode" id="accountModeSwitch" role="group" aria-label="Choose sign-in or account creation">
+      <button type="button" id="signInMode" aria-pressed="true">Sign in</button>
+      <button type="button" id="signUpMode" aria-pressed="false">Create account</button>
+    </div>
+    <form id="emailForm">
+      <div class="field"><label for="email">Email</label><div class="input-wrap"><input id="email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" aria-describedby="emailHelp"></div></div>
+      <button class="primary" id="sendButton" type="submit" disabled>Continue</button>
+      <div class="status" id="formStatus" role="status" aria-live="polite">Checking sign-in configuration…</div>
+      <p class="hint" id="devSetupHint" hidden><a href="/__dev/workos-setup" style="color:#d4d4d4">Connect WorkOS test credentials for this preview</a></p>
+      <p class="hint" id="emailHelp">We’ll email you a six-digit code. New users can create an account after verifying their address.</p>
+    </form>
+    <section id="codePanel" hidden>
+      <div class="code-head"><h2>Check your email</h2><p>Enter the six-digit code sent to <strong id="emailLabel"></strong>. The code expires in 10 minutes.</p></div>
+      <div class="field"><label for="code">Verification code</label><input class="code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" aria-describedby="codeHint"></div>
+      <span id="codeHint" hidden>Enter the six-digit code from your email.</span>
+      <button class="primary" id="verifyButton" type="button">Continue</button>
+      <div class="status" id="codeStatus" role="status" aria-live="polite"></div>
+      <div class="code-actions"><button class="text-button" id="resendButton" type="button">Resend code</button><button class="text-button" id="changeEmailButton" type="button">Use another email</button></div>
+    </section>
+    <div class="alt-methods" id="altMethods">
+      <div class="divider"><span>OR CONTINUE WITH</span></div>
+      <div class="social-buttons">
+        <button class="secondary social-button" id="googleButton" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.35 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.95 2.94v2.44h3.16c1.85-1.71 2.9-4.22 2.9-7.21Z"/><path fill="#34A853" d="M12 21.75c2.65 0 4.87-.88 6.49-2.39l-3.16-2.44c-.88.59-2 .94-3.33.94-2.56 0-4.73-1.73-5.51-4.06H3.22v2.52A9.8 9.8 0 0 0 12 21.75Z"/><path fill="#FBBC05" d="M6.49 13.8a5.9 5.9 0 0 1 0-3.6V7.68H3.22a9.8 9.8 0 0 0 0 8.64l3.27-2.52Z"/><path fill="#EA4335" d="M12 6.14c1.44 0 2.73.5 3.75 1.5l2.82-2.82C16.86 3.2 14.64 2.25 12 2.25a9.8 9.8 0 0 0-8.78 5.43l3.27 2.52C7.27 7.87 9.44 6.14 12 6.14Z"/></svg>
+          <span>Google</span>
+        </button>
+        <button class="secondary social-button" id="githubButton" type="button" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.1c-3.1.68-3.76-1.31-3.76-1.31-.51-1.3-1.24-1.65-1.24-1.65-1.01-.7.08-.69.08-.69 1.12.08 1.72 1.15 1.72 1.15.99 1.71 2.6 1.22 3.23.93.1-.72.39-1.22.71-1.5-2.48-.28-5.09-1.24-5.09-5.53 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.15a10.6 10.6 0 0 1 5.55 0c2.12-1.45 3.05-1.15 3.05-1.15.61 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.3-2.61 5.24-5.1 5.52.4.35.75 1.03.75 2.08V22c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"/></svg>
+          <span>GitHub</span>
+        </button>
+      </div>
+      <p class="social-note" id="socialNote">Google and GitHub are unavailable until enabled for this WorkOS environment.</p>
+    </div>
+  </section>
+  <section class="signed" id="signedPanel" aria-live="polite" hidden>
+    <svg class="signed-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg>
+    <h2>You’re signed in</h2><p id="signedMessage">Your Keus workspace is ready.</p><button class="secondary" type="button" id="logoutButton">Sign out</button>
+  </section>
+  <div class="secure-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span>Keus secure sign-in</span></div>
+  <p class="footer"><a href="/app">Back to Keus</a></p>
+</main>
+</div>
+<script>
+const emailForm=document.getElementById('emailForm');
+const emailInput=document.getElementById('email');
+const sendButton=document.getElementById('sendButton');
+const formStatus=document.getElementById('formStatus');
+const codePanel=document.getElementById('codePanel');
+const codeInput=document.getElementById('code');
+const codeStatus=document.getElementById('codeStatus');
+const verifyButton=document.getElementById('verifyButton');
+const resendButton=document.getElementById('resendButton');
+const signInPanel=document.getElementById('signInPanel');
+const signedPanel=document.getElementById('signedPanel');
+const altMethods=document.getElementById('altMethods');
+let activeEmail='';
+let authEnabled=false;
+let googleEnabled=false;
+let githubEnabled=false;
+let authMode='sign-in';
+let resendTimer=null;
+let cooldownUntil=0;
+function setStatus(element,text,kind=''){element.textContent=text;element.className=`status ${kind}`.trim()}
+const authErrors={
+  email_not_verified:'We could not confirm that email. Request a fresh code and try again.',
+  email_delivery_failed:'We could not send a code right now. Please try again later.',
+  workos_key_rejected:'WorkOS rejected the test API key. Re-enter the active staging key in the setup page.',
+  workos_access_denied:'WorkOS denied this request. Check the key, client ID, and Magic Auth settings for the same staging app.',
+  workos_settings_rejected:'WorkOS rejected the setup. Confirm Magic Auth is enabled and the test credentials belong to the same app.',
+  too_many_sign_in_requests:'Too many code requests for this address. Wait a little before trying again.',
+  invalid_email:'Enter a valid email address.',
+  invalid_or_expired_code:'That code is invalid or expired. Check it and try again, or request a new one.',
+  account_unavailable:'This account cannot sign in right now. Contact Keus support.',
+};
+const authErrorsFromUrl=new URLSearchParams(location.search).get('auth_error');
+const oauthErrorMessages={not_configured:'Sign-in is not configured for this environment yet.',provider_disabled:'That provider is not enabled here yet. Use email or contact the Keus administrator.',invalid_request:'That sign-in request was not valid. Choose a method and try again.',state:'The sign-in request expired or could not be verified. Start again.',provider:'The identity provider did not complete sign-in. Try again or choose another method.',signin_failed:'We could not complete sign-in. Try again or use another method.',unavailable:'The identity provider is temporarily unavailable.'};
+if(authErrorsFromUrl){setStatus(formStatus,oauthErrorMessages[authErrorsFromUrl]||'The sign-in did not complete. Try email or choose another method.','error');history.replaceState(null,'',location.pathname)}
+async function readJson(response){try{return await response.json()}catch{return {}}}
+async function requestCode(email,{resend=false}={}){
+  const button=resend?resendButton:sendButton;
+  button.disabled=true;
+  setStatus(resend?codeStatus:formStatus,authMode==='sign-up'?'Sending your verification code…':'Sending your sign-in code…');
+  try{
+    const response=await fetch('/api/auth/email/start',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email})});
+    const data=await readJson(response);
+    if(!response.ok){
+      const message=authErrors[data.error]||'We could not request a sign-in code. Please try again later.';
+      setStatus(resend?codeStatus:formStatus,message,'error');return false;
+    }
+    activeEmail=email.trim().toLowerCase();
+    document.getElementById('emailLabel').textContent=activeEmail;
+    emailForm.hidden=true;codePanel.hidden=false;altMethods.hidden=true;document.getElementById('accountModeSwitch').hidden=true;codeInput.value='';codeInput.focus();
+    setStatus(codeStatus,'If the address is eligible, a code is on its way. Check your inbox.','success');
+    startResendCooldown();
+    return true;
+  }catch{
+    setStatus(resend?codeStatus:formStatus,'Could not reach Keus. Check your connection and try again.','error');return false;
+  }finally{button.disabled=button===resendButton&&Date.now()<cooldownUntil}
+}
+function startResendCooldown(){
+  clearInterval(resendTimer);let remaining=30;cooldownUntil=Date.now()+30000;resendButton.disabled=true;
+  resendButton.textContent=`Resend code · ${remaining}s`;
+  resendTimer=setInterval(()=>{remaining-=1;if(remaining<=0){clearInterval(resendTimer);cooldownUntil=0;resendButton.disabled=!authEnabled;resendButton.textContent='Resend code';return}resendButton.textContent=`Resend code · ${remaining}s`},1000);
+}
+emailForm.addEventListener('submit',async(event)=>{event.preventDefault();if(!authEnabled)return;await requestCode(emailInput.value)});
+resendButton.addEventListener('click',async()=>{if(activeEmail&&authEnabled)await requestCode(activeEmail,{resend:true})});
+document.getElementById('changeEmailButton').addEventListener('click',()=>{clearInterval(resendTimer);cooldownUntil=0;resendButton.textContent='Resend code';resendButton.disabled=!authEnabled;codePanel.hidden=true;altMethods.hidden=false;document.getElementById('accountModeSwitch').hidden=false;emailForm.hidden=false;emailInput.value=activeEmail;setStatus(formStatus,'Enter the email address you want to use.');emailInput.focus()});
+verifyButton.addEventListener('click',async()=>{
+  if(!activeEmail)return;
+  const code=codeInput.value.trim();
+  if(!/^\d{6}$/.test(code)){setStatus(codeStatus,'Enter the six-digit code from your email.','error');codeInput.focus();return}
+  verifyButton.disabled=true;setStatus(codeStatus,'Verifying your code…');
+  try{
+    const response=await fetch('/api/auth/email/verify',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:activeEmail,code})});
+    const data=await readJson(response);
+    if(!response.ok){setStatus(codeStatus,authErrors[data.error]||'We could not verify that code. Please try again.','error');return}
+    const destination=data.isNewUser===true?'/onboarding':'/app';
+    setStatus(codeStatus,data.isNewUser===true?'Account created. Taking you to setup…':'Signed in. Opening your Keus workspace…','success');
+    setTimeout(()=>location.assign(destination),450);
+  }catch{setStatus(codeStatus,'Could not reach Keus. Check your connection and try again.','error')}
+  finally{verifyButton.disabled=false}
+});
+codeInput.addEventListener('input',()=>{codeInput.value=codeInput.value.replace(/\D/g,'').slice(0,6)});
+codeInput.addEventListener('keydown',(event)=>{if(event.key==='Enter'){event.preventDefault();verifyButton.click()}});
+function setAuthMode(mode){
+  authMode=mode==='sign-up'?'sign-up':'sign-in';
+  const signingUp=authMode==='sign-up';
+  document.getElementById('pageTitle').textContent=signingUp?'Create your account':'Sign in';
+  document.getElementById('pageSubtitle').textContent=signingUp?'Start your Keus account securely':'Continue to your Keus account';
+  document.getElementById('signInMode').setAttribute('aria-pressed',String(!signingUp));
+  document.getElementById('signUpMode').setAttribute('aria-pressed',String(signingUp));
+  sendButton.textContent=signingUp?'Create account':'Continue';
+  document.getElementById('emailHelp').textContent=signingUp?'We’ll email you a six-digit code to verify your address.':'We’ll email you a six-digit code. New users can create an account after verifying their address.';
+  if(authEnabled&&!authErrorsFromUrl)setStatus(formStatus,signingUp?'Email account creation is ready.':'Email sign-in is ready.','success');
+}
+document.getElementById('signInMode').addEventListener('click',()=>setAuthMode('sign-in'));
+document.getElementById('signUpMode').addEventListener('click',()=>setAuthMode('sign-up'));
+function startSocial(provider){
+  if(provider==='GoogleOAuth'&&!googleEnabled)return;
+  if(provider==='GitHubOAuth'&&!githubEnabled)return;
+  const params=new URLSearchParams({provider,intent:authMode});
+  location.assign(`/auth/start?${params.toString()}`);
+}
+document.getElementById('googleButton').addEventListener('click',()=>startSocial('GoogleOAuth'));
+document.getElementById('githubButton').addEventListener('click',()=>startSocial('GitHubOAuth'));
+setAuthMode('sign-in');
+async function refreshSession(){
+  try{
+    const response=await fetch('/api/auth/session',{headers:{Accept:'application/json'}});const data=await readJson(response);
+    if(response.ok&&data.authenticated){signInPanel.hidden=true;signedPanel.hidden=false;document.getElementById('signedMessage').textContent=`Signed in as ${data.user.email}.`}
+  }catch{}
+}
+async function loadAuthConfig(){
+  try{
+    const response=await fetch('/api/auth/config',{headers:{Accept:'application/json'}});const data=await readJson(response);
+    authEnabled=response.ok&&(data.emailEnabled===true||data.enabled===true);
+    googleEnabled=authEnabled&&data.googleEnabled===true;
+    githubEnabled=authEnabled&&data.githubEnabled===true;
+    document.getElementById('devSetupHint').hidden=data.testSetupAvailable!==true;
+    sendButton.disabled=!authEnabled;document.getElementById('googleButton').disabled=!googleEnabled;document.getElementById('githubButton').disabled=!githubEnabled;resendButton.disabled=!authEnabled;
+    document.getElementById('socialNote').textContent=googleEnabled||githubEnabled
+      ? `${googleEnabled?'Google':''}${googleEnabled&&githubEnabled?' and ':''}${githubEnabled?'GitHub':''} sign-in is ready for this environment.`
+      : 'Google and GitHub are unavailable until enabled for this WorkOS environment.';
+    if(!authEnabled&&!authErrorsFromUrl)setStatus(formStatus,'Email sign-in and account creation are not enabled in this preview. No code was sent.','notice');
+    else if(authEnabled&&!authErrorsFromUrl)setStatus(formStatus,authMode==='sign-up'?'Email account creation is ready.':'Email sign-in is ready.','success');
+  }catch{setStatus(formStatus,'Could not check sign-in configuration. Refresh and try again.','error')}
+}
+document.getElementById('logoutButton').addEventListener('click',async()=>{await fetch('/api/auth/logout',{method:'POST'}).catch(()=>{});signedPanel.hidden=true;signInPanel.hidden=false;emailForm.hidden=false;codePanel.hidden=true;altMethods.hidden=false;setStatus(formStatus,'You are signed out.','success')});
+refreshSession();loadAuthConfig();
+</script>
+</body>
+</html>
