@@ -1,11 +1,11 @@
 # Keus API Hub
 
-**Status: implemented in source; not deployed.** The API Hub replaces the one-off, memory-only GitHub/Render helper bridges with a self-hosted, login-protected API connection registry. It is designed to run inside the Keus web service on Render, using Turso for persistent metadata. It does not depend on an Arena session once deployed, but it does depend on the user's Render, Turso, and WorkOS accounts and their configured credentials.
+**Status: the base API Hub is deployed to `https://keus-staging.onrender.com`; its health endpoint returns HTTP 200.** The current WorkOS session reaches the owner-only console route but is denied until `API_HUB_ADMIN_EMAILS` includes that verified email. The editable-connector update is implemented and passes the local suite, but still needs to be pushed and deployed. The Hub replaces the one-off, memory-only GitHub/Render helper bridges with a self-hosted, login-protected API connection registry. It uses Turso for persistent metadata and does not depend on an Arena session once deployed; it does depend on the user's Render, Turso, and WorkOS accounts and configured credentials.
 
 ## What it does
 
 - Provides an owner-only console at `/api-hub` after Keus WorkOS login. Only addresses in `API_HUB_ADMIN_EMAILS` may manage connections.
-- Lets an administrator register HTTPS APIs by base URL, authentication type, encrypted credential, optional fixed headers, and an explicit list of named operations.
+- Lets an administrator register and edit HTTPS API connections by base URL, authentication type, encrypted credential, optional fixed headers, and an explicit list of named operations. Connector credentials are never returned; leaving the secret blank while editing retains the existing credential, while entering a value replaces it. Fixed headers are also retained when the edit field is blank and can be cleared by entering `{}`.
 - Exposes only registered operations; there is no arbitrary URL-forwarding endpoint. The hub resolves and pins public DNS addresses, blocks private/special-use destinations, requires HTTPS, and refuses redirects.
 - Stores provider auth and fixed headers encrypted using AES-256-GCM. The encryption key is a server-only Render secret. Connector lists never return credentials or fixed-header values.
 - Issues short-lived agent bearer keys (1–90 days) scoped to exact connector operations. A key is displayed once; only its SHA-256 hash is stored. Keys can be revoked in the console.
@@ -28,6 +28,7 @@ The hub also requires the existing WorkOS staging and Turso environment values d
 2. Enter a name and public HTTPS base URL, select `Bearer token`, `Custom header`, or `No authentication`, and add the provider credential in the secret field. The secret is cleared from the page after submission and is not shown again.
 3. Add optional fixed headers as JSON (for example, a provider-specific `Accept` or API-version header). These headers are encrypted with the auth configuration and are never returned in management responses.
 4. Define the operations the hub may expose. Each operation has a unique lowercase name, HTTP method, and path template. `{name}` substitutes one URL-encoded path segment; `{path*}` substitutes a slash-separated path. Put query parameters in the invocation's `query` object, not in the template.
+5. To revise a connection, select **Edit** in its card. Change the URL, auth mode, headers, or operations as needed. The secret field is blank: leave it blank to retain the saved credential, or enter a new one to replace it. Leave fixed headers blank to retain them; enter `{}` to clear them. If switching to a different auth mode, provide the required new credential.
 
 Example definition for a repository API (placeholder only; do not paste real credentials into this file):
 
