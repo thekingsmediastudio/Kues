@@ -1,0 +1,11 @@
+Keus Project Snapshot — 2026-10-26
+
+Contents: current repaired source tree, applications, shared packages, migrations, scripts, unit tests, project documentation, Render Free + Turso Free demo/staging blueprint, Node 24.22.1 version pin, .env.example, and current QA references. First-time WorkOS accounts are routed to onboarding; the new route is test-covered but still requires user confirmation after a fresh deployment.
+
+Verification: 56/56 unit tests pass under Node 24.22.1; npm audit --omit=dev reports 0 vulnerabilities; inline JavaScript syntax checks pass 6/6; render.yaml parses. User-reported WorkOS test-mode email-code authentication and account creation are recorded in AUTH_SETUP.md. No production deployment or Google/GitHub OAuth test is claimed.
+
+Excluded from release archives: node_modules (reinstall with `npm ci`), actual .env/.env.local files and other secret files, local databases (*.db, *.db-shm, *.db-wal), Git metadata, generated caches/build outputs, and the local WorkOS authentication handoff screen recording (to avoid sharing potentially sensitive account/session details). No secret values are included.
+
+This is a versioned updated snapshot. Earlier Drive backups remain unchanged and preserved.
+
+Restore: extract the archive, run `npm ci`, then `npx --yes node@24.22.1 --test tests/unit/*.test.mjs` from the project root. For the Render demo/staging service, follow RENDER_DEPLOYMENT.md and enter test credentials only in Render's private environment settings. Render Free is not for production and uses an ephemeral filesystem; use Turso for persistent data.
