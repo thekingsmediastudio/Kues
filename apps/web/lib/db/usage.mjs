@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { withWriteTransaction } from './transaction.mjs';
+import { ensureUsagePeriodInTransaction, findActiveUsageEntitlement } from './entitlements.mjs';
 
 export class UsageLimitError extends Error {
   constructor({ limit, consumed, reserved, requested }) {
@@ -74,9 +75,28 @@ export async function reserveTokens(db, {
 
   const nowMs = Date.parse(now);
   if (!Number.isFinite(nowMs)) throw new TypeError('now_must_be_iso_datetime');
+  const checkedAt = new Date(nowMs).toISOString();
   const expiresAt = new Date(nowMs + ttlSeconds * 1000).toISOString();
 
   return withWriteTransaction(db, async (tx) => {
+    const membership = await tx.execute({
+      sql: `SELECT m.role FROM workspace_members m
+            JOIN workspaces w ON w.id = m.workspace_id
+            JOIN users u ON u.id = m.user_id
+            WHERE m.workspace_id = ? AND m.user_id = ?
+              AND w.status = 'active' AND u.status = 'active'`,
+      args: [workspaceId, userId],
+    });
+    if (!membership.rows.length) throw new UsageReservationError('workspace_access_denied');
+
+    if (runId) {
+      const run = await tx.execute({
+        sql: `SELECT id FROM runs WHERE id = ? AND workspace_id = ? AND user_id = ?`,
+        args: [runId, workspaceId, userId],
+      });
+      if (!run.rows.length) throw new UsageReservationError('run_access_denied');
+    }
+
     const duplicate = await tx.execute({
       sql: 'SELECT * FROM usage_reservations WHERE workspace_id = ? AND idempotency_key = ?',
       args: [workspaceId, idempotencyKey],
@@ -89,15 +109,22 @@ export async function reserveTokens(db, {
       return rowToReservation(row, { duplicate: true });
     }
 
-    const periods = await tx.execute({
-      sql: `SELECT * FROM usage_periods
-            WHERE workspace_id = ? AND starts_at <= ? AND ends_at > ?
-            ORDER BY starts_at DESC LIMIT 2`,
-      args: [workspaceId, now, now],
-    });
-    if (!periods.rows.length) throw new UsageReservationError('no_active_usage_period');
-    if (periods.rows.length > 1) throw new UsageReservationError('overlapping_usage_periods');
-    const period = periods.rows[0];
+    const entitlement = await findActiveUsageEntitlement(tx, { workspaceId, now: checkedAt });
+    if (!entitlement) throw new UsageReservationError('active_entitlement_required');
+    let period;
+    try {
+      period = await ensureUsagePeriodInTransaction(tx, {
+        workspaceId,
+        entitlement,
+        now: checkedAt,
+      });
+    } catch (error) {
+      if (error?.message === 'invalid_subscription_usage_window'
+          || error?.message === 'invalid_competition_usage_window') {
+        throw new UsageReservationError('active_entitlement_required');
+      }
+      throw error;
+    }
 
     // Expired open reservations stop consuming quota; a late completion can still be settled
     // and recorded truthfully, after which future requests observe the actual overage.
@@ -105,7 +132,7 @@ export async function reserveTokens(db, {
       sql: `SELECT COALESCE(SUM(reserved_tokens), 0) AS stale_tokens
             FROM usage_reservations
             WHERE usage_period_id = ? AND status = 'reserved' AND expires_at <= ?`,
-      args: [period.id, now],
+      args: [period.id, checkedAt],
     });
     const staleTokens = Number(stale.rows[0]?.stale_tokens || 0);
     if (staleTokens > 0) {
@@ -116,7 +143,7 @@ export async function reserveTokens(db, {
       await tx.execute({
         sql: `UPDATE usage_reservations SET status = 'expired'
               WHERE usage_period_id = ? AND status = 'reserved' AND expires_at <= ?`,
-        args: [period.id, now],
+        args: [period.id, checkedAt],
       });
       period.reserved_tokens = Math.max(0, Number(period.reserved_tokens) - staleTokens);
     }
