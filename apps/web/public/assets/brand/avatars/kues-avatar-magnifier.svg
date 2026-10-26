@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Cartoon magnifying glass avatar">
+  <path d="m42.3 43.2 12 12" fill="none" stroke="#29292E" stroke-width="9" stroke-linecap="round"/>
+  <path d="m42.3 43.2 12 12" fill="none" stroke="#E99075" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="27" cy="27" r="20" fill="#D8F0E3" stroke="#29292E" stroke-width="3.5"/>
+  <circle cx="27" cy="27" r="15.5" fill="#8DD8B1" stroke="#F5B942" stroke-width="2.5"/>
+  <path d="M21.4 26.5v-2M32.6 26.5v-2" stroke="#202126" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M23.2 32.5c2.2 2.3 5.4 2.3 7.6 0" fill="none" stroke="#202126" stroke-width="2.2" stroke-linecap="round"/>
+  <circle cx="18.5" cy="31.6" r="1.8" fill="#EF927F"/><circle cx="35.5" cy="31.6" r="1.8" fill="#EF927F"/>
+</svg>
