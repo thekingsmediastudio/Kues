@@ -10,6 +10,7 @@ import { AuthError, createAuthService } from './lib/auth/service.mjs';
 import { createBrevoEmailDelivery } from './lib/auth/brevo-delivery.mjs';
 import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
 import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
+import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
 import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -218,7 +219,12 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       ipAddress: req.socket.remoteAddress,
       userAgent: String(req.headers['user-agent'] || '').slice(0, 512),
     });
-    sendJson(res, 200, { authenticated: true, isNewUser: result.isNewUser === true, user: result.user }, {
+    sendJson(res, 200, {
+      authenticated: true,
+      isNewUser: result.isNewUser === true,
+      needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
+      user: result.user,
+    }, {
       'Set-Cookie': setSessionCookie(config, result.sessionToken),
     });
     return true;
@@ -254,7 +260,12 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
   if (url.pathname === '/api/auth/email/consume' && req.method === 'POST') {
     const body = await readJsonBody(req);
     const result = await authService.consumeEmailMagicLink({ token: body.token });
-    sendJson(res, 200, { authenticated: true, user: result.user }, {
+    sendJson(res, 200, {
+      authenticated: true,
+      isNewUser: result.isNewUser === true,
+      needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
+      user: result.user,
+    }, {
       'Set-Cookie': setSessionCookie(config, result.sessionToken),
     });
     return true;
@@ -413,9 +424,70 @@ async function handleApiHubRequest(req, res, url, { config, authService, apiHubS
   return true;
 }
 
+async function handleWorkspaceRequest(req, res, url, { config, authService, workspaceService }) {
+  const bootstrapRoute = url.pathname === '/api/workspace/bootstrap';
+  const onboardingRoute = url.pathname === '/api/onboarding/complete';
+  if (!bootstrapRoute && !onboardingRoute) return false;
+
+  const expectedMethod = bootstrapRoute ? 'GET' : 'POST';
+  if (req.method !== expectedMethod) {
+    res.setHeader('Allow', `${expectedMethod}, OPTIONS`);
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return true;
+  }
+  if (onboardingRoute) {
+    const origin = requestOrigin(req);
+    if (!origin.present || !origin.valid || !origin.sameOrigin) {
+      sendJson(res, 403, { error: 'same_origin_required' });
+      return true;
+    }
+  }
+  if (!authService) {
+    sendJson(res, 503, { error: 'auth_storage_not_configured' });
+    return true;
+  }
+  if (!workspaceService) {
+    sendJson(res, 503, { error: 'workspace_storage_not_configured' });
+    return true;
+  }
+
+  let user = null;
+  try {
+    const token = cookieValue(req, sessionCookieName(config));
+    user = token ? await authService.getSession({ token }) : null;
+  } catch {
+    user = null;
+  }
+  if (!user) {
+    sendJson(res, 401, { error: 'authentication_required' });
+    return true;
+  }
+
+  try {
+    if (bootstrapRoute) {
+      const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+      sendJson(res, 200, bootstrap);
+      return true;
+    }
+    const input = await readJsonBody(req, 16 * 1024);
+    const bootstrap = await workspaceService.completeOnboarding({ userId: user.id, input });
+    sendJson(res, 200, { saved: true, ...bootstrap });
+    return true;
+  } catch (error) {
+    if (error instanceof WorkspaceError || error instanceof RequestError) {
+      sendJson(res, error.status, { error: error.code });
+    } else {
+      console.error('Workspace request failed:', error?.name || 'Error');
+      sendJson(res, 500, { error: 'workspace_request_failed' });
+    }
+    return true;
+  }
+}
+
 export function createServer({
   config = loadServerConfig(),
   authService = null,
+  workspaceService = null,
   workosAuth = null,
   apiHubService = null,
   allowEphemeralWorkOSTestSetup = false,
@@ -592,7 +664,7 @@ export function createServer({
             userAgent: String(req.headers['user-agent'] || '').slice(0, 512),
           });
           res.writeHead(302, {
-            Location: result.isNewUser === true ? '/onboarding' : '/app',
+            Location: result.needsOnboarding === true || result.isNewUser === true ? '/onboarding' : '/app',
             'Cache-Control': 'no-store',
             'Set-Cookie': [clearWorkOSStateCookie(activeConfig), setSessionCookie(activeConfig, result.sessionToken)],
           });
@@ -621,6 +693,15 @@ export function createServer({
           res.end();
         } else sendJson(res, 200, payload);
         return;
+      }
+
+      if (url.pathname.startsWith('/api/workspace/') || url.pathname.startsWith('/api/onboarding/')) {
+        const handled = await handleWorkspaceRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          workspaceService,
+        });
+        if (handled) return;
       }
 
       if (url.pathname.startsWith('/api/hub/')) {
@@ -805,6 +886,7 @@ if (isMain) {
     const port = Number(process.env.PORT || 3000);
     let db = null;
     let authService = null;
+    let workspaceService = null;
     let workosAuth = null;
     let apiHubService = null;
     try {
@@ -819,7 +901,8 @@ if (isMain) {
             appBaseUrl: process.env.APP_BASE_URL,
           })
           : null;
-        authService = createAuthService({ db, emailDelivery });
+        authService = createAuthService({ db, emailDelivery, competition: config.competition });
+        workspaceService = createWorkspaceService({ db, competition: config.competition });
         if (config.apiHubEnabled) {
           apiHubService = createApiHubService({ db, encryptionKey: process.env.API_HUB_ENCRYPTION_KEY });
         }
@@ -839,6 +922,7 @@ if (isMain) {
       const server = createServer({
         config,
         authService,
+        workspaceService,
         workosAuth,
         apiHubService,
         allowEphemeralWorkOSTestSetup: ephemeralWorkOSTestSetup,

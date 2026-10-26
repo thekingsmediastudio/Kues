@@ -10,6 +10,7 @@ import {
   releaseTokenReservation,
   settleTokenReservation,
   UsageLimitError,
+  UsageReservationError,
 } from '../../apps/web/lib/db/usage.mjs';
 
 const now = '2026-01-01T00:00:00.000Z';
@@ -24,7 +25,7 @@ async function seedTestDb(db, { tokenLimit = 100 } = {}) {
     { sql: "INSERT INTO entitlements(id, workspace_id, plan_id, source, starts_at, ends_at) VALUES ('e1', 'w1', 'p1', 'competition', '2025-12-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z')" },
     { sql: "INSERT INTO agents(id, workspace_id, name, role) VALUES ('a1', 'w1', 'Scout', 'web_scout')" },
     { sql: "INSERT INTO runs(id, workspace_id, user_id, agent_id, goal, status) VALUES ('r1', 'w1', 'u1', 'a1', 'Find a product', 'running')" },
-    { sql: "INSERT INTO usage_periods(id, workspace_id, entitlement_id, plan_id, starts_at, ends_at, token_limit) VALUES ('up1', 'w1', 'e1', 'p1', '2025-12-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z', ?) ", args: [tokenLimit] },
+    { sql: "INSERT INTO usage_periods(id, workspace_id, entitlement_id, plan_id, starts_at, ends_at, token_limit) VALUES ('up1', 'w1', 'e1', 'p1', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', ?) ", args: [tokenLimit] },
   ], 'write');
   return db;
 }
@@ -88,6 +89,100 @@ test('token reservations enforce caps, settle provider usage once, and support i
     assert.equal(Number(totals.rows[0].reserved_tokens), 0);
     const events = await db.execute("SELECT input_tokens, output_tokens, total_tokens FROM usage_events WHERE workspace_id = 'w1'");
     assert.deepEqual(events.rows.map((row) => [Number(row.input_tokens), Number(row.output_tokens), Number(row.total_tokens)]), [[18, 22, 40]]);
+  } finally {
+    await db.close();
+  }
+});
+
+test('competition token quota resets by UTC day and expires at the configured entitlement boundary', async () => {
+  const db = await createTestDb({ tokenLimit: 100 });
+  try {
+    const first = await reserveTokens(db, {
+      workspaceId: 'w1', userId: 'u1', runId: 'r1', idempotencyKey: 'day-one', estimatedTokens: 80, now,
+    });
+    await settleTokenReservation(db, {
+      workspaceId: 'w1', idempotencyKey: 'day-one', provider: 'workers-ai', model: 'test-model',
+      inputTokens: 50, outputTokens: 30, occurredAt: now,
+    });
+    await assert.rejects(
+      reserveTokens(db, {
+        workspaceId: 'w1', userId: 'u1', runId: 'r1', idempotencyKey: 'day-one-over-cap', estimatedTokens: 21, now,
+      }),
+      UsageLimitError,
+    );
+
+    const nextDay = await reserveTokens(db, {
+      workspaceId: 'w1', userId: 'u1', runId: 'r1', idempotencyKey: 'day-two', estimatedTokens: 80,
+      now: '2026-01-02T00:00:00.000Z',
+    });
+    assert.equal(nextDay.status, 'reserved');
+    const periods = await db.execute("SELECT starts_at, token_limit, consumed_tokens, reserved_tokens FROM usage_periods WHERE workspace_id = 'w1' ORDER BY starts_at");
+    assert.equal(periods.rows.length, 2);
+    assert.equal(periods.rows[0].starts_at, '2026-01-01T00:00:00.000Z');
+    assert.equal(periods.rows[1].starts_at, '2026-01-02T00:00:00.000Z');
+    assert.equal(Number(periods.rows[1].token_limit), 100);
+    assert.equal(Number(periods.rows[1].reserved_tokens), 80);
+
+    await assert.rejects(
+      reserveTokens(db, {
+        workspaceId: 'w1', userId: 'u1', runId: 'r1', idempotencyKey: 'after-competition', estimatedTokens: 1,
+        now: '2026-02-01T00:00:00.000Z',
+      }),
+      (error) => error instanceof UsageReservationError && error.code === 'active_entitlement_required',
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test('metered usage after competition requires an active paid subscription entitlement', async () => {
+  const db = await createTestDb({ tokenLimit: 100 });
+  try {
+    await db.batch([
+      { sql: "INSERT INTO plans(id, code, display_name, billing_interval, included_tokens) VALUES ('p2', 'paid-monthly', 'Paid monthly', 'month', 500)" },
+      { sql: "INSERT INTO subscriptions(id, workspace_id, plan_id, provider, external_subscription_id, status, current_period_start, current_period_end) VALUES ('s1', 'w1', 'p2', 'test-provider', 'sub-1', 'active', '2026-02-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z')" },
+      { sql: "INSERT INTO entitlements(id, workspace_id, plan_id, subscription_id, source, starts_at, ends_at) VALUES ('e2', 'w1', 'p2', 's1', 'subscription', '2026-02-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z')" },
+    ], 'write');
+    const reservation = await reserveTokens(db, {
+      workspaceId: 'w1', userId: 'u1', runId: 'r1', idempotencyKey: 'paid-period', estimatedTokens: 450,
+      now: '2026-02-10T12:00:00.000Z',
+    });
+    assert.equal(reservation.status, 'reserved');
+    const period = await db.execute({
+      sql: "SELECT entitlement_id, plan_id, starts_at, ends_at, token_limit FROM usage_periods WHERE id = ?",
+      args: [reservation.usagePeriodId],
+    });
+    assert.equal(period.rows[0].entitlement_id, 'e2');
+    assert.equal(period.rows[0].plan_id, 'p2');
+    assert.equal(period.rows[0].starts_at, '2026-02-01T00:00:00.000Z');
+    assert.equal(Number(period.rows[0].token_limit), 500);
+
+    await db.execute("UPDATE subscriptions SET status = 'past_due' WHERE id = 's1'");
+    await assert.rejects(
+      reserveTokens(db, {
+        workspaceId: 'w1', userId: 'u1', runId: 'r1', idempotencyKey: 'past-due', estimatedTokens: 1,
+        now: '2026-02-10T12:01:00.000Z',
+      }),
+      (error) => error instanceof UsageReservationError && error.code === 'active_entitlement_required',
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test('usage reservation checks workspace membership and run ownership', async () => {
+  const db = await createTestDb({ tokenLimit: 100 });
+  try {
+    await db.execute("INSERT INTO users(id, email_normalized) VALUES ('u2', 'u2@example.test')");
+    await assert.rejects(
+      reserveTokens(db, { workspaceId: 'w1', userId: 'u2', idempotencyKey: 'other-workspace', estimatedTokens: 1, now }),
+      (error) => error instanceof UsageReservationError && error.code === 'workspace_access_denied',
+    );
+    await db.execute("INSERT INTO workspace_members(workspace_id, user_id, role) VALUES ('w1', 'u2', 'member')");
+    await assert.rejects(
+      reserveTokens(db, { workspaceId: 'w1', userId: 'u2', runId: 'r1', idempotencyKey: 'other-run', estimatedTokens: 1, now }),
+      (error) => error instanceof UsageReservationError && error.code === 'run_access_denied',
+    );
   } finally {
     await db.close();
   }

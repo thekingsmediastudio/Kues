@@ -3456,6 +3456,10 @@ ${text}
 
   const PREVIEW_AGENT_STORAGE_KEY = 'keusPreviewAgentsV1';
   const LEGACY_PREVIEW_AGENT_STORAGE_KEY = 'kuesPreviewAgentsV1';
+  let activePreviewAgentStorageKey = PREVIEW_AGENT_STORAGE_KEY;
+  function setPreviewAgentStorageScope(userId) {
+    activePreviewAgentStorageKey = userId ? `${PREVIEW_AGENT_STORAGE_KEY}:${userId}` : PREVIEW_AGENT_STORAGE_KEY;
+  }
   const BUILT_IN_AGENT_IDS = new Set(['crew','nova','atlas','aegis','watcher']);
   const SAFE_PREVIEW_AVATARS = new Set(['bulb','laptop','shield','cart','car','parcel','magnifier','tag','wallet','van']);
   function savePreviewAgents() {
@@ -3465,7 +3469,10 @@ ${text}
       domains: agent.domains, memoryPills: agent.memoryPills, cardId: agent.cardId,
       approvalPath: agent.approvalPath || 'preview-only'
     }));
-    try { localStorage.setItem(PREVIEW_AGENT_STORAGE_KEY, JSON.stringify(entries)); localStorage.removeItem(LEGACY_PREVIEW_AGENT_STORAGE_KEY); } catch {}
+    try {
+      localStorage.setItem(activePreviewAgentStorageKey, JSON.stringify(entries));
+      if (activePreviewAgentStorageKey === PREVIEW_AGENT_STORAGE_KEY) localStorage.removeItem(LEGACY_PREVIEW_AGENT_STORAGE_KEY);
+    } catch {}
   }
   function addPreviewAgentRow(agent) {
     const list = document.getElementById('agentList');
@@ -3481,10 +3488,13 @@ ${text}
     meta.append(top,sub); row.append(avatar,meta); row.onclick=()=>selectTeammate(agent.id,row);
     list.prepend(row); setAvatar(avatar,agent,agent.avatar); return row;
   }
-  function restorePreviewAgents() {
+  function restorePreviewAgents({ allowLegacy = false } = {}) {
     try {
-      let raw=localStorage.getItem(PREVIEW_AGENT_STORAGE_KEY);
-      if(raw===null){raw=localStorage.getItem(LEGACY_PREVIEW_AGENT_STORAGE_KEY);if(raw!==null){localStorage.setItem(PREVIEW_AGENT_STORAGE_KEY,raw);localStorage.removeItem(LEGACY_PREVIEW_AGENT_STORAGE_KEY);}}
+      let raw=localStorage.getItem(activePreviewAgentStorageKey);
+      if(raw===null && allowLegacy && activePreviewAgentStorageKey===PREVIEW_AGENT_STORAGE_KEY){
+        raw=localStorage.getItem(LEGACY_PREVIEW_AGENT_STORAGE_KEY);
+        if(raw!==null){localStorage.setItem(PREVIEW_AGENT_STORAGE_KEY,raw);localStorage.removeItem(LEGACY_PREVIEW_AGENT_STORAGE_KEY);}
+      }
       const stored=JSON.parse(raw||'[]');
       if (!Array.isArray(stored)) return;
       stored.slice(0,20).forEach(item=>{
@@ -3509,41 +3519,98 @@ ${text}
       return raw;
     } catch { return null; }
   }
-  function applyPendingOnboardingSetup() {
-    let raw=readMigratedStorage(sessionStorage,'keusInitialSetup','cueclawInitialSetup');
-    if(!raw) raw=readMigratedStorage(localStorage,'keusOnboardingProfileV1','cueclawOnboardingProfileV1');
-    if(raw){
-      try {
-        const setup=JSON.parse(raw); try{sessionStorage.removeItem('keusInitialSetup');sessionStorage.removeItem('cueclawInitialSetup')}catch{}
-        const cleanName=String(setup.name||'Scout').trim().slice(0,30)||'Scout';
-        const base=cleanName.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,24)||'scout';
-        let id=/^preview_[a-z0-9_-]{1,40}$/i.test(setup.previewId||'')?setup.previewId:`preview_${base}`;
-        if(BUILT_IN_AGENT_IDS.has(id))id=`preview_${base}`;
-        if(!agents[id]){
-          const role=String(setup.role||'Web & commerce scout').trim().slice(0,60)||'Web & commerce scout';
-          const color=safeAvatarColor(setup.color), avatar=SAFE_PREVIEW_AVATARS.has(setup.avatar)?setup.avatar:'bulb';
-          const budget=Number.isFinite(setup.orderCap)&&setup.orderCap>=20&&setup.orderCap<=500?setup.orderCap:85;
-          const dailyBudget=Number.isFinite(setup.dailyCap)&&setup.dailyCap>=100&&setup.dailyCap<=2000?setup.dailyCap:250;
-          const agent={id,name:cleanName,handle:`@${id}.keus`,sub:role,color,glyph:'spark',avatar,email:`${id}@keus.example`,phone:'Desktop WebAuthn planned · not connected',approvalPath:setup.approvalPath==='desktop'?'desktop':'preview-only',cardId:masterCards[0].id,budget,dailyBudget,apps:Array.isArray(setup.apps)?setup.apps.filter(x=>masterAppsCatalog.some(app=>app.id===x)):[],goal:'Explore the workspace preview and set a first goal',domains:[],memoryPills:Array.isArray(setup.memoryPills)?setup.memoryPills.filter(v=>typeof v==='string'&&v.length<=80):[]};
-          agents[id]=agent; savePreviewAgents();
-          masterPolicyState.runCap=agent.budget; masterPolicyState.dailyCap=agent.dailyBudget;
-          document.getElementById('masterRunCapSlider').value=agent.budget; document.getElementById('masterDailyCapSlider').value=agent.dailyBudget;
-          document.getElementById('masterRunCapDisplay').textContent=`$${agent.budget.toFixed(0)} · preview`; document.getElementById('masterDailyCapDisplay').textContent=`$${agent.dailyBudget.toFixed(0)} · preview`;
-          const row=addPreviewAgentRow(agent); selectTeammate(id,row);
-        } else if (!BUILT_IN_AGENT_IDS.has(id)) {
-          const row=[...document.querySelectorAll('#agentList .agent-row')].find(item=>item.dataset.agentId===id);
-          if(row) selectTeammate(id,row);
+  async function applyPendingOnboardingSetup() {
+    let accountWorkspaceLoaded = false;
+    try {
+      const response = await fetch('/api/workspace/bootstrap', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      if (response.ok) {
+        const bootstrap = await response.json();
+        accountWorkspaceLoaded = true;
+        window.keusWorkspaceBootstrap = bootstrap;
+        if (bootstrap.workspace?.id) document.body.dataset.workspaceId = bootstrap.workspace.id;
+        setPreviewAgentStorageScope(bootstrap.user?.id || '');
+        restorePreviewAgents();
+
+        // Old browser copies are not authoritative after an account workspace is available.
+        try {
+          sessionStorage.removeItem('keusInitialSetup');
+          sessionStorage.removeItem('cueclawInitialSetup');
+          localStorage.removeItem('keusOnboardingProfileV1');
+          localStorage.removeItem('cueclawOnboardingProfileV1');
+        } catch {}
+
+        const onboarding = bootstrap.onboarding;
+        const savedAgent = onboarding?.agent;
+        const profile = onboarding?.profile || {};
+        if (onboarding?.status === 'completed' && savedAgent?.id
+            && /^onb_[a-f0-9]{32}$/i.test(savedAgent.id)) {
+          const details = profile.agent || {};
+          const settings = savedAgent.settings || {};
+          const maxPerOrder = Number(profile.purchaseLimits?.maxPerOrder?.amount ?? settings.orderCap);
+          const dailySpend = Number(profile.purchaseLimits?.dailyWorkspace?.amount ?? settings.dailyCap);
+          const cleanName = String(details.name || savedAgent.name || 'Scout').trim().slice(0, 30) || 'Scout';
+          const role = String(details.role || savedAgent.role || 'Web & commerce scout').trim().slice(0, 60) || 'Web & commerce scout';
+          const color = safeAvatarColor(details.color || settings.color);
+          const candidateAvatar = details.avatar || savedAgent.avatar;
+          const avatar = SAFE_PREVIEW_AVATARS.has(candidateAvatar) ? candidateAvatar : 'bulb';
+          const budget = Number.isFinite(maxPerOrder) && maxPerOrder >= 20 && maxPerOrder <= 500 ? maxPerOrder : 85;
+          const dailyBudget = Number.isFinite(dailySpend) && dailySpend >= 100 && dailySpend <= 2000 ? dailySpend : 250;
+          const agent = {
+            id: savedAgent.id,
+            name: cleanName,
+            handle: `@${savedAgent.id}.keus`,
+            sub: role,
+            color,
+            avatar,
+            glyph: 'spark',
+            email: `${savedAgent.id}@keus.example`,
+            phone: 'Preview only · no authenticator connected',
+            approvalPath: profile.approvalPath === 'desktop' ? 'desktop' : 'preview-only',
+            cardId: masterCards[0].id,
+            budget,
+            dailyBudget,
+            apps: Array.isArray(profile.apps) ? profile.apps.filter(x => masterAppsCatalog.some(app => app.id === x)) : [],
+            goal: 'Explore the workspace preview and set a first goal',
+            domains: [],
+            memoryPills: Array.isArray(profile.memoryPills) ? profile.memoryPills.filter(v => typeof v === 'string' && v.length <= 80) : [],
+            onboardingSource: 'shared_database',
+          };
+          agents[agent.id] = agent;
+          masterPolicyState.runCap = agent.budget;
+          masterPolicyState.dailyCap = agent.dailyBudget;
+          document.getElementById('masterRunCapSlider').value = agent.budget;
+          document.getElementById('masterDailyCapSlider').value = agent.dailyBudget;
+          document.getElementById('masterRunCapDisplay').textContent = `$${agent.budget.toFixed(0)} · preview`;
+          document.getElementById('masterDailyCapDisplay').textContent = `$${agent.dailyBudget.toFixed(0)} · preview`;
+          const row = addPreviewAgentRow(agent);
+          selectTeammate(agent.id, row);
         }
-      } catch(e) { console.warn('Could not apply onboarding preview',e); }
+      } else {
+        setPreviewAgentStorageScope(null);
+        restorePreviewAgents({ allowLegacy: true });
+      }
+    } catch {
+      setPreviewAgentStorageScope(null);
+      restorePreviewAgents({ allowLegacy: true });
     }
-    let pending=readMigratedStorage(sessionStorage,'keusPendingSettings','cueclawPendingSettings')||'';try{sessionStorage.removeItem('keusPendingSettings');sessionStorage.removeItem('cueclawPendingSettings')}catch{}
-    const routeSetting=new URLSearchParams(location.search).get('settings')||pending;
-    if(routeSetting==='device')openGeneralOverlay('device');
+
+    if (!accountWorkspaceLoaded) {
+      try {
+        sessionStorage.removeItem('keusInitialSetup');
+        sessionStorage.removeItem('cueclawInitialSetup');
+      } catch {}
+    }
+    let pending = readMigratedStorage(sessionStorage, 'keusPendingSettings', 'cueclawPendingSettings') || '';
+    try { sessionStorage.removeItem('keusPendingSettings'); sessionStorage.removeItem('cueclawPendingSettings'); } catch {}
+    const routeSetting = new URLSearchParams(location.search).get('settings') || pending;
+    if (routeSetting === 'device') openGeneralOverlay('device');
   }
-  restorePreviewAgents();
   initAvatars();
   renderMemoryPills();
-  applyPendingOnboardingSetup();
+  void applyPendingOnboardingSetup();
   initRangeControls();
 </script>
 </body>
