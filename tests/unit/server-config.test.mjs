@@ -67,6 +67,34 @@ test('WorkOS config is explicit, complete, callback-bound, database-backed, and 
   assert.equal(renderConfig.workosRedirectUri, 'https://keus-staging.onrender.com/auth/callback');
 });
 
+test('API Hub requires a WorkOS admin allowlist, Turso, and a 32-byte encryption key without exposing it', () => {
+  const encryptionKey = Buffer.alloc(32, 9).toString('base64');
+  const config = loadServerConfig({
+    API_HUB_ADMIN_EMAILS: ' Owner@Example.test, admin@example.test ',
+    API_HUB_ENCRYPTION_KEY: encryptionKey,
+    AUTH_PROVIDER: 'workos',
+    WORKOS_API_KEY: 'sk_test_key',
+    WORKOS_CLIENT_ID: 'client_1234',
+    RENDER_EXTERNAL_URL: 'https://keus-staging.onrender.com',
+    TURSO_DATABASE_URL: 'libsql://keus.example.turso.io',
+    TURSO_AUTH_TOKEN: 'db-token',
+  });
+  assert.equal(config.apiHubEnabled, true);
+  assert.deepEqual(config.apiHubAdminEmails, ['owner@example.test', 'admin@example.test']);
+  assert.equal(JSON.stringify(config).includes(encryptionKey), false);
+  assert.throws(() => loadServerConfig({ API_HUB_ADMIN_EMAILS: 'owner@example.test' }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    API_HUB_ADMIN_EMAILS: 'owner@example.test', API_HUB_ENCRYPTION_KEY: 'bad',
+    AUTH_PROVIDER: 'workos', WORKOS_API_KEY: 'sk_test_key', WORKOS_CLIENT_ID: 'client_1234',
+    WORKOS_REDIRECT_URI: 'https://keus.example.test/auth/callback', TURSO_DATABASE_URL: 'file:./local.db',
+  }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    API_HUB_ADMIN_EMAILS: 'not-an-email', API_HUB_ENCRYPTION_KEY: encryptionKey,
+    AUTH_PROVIDER: 'workos', WORKOS_API_KEY: 'sk_test_key', WORKOS_CLIENT_ID: 'client_1234',
+    WORKOS_REDIRECT_URI: 'https://keus.example.test/auth/callback', TURSO_DATABASE_URL: 'file:./local.db',
+  }), ConfigError);
+});
+
 test('server config rejects live PayPal, partial credentials, and wildcard CORS', () => {
   assert.throws(() => loadServerConfig({ PAYPAL_ENV: 'live' }), ConfigError);
   assert.throws(() => loadServerConfig({ PAYPAL_CLIENT_ID: 'id-only' }), ConfigError);
