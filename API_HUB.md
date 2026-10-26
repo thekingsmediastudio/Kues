@@ -1,6 +1,6 @@
 # Keus API Hub
 
-**Status: the base API Hub is deployed to `https://keus-staging.onrender.com`; its health endpoint returns HTTP 200.** The current WorkOS session reaches the owner-only console route but is denied until `API_HUB_ADMIN_EMAILS` includes that verified email. The editable-connector update is implemented and passes the local suite, but still needs to be pushed and deployed. The Hub replaces the one-off, memory-only GitHub/Render helper bridges with a self-hosted, login-protected API connection registry. It uses Turso for persistent metadata and does not depend on an Arena session once deployed; it does depend on the user's Render, Turso, and WorkOS accounts and configured credentials.
+**Status: the base API Hub is deployed to `https://keus-staging.onrender.com`; its health endpoint returns HTTP 200, and the owner has accessed the console.** A scoped key successfully retrieved the agent manifest, but the first GitHub read invocation returned `connector_request_failed`. The cause was Node's `autoSelectFamily` DNS lookup shape being incompatible with the pinned-address callback; a compatibility fix is implemented locally and passes the 67-test suite, but still needs to be pushed and deployed. The Hub replaces the one-off, memory-only GitHub/Render helper bridges with a self-hosted, login-protected API connection registry. It uses Turso for persistent metadata and does not depend on an Arena session once deployed; it does depend on the user's Render, Turso, and WorkOS accounts and configured credentials.
 
 ## What it does
 
