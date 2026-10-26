@@ -79,6 +79,23 @@ export function loadServerConfig(env = process.env) {
   const parsedOrigins = parseAllowedOrigins(env.CORS_ALLOWED_ORIGINS);
   issues.push(...parsedOrigins.issues);
 
+  const apiHubAdminEmails = [...new Set(String(env.API_HUB_ADMIN_EMAILS || '')
+    .split(',').map((email) => email.trim().normalize('NFKC').toLowerCase()).filter(Boolean))];
+  if (apiHubAdminEmails.some((email) => email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    issues.push('API_HUB_ADMIN_EMAILS must contain comma-separated valid email addresses');
+  }
+  const apiHubEncryptionKey = String(env.API_HUB_ENCRYPTION_KEY || '').trim();
+  if (apiHubAdminEmails.length) {
+    const keyBytes = /^[a-f0-9]{64}$/i.test(apiHubEncryptionKey)
+      ? Buffer.from(apiHubEncryptionKey, 'hex')
+      : Buffer.from(apiHubEncryptionKey, 'base64');
+    const canonicalBase64 = keyBytes.toString('base64').replace(/=+$/, '')
+      === apiHubEncryptionKey.replace(/=+$/, '');
+    if (!apiHubEncryptionKey || keyBytes.length !== 32 || (!/^[a-f0-9]{64}$/i.test(apiHubEncryptionKey) && !canonicalBase64)) {
+      issues.push('API_HUB_ENCRYPTION_KEY must be a 32-byte base64 or 64-character hexadecimal key when the API Hub is enabled');
+    }
+  }
+
   const databaseUrl = String(env.TURSO_DATABASE_URL || '').trim();
   const databaseToken = String(env.TURSO_AUTH_TOKEN || '').trim();
   const remoteDatabase = databaseUrl.startsWith('libsql://') || databaseUrl.startsWith('https://');
@@ -88,6 +105,12 @@ export function loadServerConfig(env = process.env) {
   const authProvider = String(env.AUTH_PROVIDER || '').trim().toLowerCase();
   if (authProvider && !['workos', 'brevo'].includes(authProvider)) {
     issues.push('AUTH_PROVIDER must be workos or brevo');
+  }
+  if (apiHubAdminEmails.length && authProvider !== 'workos') {
+    issues.push('API_HUB_ADMIN_EMAILS requires AUTH_PROVIDER=workos');
+  }
+  if (apiHubAdminEmails.length && !databaseUrl) {
+    issues.push('TURSO_DATABASE_URL is required when the API Hub is enabled');
   }
 
   const workosApiKey = String(env.WORKOS_API_KEY || '').trim();
@@ -161,5 +184,7 @@ export function loadServerConfig(env = process.env) {
     emailDeliveryConfigured: authProvider === 'brevo' && emailProvider === 'brevo'
       && Boolean(brevoApiKey && emailFrom && appBaseUrl),
     allowedOrigins: Object.freeze(parsedOrigins.origins),
+    apiHubEnabled: apiHubAdminEmails.length > 0,
+    apiHubAdminEmails: Object.freeze(apiHubAdminEmails),
   });
 }
