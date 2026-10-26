@@ -1,0 +1,165 @@
+export class ConfigError extends Error {
+  constructor(issues) {
+    super(`Invalid server configuration: ${issues.join('; ')}`);
+    this.name = 'ConfigError';
+    this.issues = issues;
+  }
+}
+
+function parseAllowedOrigins(value) {
+  if (!value || !String(value).trim()) return { origins: [], issues: [] };
+
+  const origins = [];
+  const issues = [];
+  for (const raw of String(value).split(',')) {
+    const candidate = raw.trim();
+    if (!candidate) continue;
+    if (candidate === '*') {
+      issues.push('CORS_ALLOWED_ORIGINS must not contain wildcard origins');
+      continue;
+    }
+    try {
+      const parsed = new URL(candidate);
+      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== candidate) {
+        issues.push('CORS_ALLOWED_ORIGINS entries must be bare http(s) origins without paths');
+        continue;
+      }
+      origins.push(parsed.origin);
+    } catch {
+      issues.push('CORS_ALLOWED_ORIGINS contains an invalid origin');
+    }
+  }
+  return { origins: [...new Set(origins)], issues };
+}
+
+function validateAppOrigin(value, issues) {
+  try {
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)
+        || (parsed.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(parsed.hostname))
+        || parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== '/') {
+      issues.push('APP_BASE_URL must be an HTTPS origin (HTTP is allowed only on localhost)');
+    }
+  } catch {
+    issues.push('APP_BASE_URL must be a valid HTTPS origin');
+  }
+}
+
+function validateWorkOSRedirectUri(value, issues) {
+  try {
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)
+        || (parsed.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(parsed.hostname))
+        || parsed.username || parsed.password || parsed.search || parsed.hash
+        || parsed.pathname !== '/auth/callback') {
+      issues.push('WORKOS_REDIRECT_URI must be an HTTPS callback URL ending in /auth/callback (HTTP is allowed only on localhost)');
+    }
+  } catch {
+    issues.push('WORKOS_REDIRECT_URI must be a valid HTTPS callback URL');
+  }
+}
+
+/**
+ * Reads only server-side configuration. Secrets are deliberately not returned in this object.
+ * Cross-origin browser access is opt-in; same-origin desktop requests need no CORS allowlist.
+ */
+export function loadServerConfig(env = process.env) {
+  const issues = [];
+  const paypalMode = String(env.PAYPAL_ENV || 'sandbox').trim().toLowerCase();
+  if (paypalMode !== 'sandbox') {
+    issues.push('PAYPAL_ENV must be sandbox; live payment mode is out of scope');
+  }
+
+  const clientId = String(env.PAYPAL_CLIENT_ID || '').trim();
+  const clientSecret = String(env.PAYPAL_CLIENT_SECRET || '').trim();
+  if (Boolean(clientId) !== Boolean(clientSecret)) {
+    issues.push('PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET must be set together');
+  }
+
+  const parsedOrigins = parseAllowedOrigins(env.CORS_ALLOWED_ORIGINS);
+  issues.push(...parsedOrigins.issues);
+
+  const databaseUrl = String(env.TURSO_DATABASE_URL || '').trim();
+  const databaseToken = String(env.TURSO_AUTH_TOKEN || '').trim();
+  const remoteDatabase = databaseUrl.startsWith('libsql://') || databaseUrl.startsWith('https://');
+  if (databaseToken && !databaseUrl) issues.push('TURSO_AUTH_TOKEN requires TURSO_DATABASE_URL');
+  if (remoteDatabase && !databaseToken) issues.push('TURSO_AUTH_TOKEN is required for remote Turso databases');
+
+  const authProvider = String(env.AUTH_PROVIDER || '').trim().toLowerCase();
+  if (authProvider && !['workos', 'brevo'].includes(authProvider)) {
+    issues.push('AUTH_PROVIDER must be workos or brevo');
+  }
+
+  const workosApiKey = String(env.WORKOS_API_KEY || '').trim();
+  const workosClientId = String(env.WORKOS_CLIENT_ID || '').trim();
+  const googleOAuthFlag = String(env.WORKOS_GOOGLE_OAUTH_ENABLED || '').trim();
+  const githubOAuthFlag = String(env.WORKOS_GITHUB_OAUTH_ENABLED || '').trim();
+  if (googleOAuthFlag && !['0', '1'].includes(googleOAuthFlag)) issues.push('WORKOS_GOOGLE_OAUTH_ENABLED must be 0 or 1');
+  if (githubOAuthFlag && !['0', '1'].includes(githubOAuthFlag)) issues.push('WORKOS_GITHUB_OAUTH_ENABLED must be 0 or 1');
+  if ((googleOAuthFlag === '1' || githubOAuthFlag === '1') && authProvider !== 'workos') {
+    issues.push('Google/GitHub OAuth flags require AUTH_PROVIDER=workos');
+  }
+  let renderCallbackDefault = '';
+  const renderExternalUrl = String(env.RENDER_EXTERNAL_URL || '').trim();
+  if (renderExternalUrl) {
+    try {
+      renderCallbackDefault = new URL('/auth/callback', renderExternalUrl).toString();
+    } catch {
+      // The normal redirect validation below reports an invalid platform URL without echoing it.
+    }
+  }
+  const workosRedirectUri = String(env.WORKOS_REDIRECT_URI || renderCallbackDefault).trim();
+  const hasWorkOSSettings = Boolean(workosApiKey || workosClientId || workosRedirectUri);
+  if (authProvider === 'workos') {
+    if (!databaseUrl) issues.push('TURSO_DATABASE_URL is required when WorkOS authentication is enabled');
+    if (!workosApiKey) issues.push('WORKOS_API_KEY is required for WorkOS authentication');
+    if (!workosClientId) issues.push('WORKOS_CLIENT_ID is required for WorkOS authentication');
+    if (!workosRedirectUri) issues.push('WORKOS_REDIRECT_URI is required for WorkOS authentication');
+    if (workosRedirectUri) validateWorkOSRedirectUri(workosRedirectUri, issues);
+    if (env.EMAIL_PROVIDER || env.BREVO_API_KEY || env.EMAIL_FROM || env.APP_BASE_URL) {
+      issues.push('Brevo email settings cannot be enabled together with AUTH_PROVIDER=workos');
+    }
+  } else if (hasWorkOSSettings) {
+    issues.push('AUTH_PROVIDER=workos is required when WorkOS settings are present');
+  }
+
+  const emailProvider = String(env.EMAIL_PROVIDER || '').trim().toLowerCase();
+  const brevoApiKey = String(env.BREVO_API_KEY || '').trim();
+  const emailFrom = String(env.EMAIL_FROM || '').trim();
+  const appBaseUrl = String(env.APP_BASE_URL || '').trim();
+  if (emailProvider && emailProvider !== 'brevo') {
+    issues.push('EMAIL_PROVIDER must be brevo when email delivery is enabled');
+  }
+  const hasEmailSettings = Boolean(emailProvider || brevoApiKey || emailFrom || appBaseUrl);
+  if (authProvider === 'brevo' || hasEmailSettings) {
+    if (authProvider !== 'brevo') issues.push('AUTH_PROVIDER=brevo is required for Brevo email delivery');
+    if (!databaseUrl) issues.push('TURSO_DATABASE_URL is required when email sign-in is configured');
+    if (emailProvider !== 'brevo') issues.push('EMAIL_PROVIDER=brevo is required for Brevo email delivery');
+    if (!brevoApiKey) issues.push('BREVO_API_KEY is required for Brevo email delivery');
+    if (!emailFrom) issues.push('EMAIL_FROM is required for Brevo email delivery');
+    if (!appBaseUrl) issues.push('APP_BASE_URL is required for Brevo email delivery');
+    if (emailFrom && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailFrom)) {
+      issues.push('EMAIL_FROM must be a valid sender address');
+    }
+    if (appBaseUrl) validateAppOrigin(appBaseUrl, issues);
+  }
+
+  if (issues.length) throw new ConfigError(issues);
+
+  const workosConfigured = authProvider === 'workos' && Boolean(workosApiKey && workosClientId && workosRedirectUri);
+  return Object.freeze({
+    nodeEnv: String(env.NODE_ENV || 'development').trim(),
+    paypalMode,
+    paypalConfigured: Boolean(clientId && clientSecret),
+    databaseConfigured: Boolean(databaseUrl),
+    authProvider: authProvider || null,
+    workosConfigured,
+    workosGoogleOAuthEnabled: workosConfigured && googleOAuthFlag === '1',
+    workosGithubOAuthEnabled: workosConfigured && githubOAuthFlag === '1',
+    workosRedirectUri: authProvider === 'workos' ? workosRedirectUri : null,
+    emailProvider: emailProvider || null,
+    emailDeliveryConfigured: authProvider === 'brevo' && emailProvider === 'brevo'
+      && Boolean(brevoApiKey && emailFrom && appBaseUrl),
+    allowedOrigins: Object.freeze(parsedOrigins.origins),
+  });
+}
