@@ -1,0 +1,14 @@
+{
+  "name": "@kues/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env.local server.mjs",
+    "start": "node --env-file-if-exists=../../.env.local server.mjs"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@workos-inc/node": "^8.13.0"
+  }
+}
