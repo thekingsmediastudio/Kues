@@ -9,6 +9,7 @@ import { applyMigrations } from './lib/db/migrate.mjs';
 import { AuthError, createAuthService } from './lib/auth/service.mjs';
 import { createBrevoEmailDelivery } from './lib/auth/brevo-delivery.mjs';
 import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
+import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
 import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,7 @@ const loginHtmlPath = path.join(publicDir, 'login.html');
 const devWorkOSTestSetupHtmlPath = path.join(publicDir, 'dev-workos-test-setup.html');
 const authVerifyHtmlPath = path.join(publicDir, 'auth-verify.html');
 const pocketHtmlPath = path.join(publicDir, 'pocket.html');
+const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
   ['/keus-icon.svg', ['keus-icon.svg', 'image/svg+xml']],
@@ -80,8 +82,8 @@ function applyAllowedCors(req, res, config) {
 
   res.setHeader('Access-Control-Allow-Origin', origin.value);
   res.setHeader('Vary', 'Origin');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, X-Keus-Setup-Token, X-Kues-Setup-Token');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Keus-Setup-Token, X-Kues-Setup-Token');
   return true;
 }
 
@@ -268,10 +270,143 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
   return false;
 }
 
+async function handleApiHubRequest(req, res, url, { config, authService, apiHubService }) {
+  if (!config.apiHubEnabled || !apiHubService) {
+    sendJson(res, 503, { error: 'api_hub_not_configured' });
+    return true;
+  }
+
+  const adminPaths = url.pathname.startsWith('/api/hub/admin/');
+  if (adminPaths) {
+    if (req.method !== 'GET') {
+      const origin = requestOrigin(req);
+      if (!origin.present || !origin.valid || !origin.sameOrigin) {
+        sendJson(res, 403, { error: 'same_origin_required' });
+        return true;
+      }
+    }
+    if (!authService) {
+      sendJson(res, 503, { error: 'auth_storage_not_configured' });
+      return true;
+    }
+    let user = null;
+    try {
+      const token = cookieValue(req, sessionCookieName(config));
+      user = token ? await authService.getSession({ token }) : null;
+    } catch {
+      user = null;
+    }
+    if (!user) {
+      sendJson(res, 401, { error: 'authentication_required' });
+      return true;
+    }
+    const admins = Array.isArray(config.apiHubAdminEmails) ? config.apiHubAdminEmails : [];
+    if (!admins.includes(String(user.email || '').trim().normalize('NFKC').toLowerCase())) {
+      sendJson(res, 403, { error: 'api_hub_admin_required' });
+      return true;
+    }
+
+    try {
+      if (url.pathname === '/api/hub/admin/connectors' && req.method === 'GET') {
+        sendJson(res, 200, { connectors: await apiHubService.listConnectors({ ownerUserId: user.id }) });
+        return true;
+      }
+      if (url.pathname === '/api/hub/admin/connectors' && req.method === 'POST') {
+        const input = await readJsonBody(req, 64 * 1024);
+        const connector = await apiHubService.createConnector({ ownerUserId: user.id, input });
+        sendJson(res, 201, { connector });
+        return true;
+      }
+      const deleteConnectorMatch = url.pathname.match(/^\/api\/hub\/admin\/connectors\/([0-9a-f-]{36})$/i);
+      if (deleteConnectorMatch && req.method === 'DELETE') {
+        sendJson(res, 200, await apiHubService.deleteConnector({ ownerUserId: user.id, connectorId: deleteConnectorMatch[1] }));
+        return true;
+      }
+      if (url.pathname === '/api/hub/admin/tokens' && req.method === 'GET') {
+        sendJson(res, 200, { tokens: await apiHubService.listTokens({ ownerUserId: user.id }) });
+        return true;
+      }
+      if (url.pathname === '/api/hub/admin/tokens' && req.method === 'POST') {
+        const body = await readJsonBody(req, 16 * 1024);
+        const token = await apiHubService.createAccessToken({
+          ownerUserId: user.id,
+          label: body.label,
+          scopes: body.scopes,
+          expiresInDays: body.expiresInDays,
+        });
+        sendJson(res, 201, { token });
+        return true;
+      }
+      const revokeTokenMatch = url.pathname.match(/^\/api\/hub\/admin\/tokens\/([0-9a-f-]{36})\/revoke$/i);
+      if (revokeTokenMatch && req.method === 'POST') {
+        sendJson(res, 200, await apiHubService.revokeAccessToken({ ownerUserId: user.id, tokenId: revokeTokenMatch[1] }));
+        return true;
+      }
+      if (url.pathname === '/api/hub/admin/audit' && req.method === 'GET') {
+        sendJson(res, 200, { events: await apiHubService.listAudit({ ownerUserId: user.id }) });
+        return true;
+      }
+      sendJson(res, 404, { error: 'api_hub_admin_route_not_found' });
+      return true;
+    } catch (error) {
+      if (error instanceof ApiHubError || error instanceof RequestError) {
+        sendJson(res, error.status, { error: error.code });
+      } else {
+        console.error('API Hub admin request failed:', error?.name || 'Error');
+        sendJson(res, 500, { error: 'api_hub_request_failed' });
+      }
+      return true;
+    }
+  }
+
+  if (url.pathname === '/api/hub/manifest' && req.method === 'GET') {
+    const match = String(req.headers.authorization || '').match(/^Bearer (khub_[A-Za-z0-9_-]{43})$/);
+    if (!match) {
+      sendJson(res, 401, { error: 'agent_token_invalid' });
+      return true;
+    }
+    try {
+      sendJson(res, 200, await apiHubService.listManifest({ token: match[1] }));
+    } catch (error) {
+      if (error instanceof ApiHubError) sendJson(res, error.status, { error: error.code });
+      else {
+        console.error('API Hub manifest request failed:', error?.name || 'Error');
+        sendJson(res, 500, { error: 'api_hub_request_failed' });
+      }
+    }
+    return true;
+  }
+
+  if (url.pathname === '/api/hub/invoke' && req.method === 'POST') {
+    const match = String(req.headers.authorization || '').match(/^Bearer (khub_[A-Za-z0-9_-]{43})$/);
+    if (!match) {
+      sendJson(res, 401, { error: 'agent_token_invalid' });
+      return true;
+    }
+    try {
+      const body = await readJsonBody(req, 96 * 1024);
+      const result = await apiHubService.invoke({ ...body, token: match[1] });
+      sendJson(res, 200, result);
+    } catch (error) {
+      if (error instanceof ApiHubError || error instanceof RequestError) {
+        sendJson(res, error.status, { error: error.code });
+      } else {
+        console.error('API Hub invocation failed:', error?.name || 'Error');
+        sendJson(res, 500, { error: 'api_hub_request_failed' });
+      }
+    }
+    return true;
+  }
+
+  sendJson(res, 404, { error: 'api_hub_route_not_found' });
+  return true;
+}
+
 export function createServer({
   config = loadServerConfig(),
   authService = null,
   workosAuth = null,
+  apiHubService = null,
   allowEphemeralWorkOSTestSetup = false,
   signInOnlyPreview = false,
   workosClientFactory = ({ apiKey, clientId }) => new WorkOS({ apiKey, clientId }),
@@ -477,6 +612,15 @@ export function createServer({
         return;
       }
 
+      if (url.pathname.startsWith('/api/hub/')) {
+        await handleApiHubRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          apiHubService,
+        });
+        return;
+      }
+
       if (url.pathname.startsWith('/api/auth/')) {
         try {
           const handled = await handleAuthRequest(req, res, url, activeConfig, authService, activeWorkosAuth, {
@@ -514,6 +658,55 @@ export function createServer({
         res.setHeader('Allow', 'GET, HEAD, OPTIONS');
         res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8' });
         res.end('Method not allowed');
+        return;
+      }
+
+      if (url.pathname === '/api-hub') {
+        if (!['GET', 'HEAD'].includes(req.method)) {
+          res.setHeader('Allow', 'GET, HEAD');
+          res.writeHead(405, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end('Method not allowed');
+          return;
+        }
+        if (!activeConfig.apiHubEnabled || !apiHubService) {
+          sendJson(res, 404, { error: 'api_hub_not_configured' });
+          return;
+        }
+        if (!authService) {
+          sendJson(res, 503, { error: 'auth_storage_not_configured' });
+          return;
+        }
+        let adminUser = null;
+        try {
+          const token = cookieValue(req, sessionCookieName(activeConfig));
+          adminUser = token ? await authService.getSession({ token }) : null;
+        } catch {
+          adminUser = null;
+        }
+        if (!adminUser) {
+          redirect(res, '/login?auth_error=session');
+          return;
+        }
+        const allowedAdmins = Array.isArray(activeConfig.apiHubAdminEmails) ? activeConfig.apiHubAdminEmails : [];
+        if (!allowedAdmins.includes(String(adminUser.email || '').trim().normalize('NFKC').toLowerCase())) {
+          res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end('API Hub administrator access required');
+          return;
+        }
+        try {
+          const html = readHtml(apiHubHtmlPath);
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Pragma': 'no-cache',
+            'X-Frame-Options': 'DENY',
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", 
+          });
+          res.end(req.method === 'HEAD' ? undefined : html);
+        } catch {
+          res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end('API Hub page unavailable');
+        }
         return;
       }
 
@@ -602,6 +795,7 @@ if (isMain) {
     let db = null;
     let authService = null;
     let workosAuth = null;
+    let apiHubService = null;
     try {
       if (config.databaseConfigured) {
         db = createDatabaseClient();
@@ -615,6 +809,9 @@ if (isMain) {
           })
           : null;
         authService = createAuthService({ db, emailDelivery });
+        if (config.apiHubEnabled) {
+          apiHubService = createApiHubService({ db, encryptionKey: process.env.API_HUB_ENCRYPTION_KEY });
+        }
         if (config.workosConfigured) {
           const workos = new WorkOS({
             apiKey: process.env.WORKOS_API_KEY,
@@ -632,6 +829,7 @@ if (isMain) {
         config,
         authService,
         workosAuth,
+        apiHubService,
         allowEphemeralWorkOSTestSetup: ephemeralWorkOSTestSetup,
         signInOnlyPreview,
       });
