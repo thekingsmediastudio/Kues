@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="robots" content="noindex,nofollow">
+<title>Keus API Hub</title>
+<style>
+:root{color-scheme:dark;background:#0b1110;color:#eff5f0;font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;--line:#2b3933;--muted:#a2b2a9;--accent:#9af0b0;--panel:#121b17;--field:#0d1411}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 85% 0%,#193828 0,transparent 35%),#0b1110}header{border-bottom:1px solid var(--line);padding:18px clamp(16px,4vw,40px);display:flex;align-items:center;justify-content:space-between;gap:12px}header strong{letter-spacing:.08em}header a{color:var(--accent);text-decoration:none}.wrap{max-width:1120px;margin:0 auto;padding:30px clamp(16px,4vw,40px) 64px}.eyebrow{color:var(--accent);font-size:12px;text-transform:uppercase;letter-spacing:.16em;font-weight:700}h1{margin:6px 0 8px;font-size:clamp(28px,4vw,42px);letter-spacing:-.04em}.lede{max-width:760px;color:var(--muted);margin:0 0 24px}.notice{padding:13px 16px;border:1px solid #685730;border-radius:12px;background:#211d12;color:#ddd0aa;font-size:13px;margin:18px 0 24px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.panel{border:1px solid var(--line);border-radius:15px;background:linear-gradient(155deg,#17221c,#101714);padding:18px;min-width:0}.panel.wide{grid-column:1/-1}h2{margin:0 0 12px;font-size:19px}h3{margin:0;font-size:15px}p.small,.small{font-size:12px;color:var(--muted)}.field{display:grid;gap:6px;margin:12px 0}label{font-size:13px;color:#d9e4dc}input,select,textarea{width:100%;padding:10px 11px;border:1px solid #35443c;border-radius:8px;background:var(--field);color:#f4f7f4;font:inherit}input,select{min-height:42px}textarea{min-height:100px;resize:vertical;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}input:focus,select:focus,textarea:focus{outline:2px solid #67d993;outline-offset:1px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}button{border:0;border-radius:8px;padding:10px 14px;background:var(--accent);color:#0b1b10;font:inherit;font-weight:750;cursor:pointer}button.secondary{background:#24362c;color:#d9efe0;border:1px solid #3e5747}button.danger{background:#3b2424;color:#ffd9d3;border:1px solid #70423e}button:disabled{opacity:.5;cursor:wait}.status{min-height:20px;margin:8px 0 0;font-size:13px;color:var(--muted)}.status.error{color:#ff9a90}.status.ok{color:var(--accent)}.cards{display:grid;gap:10px}.item{border:1px solid var(--line);border-radius:10px;background:#0e1511;padding:12px;display:grid;gap:8px;overflow-wrap:anywhere}.item-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.tag{display:inline-flex;padding:2px 7px;border:1px solid #395444;border-radius:99px;color:#a7e9b7;font-size:11px;margin:2px 4px 2px 0}.tag.warn{border-color:#755d31;color:#e2cc91}.muted{color:var(--muted);font-size:12px}.scope-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;border:1px solid var(--line);border-radius:8px;max-height:170px;overflow:auto}.scope{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:#d4dfd7}.scope input{width:16px;height:16px;min-height:0;margin:1px 0 0;accent-color:#75e19a}.token-output{display:grid;gap:8px;margin-top:12px;padding:12px;border:1px solid #627943;border-radius:10px;background:#1b2314}.token-output textarea{min-height:60px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:12px}th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:#b9c9bf;white-space:nowrap}code{color:#c5edce;overflow-wrap:anywhere}.endpoint{padding:12px;border-radius:8px;background:#0a100d;border:1px solid var(--line);overflow-wrap:anywhere}.copy-note{font-size:12px;color:var(--muted)}@media(max-width:760px){.grid{grid-template-columns:1fr}.panel.wide{grid-column:auto}.row{grid-template-columns:1fr}.scope-list{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<header><strong>KEUS <span style="color:#9af0b0">API HUB</span></strong><a href="/app">Back to Keus</a></header>
+<main class="wrap">
+  <div class="eyebrow">Owner console · private connections</div>
+  <h1>Connect APIs once.<br>Use them from any agent.</h1>
+  <p class="lede">Register a provider, define the operations it may expose, then issue a short-lived scoped key for an agent. Provider credentials stay server-side and encrypted; agents never receive them.</p>
+  <div class="notice"><strong>Safety by design:</strong> only registered HTTPS hosts and named operations can be called. Secrets are encrypted at rest and never shown again after saving. Mutating operations require an explicitly scoped agent key and <code>confirmWrite: true</code>. Do not register keys with more privileges than needed.</div>
+  <div class="grid">
+    <section class="panel">
+      <h2>Register an API</h2>
+      <form id="connector-form" autocomplete="off">
+        <div class="field"><label for="connector-name">Connection name</label><input id="connector-name" required maxlength="80" placeholder="GitHub staging"></div>
+        <div class="field"><label for="base-url">HTTPS API base URL</label><input id="base-url" type="url" required placeholder="https://api.example.com/v1"></div>
+        <div class="row">
+          <div class="field"><label for="auth-type">Authentication</label><select id="auth-type"><option value="bearer">Bearer token</option><option value="header">Custom header</option><option value="none">No authentication</option></select></div>
+          <div class="field" id="header-field" hidden><label for="auth-header">Header name</label><input id="auth-header" maxlength="64" placeholder="X-API-Key"></div>
+        </div>
+        <div class="field" id="secret-field"><label for="auth-secret">Provider secret</label><input id="auth-secret" type="password" autocomplete="new-password" maxlength="4096" placeholder="Entered securely; never displayed again"></div>
+        <div class="field"><label for="default-headers">Optional fixed headers (JSON)</label><textarea id="default-headers" spellcheck="false">{"Accept":"application/json"}</textarea><div class="small">Do not put credentials here; use the authentication field above.</div></div>
+        <div class="field"><label for="operations">Allowed operations (JSON)</label><textarea id="operations" spellcheck="false">[
+  {"name":"get-repository","method":"GET","path":"/repos/{owner}/{repo}","description":"Read repository metadata"},
+  {"name":"write-file","method":"PUT","path":"/repos/{owner}/{repo}/contents/{path*}","description":"Create or update a file; requires explicit write confirmation"}
+]</textarea><div class="small">Methods: GET, HEAD, POST, PUT, PATCH, DELETE. Use <code>{name}</code> for one path segment and <code>{path*}</code> for a slash-separated path. Paths cannot include query strings.</div></div>
+        <button id="connector-submit" type="submit">Save encrypted connection</button><p class="status" id="connector-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>Registered connections</h2>
+      <p class="small">This list shows connection metadata and allowed operations only—never the provider secret.</p>
+      <div id="connectors" class="cards"><p class="muted">Loading…</p></div>
+    </section>
+    <section class="panel wide">
+      <h2>Create an agent key</h2>
+      <p class="small">Choose exact operations and an expiry (up to 90 days). The bearer key is displayed only once; copy it to your agent’s private secret store.</p>
+      <form id="token-form" autocomplete="off">
+        <div class="row">
+          <div class="field"><label for="token-label">Key label</label><input id="token-label" required maxlength="80" placeholder="Keus deployment agent"></div>
+          <div class="field"><label for="token-days">Expires after</label><select id="token-days"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></div>
+        </div>
+        <div class="field"><label>Allowed connector operations</label><div id="scopes" class="scope-list"><span class="muted">Register an API first.</span></div></div>
+        <button id="token-submit" type="submit">Create scoped agent key</button><p class="status" id="token-status" role="status" aria-live="polite"></p>
+      </form>
+      <div id="new-token" class="token-output" hidden></div>
+    </section>
+    <section class="panel">
+      <h2>Agent keys</h2><div id="tokens" class="cards"><p class="muted">Loading…</p></div>
+    </section>
+    <section class="panel">
+      <h2>Recent activity</h2><div id="audit" class="table-wrap"><p class="muted">Loading…</p></div>
+    </section>
+    <section class="panel wide">
+      <h2>Agent API</h2>
+      <p class="small">Use an agent key in the <code>Authorization: Bearer</code> header. The API key authorizes only the operations you selected.</p>
+      <div class="endpoint"><code id="invoke-endpoint"></code></div>
+      <p class="small">1. Fetch <code>GET /api/hub/manifest</code> to discover the allowed tools. 2. Invoke one with <code>POST /api/hub/invoke</code> and JSON: <code>{"connectorId":"…","operation":"get-repository","pathParams":{"owner":"…","repo":"…"},"query":{}}</code>. For non-GET operations, also include <code>"confirmWrite":true</code> and the JSON <code>body</code>. The public API returns upstream status/data, not provider credentials.</p>
+      <p class="copy-note">This Keus staging service may sleep when idle on its free hosting plan; the first request after sleep can take longer. Keep agent keys out of prompts, source control, and browser code.</p>
+    </section>
+  </div>
+</main>
+<script>
+const byId=id=>document.getElementById(id);
+const connectorStatus=byId('connector-status');
+const tokenStatus=byId('token-status');
+let connectors=[];
+async function api(path,options={}){
+  const response=await fetch(path,{...options,headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})},cache:'no-store'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
+  return data;
+}
+function status(el,message,kind=''){el.className=`status ${kind}`;el.textContent=message;}
+function addText(parent,text,className=''){const node=document.createElement('div');if(className)node.className=className;node.textContent=text;parent.append(node);return node;}
+function makeButton(label,kind,onClick){const button=document.createElement('button');button.type='button';button.className=kind||'secondary';button.textContent=label;button.addEventListener('click',onClick);return button;}
+function renderConnectors(){
+  const root=byId('connectors');root.replaceChildren();
+  if(!connectors.length){addText(root,'No APIs registered yet.','muted');renderScopes();return;}
+  for(const connector of connectors){
+    const card=document.createElement('article');card.className='item';
+    const top=document.createElement('div');top.className='item-top';
+    const title=document.createElement('div');addText(title,connector.name);addText(title,connector.baseUrl,'muted');
+    const remove=makeButton('Remove','danger',async()=>{if(!confirm(`Remove ${connector.name}? Existing agent keys will no longer work for it.`))return;try{await api(`/api/hub/admin/connectors/${encodeURIComponent(connector.id)}`,{method:'DELETE'});await refresh();}catch(error){alert(error.message);}});
+    top.append(title,remove);card.append(top);
+    const badges=document.createElement('div');badges.className='muted';badges.append(document.createTextNode(`${connector.authType} auth · `));
+    for(const operation of connector.operations){const badge=document.createElement('span');badge.className=`tag ${['GET','HEAD'].includes(operation.method)?'':'warn'}`;badge.textContent=`${operation.method} ${operation.name}`;badges.append(badge);}
+    card.append(badges);root.append(card);
+  }
+  renderScopes();
+}
+function renderScopes(){
+  const root=byId('scopes');root.replaceChildren();
+  const items=connectors.flatMap(connector=>connector.operations.map(operation=>({connector,operation})));
+  if(!items.length){addText(root,'Register an API first.','muted');return;}
+  for(const {connector,operation} of items){
+    const label=document.createElement('label');label.className='scope';
+    const input=document.createElement('input');input.type='checkbox';input.value=`${connector.id}:${operation.name}`;
+    const text=document.createElement('span');text.textContent=`${connector.name} · ${operation.method} ${operation.name}`;
+    label.append(input,text);root.append(label);
+  }
+}
+function renderTokens(items){
+  const root=byId('tokens');root.replaceChildren();
+  if(!items.length){addText(root,'No agent keys created.','muted');return;}
+  for(const item of items){
+    const card=document.createElement('article');card.className='item';
+    const row=document.createElement('div');row.className='item-top';
+    const title=document.createElement('div');addText(title,item.label);addText(title,`${item.scopes.length} scoped operation(s) · expires ${new Date(item.expiresAt).toLocaleString()}`,'muted');
+    row.append(title);
+    if(!item.revokedAt && Date.parse(item.expiresAt)>Date.now())row.append(makeButton('Revoke','danger',async()=>{if(!confirm(`Revoke ${item.label}?`))return;try{await api(`/api/hub/admin/tokens/${encodeURIComponent(item.id)}/revoke`,{method:'POST',body:'{}'});await refresh();}catch(error){alert(error.message);}}));
+    card.append(row);addText(card,item.revokedAt?'Revoked':`Last used: ${item.lastUsedAt?new Date(item.lastUsedAt).toLocaleString():'never'}`,'muted');root.append(card);
+  }
+}
+function renderAudit(events){
+  const root=byId('audit');root.replaceChildren();
+  if(!events.length){addText(root,'No agent API calls yet.','muted');return;}
+  const table=document.createElement('table');const head=document.createElement('thead');const hr=document.createElement('tr');
+  for(const name of ['When','Operation','Upstream','Result']){const th=document.createElement('th');th.textContent=name;hr.append(th);}head.append(hr);table.append(head);
+  const body=document.createElement('tbody');
+  for(const event of events){const row=document.createElement('tr');for(const value of [new Date(event.createdAt).toLocaleString(),`${event.method} ${event.operation}`,event.upstreamStatus??'—',event.outcome]){const td=document.createElement('td');td.textContent=String(value);row.append(td);}body.append(row);}table.append(body);root.append(table);
+}
+async function refresh(){
+  const [connectorData,tokenData,auditData]=await Promise.all([
+    api('/api/hub/admin/connectors'),api('/api/hub/admin/tokens'),api('/api/hub/admin/audit'),
+  ]);
+  connectors=connectorData.connectors||[];renderConnectors();renderTokens(tokenData.tokens||[]);renderAudit(auditData.events||[]);
+}
+byId('auth-type').addEventListener('change',()=>{
+  const type=byId('auth-type').value;byId('header-field').hidden=type!=='header';byId('secret-field').hidden=type==='none';
+});
+byId('connector-form').addEventListener('submit',async event=>{
+  event.preventDefault();const button=byId('connector-submit');button.disabled=true;status(connectorStatus,'Validating and saving encrypted connection…');
+  try{
+    const defaultHeaders=JSON.parse(byId('default-headers').value||'{}');
+    const operations=JSON.parse(byId('operations').value||'[]');
+    const payload={name:byId('connector-name').value,baseUrl:byId('base-url').value,authType:byId('auth-type').value,
+      authHeader:byId('auth-header').value,authSecret:byId('auth-secret').value,defaultHeaders,operations};
+    byId('auth-secret').value='';
+    const result=await api('/api/hub/admin/connectors',{method:'POST',body:JSON.stringify(payload)});
+    byId('connector-name').value='';status(connectorStatus,`Saved ${result.connector.name}; its secret is encrypted and will not be shown again.`,'ok');await refresh();
+  }catch(error){status(connectorStatus,error.message,'error');}finally{button.disabled=false;}
+});
+byId('token-form').addEventListener('submit',async event=>{
+  event.preventDefault();const button=byId('token-submit');button.disabled=true;status(tokenStatus,'Creating a scoped key…');
+  try{
+    const scopes=[...byId('scopes').querySelectorAll('input:checked')].map(input=>input.value);
+    const result=await api('/api/hub/admin/tokens',{method:'POST',body:JSON.stringify({label:byId('token-label').value,scopes,expiresInDays:Number(byId('token-days').value)})});
+    byId('token-label').value='';const output=byId('new-token');output.replaceChildren();output.hidden=false;
+    addText(output,'Copy this key now. It will not be shown again.','');
+    const textarea=document.createElement('textarea');textarea.readOnly=true;textarea.value=result.token.token;output.append(textarea);
+    output.append(makeButton('Copy key','secondary',async()=>{await navigator.clipboard.writeText(textarea.value);status(tokenStatus,'Copied. Store it in the agent’s private secret store.','ok');}));
+    status(tokenStatus,'Key created. Store it securely; only the hash is retained by Keus.','ok');await refresh();
+  }catch(error){status(tokenStatus,error.message,'error');}finally{button.disabled=false;}
+});
+byId('invoke-endpoint').textContent=`POST ${location.origin}/api/hub/invoke`;
+refresh().catch(error=>{status(connectorStatus,`API Hub is unavailable: ${error.message}`,'error');});
+</script>
+</body>
+</html>
