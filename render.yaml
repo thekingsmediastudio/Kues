@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: keus-staging
+    runtime: node
+    region: frankfurt
+    plan: free
+    rootDir: .
+    buildCommand: npm ci
+    startCommand: npm --workspace apps/web run start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_PROVIDER
+        value: workos
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: WORKOS_API_KEY
+        sync: false
+      - key: WORKOS_CLIENT_ID
+        sync: false
+      - key: WORKOS_GOOGLE_OAUTH_ENABLED
+        value: "0"
+      - key: WORKOS_GITHUB_OAUTH_ENABLED
+        value: "0"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
