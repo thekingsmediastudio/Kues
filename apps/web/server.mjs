@@ -317,6 +317,17 @@ async function handleApiHubRequest(req, res, url, { config, authService, apiHubS
         sendJson(res, 201, { connector });
         return true;
       }
+      const updateConnectorMatch = url.pathname.match(/^\/api\/hub\/admin\/connectors\/([0-9a-f-]{36})$/i);
+      if (updateConnectorMatch && req.method === 'PUT') {
+        const input = await readJsonBody(req, 64 * 1024);
+        const connector = await apiHubService.updateConnector({
+          ownerUserId: user.id,
+          connectorId: updateConnectorMatch[1],
+          input,
+        });
+        sendJson(res, 200, { connector });
+        return true;
+      }
       const deleteConnectorMatch = url.pathname.match(/^\/api\/hub\/admin\/connectors\/([0-9a-f-]{36})$/i);
       if (deleteConnectorMatch && req.method === 'DELETE') {
         sendJson(res, 200, await apiHubService.deleteConnector({ ownerUserId: user.id, connectorId: deleteConnectorMatch[1] }));
