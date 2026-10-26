@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { withWriteTransaction } from '../db/transaction.mjs';
+import { ensureDefaultWorkspaceInTransaction } from '../workspaces/service.mjs';
 
 const EMAIL_LINK_TTL_SECONDS = 15 * 60;
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -44,7 +45,7 @@ function userView(row) {
   return { id: row.id, email: row.email_normalized, displayName: row.display_name };
 }
 
-export function createAuthService({ db, emailDelivery = null } = {}) {
+export function createAuthService({ db, emailDelivery = null, competition = null } = {}) {
   if (!db) throw new TypeError('db_required');
 
   async function requestEmailMagicLink({ email: rawEmail, now = new Date().toISOString() }) {
@@ -125,6 +126,7 @@ export function createAuthService({ db, emailDelivery = null } = {}) {
         args: [challenge.identifier],
       });
       let user = userResult.rows[0];
+      let isNewUser = false;
       if (!user) {
         const userId = crypto.randomUUID();
         await tx.execute({
@@ -133,6 +135,7 @@ export function createAuthService({ db, emailDelivery = null } = {}) {
           args: [userId, challenge.identifier, consumedAt, consumedAt],
         });
         user = { id: userId, email_normalized: challenge.identifier, display_name: '', status: 'active' };
+        isNewUser = true;
       }
       if (user.status !== 'active') throw new AuthError('account_unavailable', 403);
 
@@ -158,6 +161,18 @@ export function createAuthService({ db, emailDelivery = null } = {}) {
         });
       }
 
+      const provisioned = await ensureDefaultWorkspaceInTransaction(tx, {
+        userId: user.id,
+        displayName: user.display_name,
+        now: consumedAt,
+        competition,
+      });
+      const onboardingResult = await tx.execute({
+        sql: 'SELECT status FROM workspace_onboarding WHERE workspace_id = ?',
+        args: [provisioned.workspace.id],
+      });
+      const needsOnboarding = onboardingResult.rows[0]?.status !== 'completed';
+
       const sessionToken = crypto.randomBytes(32).toString('base64url');
       const sessionId = crypto.randomUUID();
       const sessionExpiresAt = new Date(Date.parse(consumedAt) + SESSION_TTL_SECONDS * 1000).toISOString();
@@ -172,6 +187,8 @@ export function createAuthService({ db, emailDelivery = null } = {}) {
         sessionToken,
         sessionId,
         sessionExpiresAt,
+        isNewUser,
+        needsOnboarding,
       };
     });
   }
@@ -281,6 +298,25 @@ export function createAuthService({ db, emailDelivery = null } = {}) {
         });
       }
 
+      if (!String(user.display_name || '').trim() && name) {
+        await tx.execute({
+          sql: 'UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?',
+          args: [name, createdAt, user.id],
+        });
+        user = { ...user, display_name: name };
+      }
+      const provisioned = await ensureDefaultWorkspaceInTransaction(tx, {
+        userId: user.id,
+        displayName: user.display_name || name,
+        now: createdAt,
+        competition,
+      });
+      const onboardingResult = await tx.execute({
+        sql: 'SELECT status FROM workspace_onboarding WHERE workspace_id = ?',
+        args: [provisioned.workspace.id],
+      });
+      const needsOnboarding = onboardingResult.rows[0]?.status !== 'completed';
+
       const sessionToken = crypto.randomBytes(32).toString('base64url');
       const sessionId = crypto.randomUUID();
       const sessionExpiresAt = new Date(Date.parse(createdAt) + SESSION_TTL_SECONDS * 1000).toISOString();
@@ -296,6 +332,7 @@ export function createAuthService({ db, emailDelivery = null } = {}) {
         sessionId,
         sessionExpiresAt,
         isNewUser,
+        needsOnboarding,
       };
     });
   }
