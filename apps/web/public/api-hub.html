@@ -16,7 +16,7 @@
   <div class="notice"><strong>Safety by design:</strong> only registered HTTPS hosts and named operations can be called. Secrets are encrypted at rest and never shown again after saving. Mutating operations require an explicitly scoped agent key and <code>confirmWrite: true</code>. Do not register keys with more privileges than needed.</div>
   <div class="grid">
     <section class="panel">
-      <h2>Register an API</h2>
+      <h2 id="connector-heading">Register an API</h2>
       <form id="connector-form" autocomplete="off">
         <div class="field"><label for="connector-name">Connection name</label><input id="connector-name" required maxlength="80" placeholder="GitHub staging"></div>
         <div class="field"><label for="base-url">HTTPS API base URL</label><input id="base-url" type="url" required placeholder="https://api.example.com/v1"></div>
@@ -24,13 +24,13 @@
           <div class="field"><label for="auth-type">Authentication</label><select id="auth-type"><option value="bearer">Bearer token</option><option value="header">Custom header</option><option value="none">No authentication</option></select></div>
           <div class="field" id="header-field" hidden><label for="auth-header">Header name</label><input id="auth-header" maxlength="64" placeholder="X-API-Key"></div>
         </div>
-        <div class="field" id="secret-field"><label for="auth-secret">Provider secret</label><input id="auth-secret" type="password" autocomplete="new-password" maxlength="4096" placeholder="Entered securely; never displayed again"></div>
-        <div class="field"><label for="default-headers">Optional fixed headers (JSON)</label><textarea id="default-headers" spellcheck="false">{"Accept":"application/json"}</textarea><div class="small">Do not put credentials here; use the authentication field above.</div></div>
+        <div class="field" id="secret-field"><label for="auth-secret">Provider secret</label><input id="auth-secret" type="password" autocomplete="new-password" maxlength="4096" placeholder="Entered securely; never displayed again"><div class="small" id="secret-help">Do not paste provider credentials into chat. When editing, leave blank to keep the saved credential, or enter a new one to replace it.</div></div>
+        <div class="field"><label for="default-headers">Optional fixed headers (JSON)</label><textarea id="default-headers" spellcheck="false">{"Accept":"application/json"}</textarea><div class="small">Do not put credentials here; use the authentication field above. When editing, leave blank to retain the saved headers, or enter JSON to replace them.</div></div>
         <div class="field"><label for="operations">Allowed operations (JSON)</label><textarea id="operations" spellcheck="false">[
   {"name":"get-repository","method":"GET","path":"/repos/{owner}/{repo}","description":"Read repository metadata"},
   {"name":"write-file","method":"PUT","path":"/repos/{owner}/{repo}/contents/{path*}","description":"Create or update a file; requires explicit write confirmation"}
 ]</textarea><div class="small">Methods: GET, HEAD, POST, PUT, PATCH, DELETE. Use <code>{name}</code> for one path segment and <code>{path*}</code> for a slash-separated path. Paths cannot include query strings.</div></div>
-        <button id="connector-submit" type="submit">Save encrypted connection</button><p class="status" id="connector-status" role="status" aria-live="polite"></p>
+        <div class="row"><button id="connector-submit" type="submit">Save encrypted connection</button><button id="connector-cancel" class="secondary" type="button" hidden>Cancel edit</button></div><p class="status" id="connector-status" role="status" aria-live="polite"></p>
       </form>
     </section>
     <section class="panel">
@@ -71,6 +71,7 @@ const byId=id=>document.getElementById(id);
 const connectorStatus=byId('connector-status');
 const tokenStatus=byId('token-status');
 let connectors=[];
+let editingConnectorId=null;
 async function api(path,options={}){
   const response=await fetch(path,{...options,headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})},cache:'no-store'});
   const data=await response.json().catch(()=>({}));
@@ -87,8 +88,10 @@ function renderConnectors(){
     const card=document.createElement('article');card.className='item';
     const top=document.createElement('div');top.className='item-top';
     const title=document.createElement('div');addText(title,connector.name);addText(title,connector.baseUrl,'muted');
-    const remove=makeButton('Remove','danger',async()=>{if(!confirm(`Remove ${connector.name}? Existing agent keys will no longer work for it.`))return;try{await api(`/api/hub/admin/connectors/${encodeURIComponent(connector.id)}`,{method:'DELETE'});await refresh();}catch(error){alert(error.message);}});
-    top.append(title,remove);card.append(top);
+    const actions=document.createElement('div');actions.style.display='flex';actions.style.gap='8px';
+    const edit=makeButton('Edit','secondary',()=>beginConnectorEdit(connector));
+    const remove=makeButton('Remove','danger',async()=>{if(!confirm(`Remove ${connector.name}? Existing agent keys will no longer work for it.`))return;try{await api(`/api/hub/admin/connectors/${encodeURIComponent(connector.id)}`,{method:'DELETE'});if(editingConnectorId===connector.id)resetConnectorForm();await refresh();}catch(error){alert(error.message);}});
+    actions.append(edit,remove);top.append(title,actions);card.append(top);
     const badges=document.createElement('div');badges.className='muted';badges.append(document.createTextNode(`${connector.authType} auth · `));
     for(const operation of connector.operations){const badge=document.createElement('span');badge.className=`tag ${['GET','HEAD'].includes(operation.method)?'':'warn'}`;badge.textContent=`${operation.method} ${operation.name}`;badges.append(badge);}
     card.append(badges);root.append(card);
@@ -106,6 +109,39 @@ function renderScopes(){
     label.append(input,text);root.append(label);
   }
 }
+function updateAuthFields(){
+  const type=byId('auth-type').value;
+  byId('header-field').hidden=type!=='header';
+  byId('secret-field').hidden=type==='none';
+}
+function resetConnectorForm(){
+  editingConnectorId=null;
+  byId('connector-form').reset();
+  byId('auth-secret').value='';
+  byId('connector-heading').textContent='Register an API';
+  byId('connector-submit').textContent='Save encrypted connection';
+  byId('connector-cancel').hidden=true;
+  updateAuthFields();
+  status(connectorStatus,'');
+}
+function beginConnectorEdit(connector){
+  editingConnectorId=connector.id;
+  byId('connector-name').value=connector.name;
+  byId('base-url').value=connector.baseUrl;
+  byId('auth-type').value=connector.authType;
+  byId('auth-header').value=connector.authHeader||'';
+  byId('auth-secret').value='';
+  byId('default-headers').value='';
+  byId('operations').value=JSON.stringify(connector.operations,null,2);
+  byId('connector-heading').textContent=`Edit ${connector.name}`;
+  byId('connector-submit').textContent='Save connection changes';
+  byId('connector-cancel').hidden=false;
+  updateAuthFields();
+  status(connectorStatus,'Saved credentials and fixed headers are retained unless you replace them.','ok');
+  byId('connector-name').focus();
+  byId('connector-form').scrollIntoView({behavior:'smooth',block:'start'});
+}
+byId('connector-cancel').addEventListener('click',resetConnectorForm);
 function renderTokens(items){
   const root=byId('tokens');root.replaceChildren();
   if(!items.length){addText(root,'No agent keys created.','muted');return;}
@@ -132,19 +168,24 @@ async function refresh(){
   ]);
   connectors=connectorData.connectors||[];renderConnectors();renderTokens(tokenData.tokens||[]);renderAudit(auditData.events||[]);
 }
-byId('auth-type').addEventListener('change',()=>{
-  const type=byId('auth-type').value;byId('header-field').hidden=type!=='header';byId('secret-field').hidden=type==='none';
-});
+byId('auth-type').addEventListener('change',updateAuthFields);
+updateAuthFields();
 byId('connector-form').addEventListener('submit',async event=>{
   event.preventDefault();const button=byId('connector-submit');button.disabled=true;status(connectorStatus,'Validating and saving encrypted connection…');
+  const wasEditing=Boolean(editingConnectorId);
   try{
-    const defaultHeaders=JSON.parse(byId('default-headers').value||'{}');
+    const headersText=byId('default-headers').value.trim();
     const operations=JSON.parse(byId('operations').value||'[]');
     const payload={name:byId('connector-name').value,baseUrl:byId('base-url').value,authType:byId('auth-type').value,
-      authHeader:byId('auth-header').value,authSecret:byId('auth-secret').value,defaultHeaders,operations};
+      authHeader:byId('auth-header').value,authSecret:byId('auth-secret').value,operations};
+    if(headersText)payload.defaultHeaders=JSON.parse(headersText);
+    else if(!wasEditing)payload.defaultHeaders={};
     byId('auth-secret').value='';
-    const result=await api('/api/hub/admin/connectors',{method:'POST',body:JSON.stringify(payload)});
-    byId('connector-name').value='';status(connectorStatus,`Saved ${result.connector.name}; its secret is encrypted and will not be shown again.`,'ok');await refresh();
+    const endpoint=wasEditing?`/api/hub/admin/connectors/${encodeURIComponent(editingConnectorId)}`:'/api/hub/admin/connectors';
+    const result=await api(endpoint,{method:wasEditing?'PUT':'POST',body:JSON.stringify(payload)});
+    resetConnectorForm();
+    status(connectorStatus,`${wasEditing?'Updated':'Saved'} ${result.connector.name}; the provider credential remains encrypted and is not displayed.`,'ok');
+    await refresh();
   }catch(error){status(connectorStatus,error.message,'error');}finally{button.disabled=false;}
 });
 byId('token-form').addEventListener('submit',async event=>{
