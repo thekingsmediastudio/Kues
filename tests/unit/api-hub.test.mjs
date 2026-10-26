@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '@libsql/client';
 import { applyMigrations } from '../../apps/web/lib/db/migrate.mjs';
-import { ApiHubError, createApiHubService } from '../../apps/web/lib/api-hub/service.mjs';
+import { ApiHubError, createApiHubService, createPinnedLookup } from '../../apps/web/lib/api-hub/service.mjs';
 
 const ownerId = 'owner-api-hub-0001';
 const encryptionKey = Buffer.alloc(32, 7).toString('base64');
@@ -24,6 +24,21 @@ async function createHub({ fetchImpl, resolveHost } = {}) {
   });
   return { db, service };
 }
+
+test('pinned HTTPS lookup returns Node-compatible shapes for all and single-address requests', () => {
+  const lookup = createPinnedLookup({ address: '93.184.216.34', family: 4 });
+  let allResult;
+  lookup('api.example.com', { all: true }, (...args) => { allResult = args; });
+  assert.deepEqual(allResult, [null, [{ address: '93.184.216.34', family: 4 }]]);
+
+  let singleResult;
+  lookup('api.example.com', { all: false }, (...args) => { singleResult = args; });
+  assert.deepEqual(singleResult, [null, '93.184.216.34', 4]);
+
+  let callbackOnlyResult;
+  lookup('api.example.com', (...args) => { callbackOnlyResult = args; });
+  assert.deepEqual(callbackOnlyResult, [null, '93.184.216.34', 4]);
+});
 
 const connectorInput = (overrides = {}) => ({
   name: 'GitHub staging',
