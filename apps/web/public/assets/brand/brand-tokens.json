@@ -1,0 +1,24 @@
+{
+  "brand": "Kues",
+  "mascot": "existing friendly green cloud character; retained unchanged",
+  "color": {
+    "charcoal": "#111113",
+    "emerald": "#32D583",
+    "face": "#173026",
+    "cheek": "#F39B91",
+    "wordmarkOnDark": "#F3F3F5",
+    "wordmarkOnLight": "#17181B",
+    "warmGoldAccent": "#F5B942"
+  },
+  "type": {
+    "family": "DejaVu Sans, Arial, sans-serif for logo lockup; system UI for product",
+    "logoSvgWordmark": "Editable SVG text"
+  },
+  "assetNotes": [
+    "Horizontal logo SVGs have transparent backgrounds.",
+    "Dark variant is for charcoal or similarly dark surfaces.",
+    "Light variant is for white or light surfaces.",
+    "Square app-icon exports use the retained cloud mark and contain no wordmark.",
+    "The mascot artwork is unchanged; only the brand name is Kues."
+  ]
+}
