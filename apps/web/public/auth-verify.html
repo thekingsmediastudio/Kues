@@ -19,8 +19,9 @@
   const response=await fetch('/api/auth/email/consume',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({token})});
   const data=await response.json();
   if(!response.ok){const errors={link_already_used:'This sign-in link has already been used.',invalid_or_expired_link:'This sign-in link is invalid or has expired.'};throw new Error(errors[data.error]||'We could not verify this link.')}
-  message.textContent='Signed in. Opening your Keus workspace…';
-  setTimeout(()=>location.assign('/app'),500);
+  const needsOnboarding=data.needsOnboarding===true||data.isNewUser===true;
+  message.textContent=needsOnboarding?'Account ready. Opening setup…':'Signed in. Opening your Keus workspace…';
+  setTimeout(()=>location.assign(needsOnboarding?'/onboarding':'/app'),500);
  }catch(error){message.textContent=error.message||'We could not verify this link.';message.classList.add('error')}
 })();
 </script></body></html>
