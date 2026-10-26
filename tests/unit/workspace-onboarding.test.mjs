@@ -101,6 +101,7 @@ test('onboarding is persisted in the owner workspace and returned from the share
     assert.equal(before.onboarding.status, 'not_started');
     assert.equal(before.usageAccess.state, 'competition_free');
     assert.equal(before.usageAccess.tokenLimit, competition.dailyTokenLimit);
+    assert.equal(before.usageAccess.quotaScope, 'account');
 
     const saved = await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now });
     assert.equal(saved.onboarding.status, 'completed');
