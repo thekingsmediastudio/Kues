@@ -24,6 +24,14 @@ services:
         value: "0"
       - key: WORKOS_GITHUB_OAUTH_ENABLED
         value: "0"
+      # PayPal AI Hackathon 2026 competition access: opening through the end of judging.
+      # 1 Oct 2026 9:15 AM Pacific = 5:15 PM WAT; judging ends 15 Dec 2026 5:00 PM WAT.
+      - key: KEUS_COMPETITION_START_AT
+        value: "2026-10-01T17:15:00+01:00"
+      - key: KEUS_COMPETITION_END_AT
+        value: "2026-12-15T17:00:00+01:00"
+      - key: KEUS_COMPETITION_DAILY_TOKEN_LIMIT
+        value: "7000000"
       - key: TURSO_DATABASE_URL
         sync: false
       - key: TURSO_AUTH_TOKEN
