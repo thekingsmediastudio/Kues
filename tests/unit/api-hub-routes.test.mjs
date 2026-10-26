@@ -89,6 +89,28 @@ test('API Hub management is login/admin protected and agent routes use scoped be
       assert.equal(connector.name, 'Sample API');
       assert.equal(JSON.stringify(connector).includes('a-secret-token'), false);
 
+      const noOriginUpdate = await fetch(`${base}/api/hub/admin/connectors/${encodeURIComponent(connector.id)}`, {
+        method: 'PUT', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Sample API Edited', baseUrl: 'https://api.example.com/v2', authType: 'bearer',
+          authSecret: '', operations: [{ name: 'list-items', method: 'GET', path: '/items' }],
+        }),
+      });
+      assert.equal(noOriginUpdate.status, 403);
+
+      const updatedResponse = await fetch(`${base}/api/hub/admin/connectors/${encodeURIComponent(connector.id)}`, {
+        method: 'PUT', headers: { Cookie: cookie, Origin: origin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Sample API Edited', baseUrl: 'https://api.example.com/v2', authType: 'bearer',
+          authSecret: '', operations: [{ name: 'list-items', method: 'GET', path: '/items' }],
+        }),
+      });
+      assert.equal(updatedResponse.status, 200);
+      const editedConnector = (await updatedResponse.json()).connector;
+      assert.equal(editedConnector.name, 'Sample API Edited');
+      assert.equal(editedConnector.baseUrl, 'https://api.example.com/v2/');
+      assert.equal(JSON.stringify(editedConnector).includes('a-secret-token'), false);
+
       const tokenResponse = await fetch(`${base}/api/hub/admin/tokens`, {
         method: 'POST', headers: { Cookie: cookie, Origin: origin, 'Content-Type': 'application/json' },
         body: JSON.stringify({ label: 'agent key', scopes: [`${connector.id}:list-items`], expiresInDays: 7 }),
