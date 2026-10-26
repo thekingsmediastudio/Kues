@@ -685,7 +685,7 @@ export function createServer({
         const payload = {
           ok: true,
           service: 'keus-desktop',
-          version: '2.2.0',
+          version: '2.2.1',
           surfaces: ['desktop:/app', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {
