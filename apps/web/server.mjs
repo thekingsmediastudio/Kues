@@ -763,7 +763,7 @@ export function createServer({
         const payload = {
           ok: true,
           service: 'keus-web',
-          version: '2.3.1',
+          version: '2.3.2',
           surfaces: ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {
