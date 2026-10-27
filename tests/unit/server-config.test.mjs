@@ -322,6 +322,12 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /:root\[data-theme="light"\]\{--agent-avatar-outline:#111113\}/);
     assert.match(desktopPreview, /\.cueclaw-brand-name \{ color:#fff;font:800 14px/);
     assert.match(desktopPreview, /:root\[data-theme="light"\] \.cueclaw-brand-name \{ color:#111113; \}/);
+    assert.match(desktopPreview, /\.account-menu-user span\{color:var\(--text-dim\);font-size:12px\}/);
+    assert.match(desktopPreview, /\.account-menu-user strong\{margin-top:3px;color:var\(--text-main\);font-size:14px/);
+    assert.match(desktopPreview, /\.account-menu-user small\{margin-top:3px;color:var\(--text-sec\);font-size:12px\}/);
+    assert.match(desktopPreview, /\.account-menu-item\{[^}]*font:500 13px var\(--font\)/);
+    assert.match(desktopPreview, /\.account-trigger-copy strong\{[^}]*font-size:12px/);
+    assert.match(desktopPreview, /\.account-trigger-copy small\{[^}]*font-size:11px/);
     assert.match(desktopPreview, /New agents are saved as paused and will not run automatically/);
     assert.match(desktopPreview, /This sample review account is not authenticated and cannot save agents/);
     const desktopMarkup = desktopPreview.replace(/<script>[\s\S]*?<\/script>/g, '');
