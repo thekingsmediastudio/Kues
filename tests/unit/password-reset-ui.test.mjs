@@ -18,3 +18,11 @@ test('login page opens a separate code-based password recovery form with no rese
   assert.match(loginPage, /\/api\/auth\/password\/reset\/verify/);
   assert.doesNotMatch(loginPage, /password setup link|password reset link|reset link/i);
 });
+
+test('Google and GitHub actions support shared sign-in and account creation', () => {
+  assert.match(loginPage, /id="googleButton"/);
+  assert.match(loginPage, /id="githubButton"/);
+  assert.match(loginPage, /new URLSearchParams\(\{provider,intent:authMode\}\)/);
+  assert.match(loginPage, /can be used to sign in or create an account/);
+  assert.match(loginPage, /Create with email and password, or continue with Google or GitHub/);
+});

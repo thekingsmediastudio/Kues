@@ -514,14 +514,14 @@ function setAuthMode(mode){
   authMode=mode==='sign-up'?'sign-up':'sign-in';
   const signingUp=authMode==='sign-up';
   document.getElementById('pageTitle').textContent=signingUp?'Create your account':'Sign in';
-  document.getElementById('pageSubtitle').textContent=signingUp?'Choose a password, then verify your email':'Use your email and password to continue';
+  document.getElementById('pageSubtitle').textContent=signingUp?'Create with email and password, or continue with Google or GitHub':'Use email and password, or continue with Google or GitHub';
   document.getElementById('signInMode').setAttribute('aria-pressed',String(!signingUp));
   document.getElementById('signUpMode').setAttribute('aria-pressed',String(signingUp));
   sendButton.textContent=signingUp?'Create account':'Continue';
   passwordInput.autocomplete=signingUp?'new-password':'current-password';
   passwordInput.minLength=signingUp?8:1;
   forgotPasswordButton.hidden=signingUp;
-  document.getElementById('emailHelp').textContent=signingUp?'Enter your email and choose a password. We’ll send a verification code next.':'Use your email and password to sign in.';
+  document.getElementById('emailHelp').textContent=signingUp?'Enter your email and choose a password, or create your account with an enabled provider. Email sign-up requires verification.':'Use your email and password, or continue with an enabled provider.';
   if(authEnabled&&!authErrorsFromUrl)setStatus(formStatus,signingUp?'Create your account with email and password.':'Email and password sign-in is ready.','success');
 }
 document.getElementById('signInMode').addEventListener('click',()=>setAuthMode('sign-in'));
@@ -551,8 +551,9 @@ async function loadAuthConfig(){
     resendButton.disabled=!authEnabled||!activePassword;forgotPasswordButton.disabled=!authEnabled;resetFromCodeButton.disabled=!authEnabled;
     resetSendButton.disabled=!authEnabled;resetVerifyButton.disabled=!authEnabled;
     resetResendButton.disabled=!authEnabled||Date.now()<resetCooldownUntil;
-    document.getElementById('socialNote').textContent=googleEnabled||githubEnabled
-      ? `${googleEnabled?'Google':''}${googleEnabled&&githubEnabled?' and ':''}${githubEnabled?'GitHub':''} sign-in is ready for this environment.`
+    const enabledSocialProviders=[googleEnabled?'Google':null,githubEnabled?'GitHub':null].filter(Boolean);
+    document.getElementById('socialNote').textContent=enabledSocialProviders.length
+      ? `${enabledSocialProviders.join(' and ')} can be used to sign in or create an account.`
       : 'Google and GitHub are unavailable until enabled for this WorkOS environment.';
     if(!authEnabled&&!authErrorsFromUrl)setStatus(formStatus,'Email and password sign-in are not enabled in this environment. No account request was sent.','notice');
     else if(authEnabled&&!authErrorsFromUrl)setStatus(formStatus,authMode==='sign-up'?'Create your account with email and password.':'Email and password sign-in is ready.','success');
