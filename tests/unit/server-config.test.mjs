@@ -161,7 +161,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.9');
+    assert.equal(body.version, '2.4.0');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'desktop-preview:/desktop-preview', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -184,13 +184,18 @@ test('user-facing Keus pages avoid em dashes and emoji glyphs', () => {
   const forbiddenGlyphs = [0x2713, 0x2726, 0x2315, 0x2667, 0x2197, 0x2022].map((codePoint) => String.fromCodePoint(codePoint));
   for (const file of files) {
     const html = readFileSync(new URL(`../../apps/web/public/${file}`, import.meta.url), 'utf8');
-    assert.equal(html.includes(String.fromCodePoint(0x2014)), false, `${file} contains an em dash`);
-    assert.doesNotMatch(html, /&mdash;|&#(?:8212|x2014);/i, file);
-    for (const character of html) {
+    // Source comments are intentionally left untouched; enforce the cleanup on rendered markup and UI strings.
+    const userFacingSource = html
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^[ \t]*\/\/[^\n]*$/gm, '');
+    assert.equal(userFacingSource.includes(String.fromCodePoint(0x2014)), false, `${file} contains an em dash`);
+    assert.doesNotMatch(userFacingSource, /&mdash;|&#(?:8212|x2014);/i, file);
+    for (const character of userFacingSource) {
       const codePoint = character.codePointAt(0);
       assert.ok(!(codePoint >= 0x1f000 && codePoint <= 0x1faff) && !(codePoint >= 0x2600 && codePoint <= 0x27bf), `${file} contains a pictographic symbol`);
     }
-    for (const glyph of forbiddenGlyphs) assert.equal(html.includes(glyph), false, `${file} contains a decorative text glyph`);
+    for (const glyph of forbiddenGlyphs) assert.equal(userFacingSource.includes(glyph), false, `${file} contains a decorative text glyph`);
   }
 });
 
@@ -241,20 +246,34 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.ok(accountMenu >= 0 && accountEmail < themeToggle && themeToggle < signOutButton, 'theme and sign-out actions belong inside the account dropdown');
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
     const desktopPreview = await (await fetch(`${base}/desktop-preview`)).text();
-    assert.match(desktopPreview, /Your desktop workspace/);
+    assert.match(desktopPreview, /<aside class="sidebar">/);
+    assert.match(desktopPreview, /id="agentList"/);
+    assert.match(desktopPreview, /data-avatar-kind="bulb"|bulb:/);
     assert.match(desktopPreview, /api\/workspace\/bootstrap/);
     assert.match(desktopPreview, /credentials:'same-origin'/);
+    assert.match(desktopPreview, /id="workspaceName"/);
+    assert.match(desktopPreview, /id="savedSetupName"/);
+    assert.match(desktopPreview, /id="savedPaymentState"/);
+    assert.match(desktopPreview, /PayPal not connected/);
     assert.match(desktopPreview, /id="accountEmail"/);
-    assert.match(desktopPreview, /class="dashboard-home" href="\/"/);
     assert.match(desktopPreview, /aria-controls="accountMenu"/);
-    assert.doesNotMatch(desktopPreview, /<aside\b|class="sidebar"/);
     const desktopMenu = desktopPreview.indexOf('id="accountMenu"');
-    const desktopEmail = desktopPreview.indexOf('id="accountEmail"', desktopMenu);
+    const desktopEmail = desktopPreview.indexOf('id="accountMenuEmail"', desktopMenu);
     const desktopTheme = desktopPreview.indexOf('id="themeToggle"', desktopMenu);
     const desktopSignout = desktopPreview.indexOf('id="signOutButton"', desktopMenu);
-    assert.ok(desktopMenu >= 0 && desktopEmail < desktopTheme && desktopTheme < desktopSignout, 'desktop account controls match the workspace dropdown');
-    assert.match(desktopPreview, /Agent execution is not available yet/);
-    assert.doesNotMatch(desktopPreview, /Shopping Crew|ceramic bundle|sample seller/i);
+    assert.ok(desktopMenu >= 0 && desktopEmail < desktopTheme && desktopTheme < desktopSignout, 'desktop account controls belong in the account dropdown');
+    assert.match(desktopPreview, /Authenticated workspace preview/);
+    assert.match(desktopPreview, /Example prompt, not sent/);
+    assert.match(desktopPreview, /no messages, agent runs, token usage, or payments occur/i);
+    assert.match(desktopPreview, /Messaging is unavailable in this preview/);
+    assert.match(desktopPreview, /No approval was made/);
+    assert.match(desktopPreview, /Illustrative goal: compare sample product details/);
+    assert.doesNotMatch(desktopPreview, /live merchant DOM|Stage PayPal AUTHORIZE holds|Message verified studio sellers|every 30m/i);
+    assert.match(desktopPreview, /Additional agent creation unavailable/);
+    assert.match(desktopPreview, /Sentinel test unavailable/);
+    assert.match(desktopPreview, /objectAvatarSvg/);
+    assert.doesNotMatch(desktopPreview, /Aegis.{0,12}4m|You're in control|Working autonomously within your safeguards|Create &amp; Launch Agent/i);
+    assert.doesNotMatch(desktopPreview, /class="dashboard-home" href="\/"/);
     const login = await (await fetch(`${base}/login`)).text();
     assert.match(login, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(login, /id="themeToggle"/);
