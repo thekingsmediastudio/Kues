@@ -18,7 +18,6 @@ const publicDir = path.join(__dirname, 'public');
 const desktopHtmlPath = path.join(publicDir, 'desktop.html');
 const onboardingHtmlPath = path.join(publicDir, 'onboarding.html');
 const loginHtmlPath = path.join(publicDir, 'login.html');
-const devWorkOSTestSetupHtmlPath = path.join(publicDir, 'dev-workos-test-setup.html');
 const authVerifyHtmlPath = path.join(publicDir, 'auth-verify.html');
 const pocketHtmlPath = path.join(publicDir, 'pocket.html');
 const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
@@ -75,6 +74,11 @@ function requestOrigin(req) {
   }
 }
 
+function requireSameOrigin(req) {
+  const origin = requestOrigin(req);
+  if (!origin.present || !origin.valid || !origin.sameOrigin) throw new RequestError('same_origin_required', 403);
+}
+
 function applyAllowedCors(req, res, config) {
   const origin = requestOrigin(req);
   if (!origin.valid) return false;
@@ -84,7 +88,7 @@ function applyAllowedCors(req, res, config) {
   res.setHeader('Access-Control-Allow-Origin', origin.value);
   res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Keus-Setup-Token, X-Kues-Setup-Token');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization');
   return true;
 }
 
@@ -135,6 +139,47 @@ function clearSessionCookie(config) {
 }
 
 const WORKOS_STATE_COOKIE = 'kues_workos_state';
+const PENDING_AUTH_COOKIE = 'kues_pending_auth';
+
+function pendingAuthCookieValue(challenge) {
+  const value = Buffer.from(JSON.stringify(challenge), 'utf8').toString('base64url');
+  if (!value || value.length > 4096) throw new AuthError('verification_flow_unavailable', 503);
+  return value;
+}
+
+function parsePendingAuthCookie(value) {
+  const encoded = String(value || '');
+  if (!/^[A-Za-z0-9_-]{1,4096}$/.test(encoded)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const email = String(parsed.email || '').trim().normalize('NFKC').toLowerCase();
+    if (email.length > 254 || !email.includes('@') || Array.from(email).some((char) => char.charCodeAt(0) <= 32)) return null;
+    if (parsed.kind === 'pending') {
+      const token = String(parsed.token || '');
+      if (!token || token.length > 4096) return null;
+      return { kind: 'pending', token, email };
+    }
+    if (parsed.kind === 'user') {
+      const userId = String(parsed.userId || '');
+      if (!userId || userId.length > 255) return null;
+      return { kind: 'user', userId, email };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function setPendingAuthCookie(config, challenge) {
+  const secure = config.nodeEnv === 'production' ? '; Secure' : '';
+  return `${PENDING_AUTH_COOKIE}=${pendingAuthCookieValue(challenge)}; Max-Age=600; Path=/api/auth/password; HttpOnly; SameSite=Strict${secure}`;
+}
+
+function clearPendingAuthCookie(config) {
+  const secure = config.nodeEnv === 'production' ? '; Secure' : '';
+  return `${PENDING_AUTH_COOKIE}=; Max-Age=0; Path=/api/auth/password; HttpOnly; SameSite=Strict${secure}`;
+}
 
 function setWorkOSStateCookie(config, state) {
   const secure = config.nodeEnv === 'production' ? '; Secure' : '';
@@ -147,12 +192,6 @@ function clearWorkOSStateCookie(config) {
 }
 
 function sameState(left, right) {
-  const a = Buffer.from(String(left || ''));
-  const b = Buffer.from(String(right || ''));
-  return a.length === 43 && b.length === 43 && crypto.timingSafeEqual(a, b);
-}
-
-function sameSetupToken(left, right) {
   const a = Buffer.from(String(left || ''));
   const b = Buffer.from(String(right || ''));
   return a.length === 43 && b.length === 43 && crypto.timingSafeEqual(a, b);
@@ -174,65 +213,132 @@ function readHtml(filePath) {
 async function handleAuthRequest(req, res, url, config, authService, workosAuth, {
   googleEnabled = false,
   githubEnabled = false,
-  testSetupAvailable = false,
 } = {}) {
   if (url.pathname === '/api/auth/config' && req.method === 'GET') {
     sendJson(res, 200, {
       provider: config.authProvider,
       enabled: config.workosConfigured,
       emailEnabled: config.workosConfigured,
+      emailPasswordEnabled: config.authProvider === 'workos' && config.workosConfigured,
+      emailAuthMethod: config.authProvider === 'workos' && config.workosConfigured ? 'password' : null,
+      magicAuthEnabled: false,
       googleEnabled,
       githubEnabled,
       otherMethodsEnabled: googleEnabled || githubEnabled,
-      testSetupAvailable,
     });
     return true;
   }
 
-  if (config.authProvider === 'workos' && url.pathname === '/api/auth/email/start' && req.method === 'POST') {
-    if (!authService || !workosAuth) {
-      sendJson(res, 503, { error: 'auth_provider_not_configured' });
+  if (config.authProvider === 'workos') {
+    const retiredMagicAuthPaths = new Set([
+      '/api/auth/email/start',
+      '/api/auth/email/verify',
+      '/api/auth/email/consume',
+    ]);
+    if (retiredMagicAuthPaths.has(url.pathname)) {
+      sendJson(res, 410, { error: 'password_auth_required' });
       return true;
     }
-    const body = await readJsonBody(req);
-    await workosAuth.requestEmailCode({
-      email: body.email,
-      ipAddress: req.socket.remoteAddress,
-      userAgent: String(req.headers['user-agent'] || '').slice(0, 512),
-    });
-    sendJson(res, 202, {
-      accepted: true,
-      message: 'If email sign-in is available, a six-digit code will be sent.',
-    });
-    return true;
-  }
 
-  if (config.authProvider === 'workos' && url.pathname === '/api/auth/email/verify' && req.method === 'POST') {
-    if (!authService || !workosAuth) {
-      sendJson(res, 503, { error: 'auth_provider_not_configured' });
-      return true;
+    const passwordPaths = new Set([
+      '/api/auth/password/signup',
+      '/api/auth/password/login',
+      '/api/auth/password/verify',
+      '/api/auth/password/resend',
+      '/api/auth/password/reset/start',
+    ]);
+    if (passwordPaths.has(url.pathname)) {
+      if (req.method !== 'POST') {
+        res.setHeader('Allow', 'POST, OPTIONS');
+        sendJson(res, 405, { error: 'method_not_allowed' });
+        return true;
+      }
+      requireSameOrigin(req);
+      if (!authService || !workosAuth) {
+        sendJson(res, 503, { error: 'auth_provider_not_configured' });
+        return true;
+      }
+      const body = await readJsonBody(req);
+      const metadata = {
+        ipAddress: req.socket.remoteAddress,
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 512),
+      };
+
+      if (url.pathname === '/api/auth/password/signup') {
+        const result = await workosAuth.signUpWithPassword({ ...body, ...metadata });
+        if (result.needsEmailVerification === true && result.challenge) {
+          sendJson(res, 202, { accepted: true, email: result.email }, {
+            'Set-Cookie': setPendingAuthCookie(config, result.challenge),
+          });
+        } else if (result.passwordResetStarted === true) {
+          sendJson(res, 202, { accepted: true, email: result.email }, {
+            'Set-Cookie': clearPendingAuthCookie(config),
+          });
+        } else {
+          sendJson(res, 200, {
+            authenticated: true,
+            isNewUser: result.isNewUser === true,
+            needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
+            user: result.user,
+          }, {
+            'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
+          });
+        }
+        return true;
+      }
+
+      if (url.pathname === '/api/auth/password/login' || url.pathname === '/api/auth/password/resend') {
+        const result = url.pathname.endsWith('/resend')
+          ? await workosAuth.resendPasswordVerification({ ...body, ...metadata })
+          : await workosAuth.signInWithPassword({ ...body, ...metadata });
+        if (result.needsEmailVerification === true && result.challenge) {
+          sendJson(res, 202, { verificationRequired: true, email: result.email }, {
+            'Set-Cookie': setPendingAuthCookie(config, result.challenge),
+          });
+        } else {
+          sendJson(res, 200, {
+            authenticated: true,
+            isNewUser: result.isNewUser === true,
+            needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
+            user: result.user,
+          }, {
+            'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
+          });
+        }
+        return true;
+      }
+
+      if (url.pathname === '/api/auth/password/verify') {
+        const challenge = parsePendingAuthCookie(cookieValue(req, PENDING_AUTH_COOKIE));
+        if (!challenge) {
+          sendJson(res, 400, { error: 'invalid_or_expired_code' });
+          return true;
+        }
+        const result = await workosAuth.verifyPasswordEmail({
+          ...body,
+          challenge,
+          ...metadata,
+        });
+        sendJson(res, 200, {
+          authenticated: true,
+          isNewUser: result.isNewUser === true,
+          needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
+          user: result.user,
+        }, {
+          'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
+        });
+        return true;
+      }
+
+      if (url.pathname === '/api/auth/password/reset/start') {
+        await workosAuth.startPasswordReset(body);
+        sendJson(res, 202, {
+          accepted: true,
+          message: 'If an account exists for that email, a password setup link will be sent.',
+        });
+        return true;
+      }
     }
-    const body = await readJsonBody(req);
-    const result = await workosAuth.verifyEmailCode({
-      email: body.email,
-      code: body.code,
-      ipAddress: req.socket.remoteAddress,
-      userAgent: String(req.headers['user-agent'] || '').slice(0, 512),
-    });
-    sendJson(res, 200, {
-      authenticated: true,
-      isNewUser: result.isNewUser === true,
-      needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-      user: result.user,
-    }, {
-      'Set-Cookie': setSessionCookie(config, result.sessionToken),
-    });
-    return true;
-  }
-
-  if (config.authProvider === 'workos' && url.pathname === '/api/auth/email/consume') {
-    sendJson(res, 410, { error: 'workos_authkit_required' });
-    return true;
   }
 
   if (!authService) {
@@ -274,7 +380,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
     const token = cookieValue(req, sessionCookieName(config));
     if (token) await authService.revokeSession({ token });
-    sendJson(res, 200, { authenticated: false }, { 'Set-Cookie': clearSessionCookie(config) });
+    sendJson(res, 200, { authenticated: false }, { 'Set-Cookie': [clearSessionCookie(config), clearPendingAuthCookie(config)] });
     return true;
   }
 
@@ -490,15 +596,11 @@ export function createServer({
   workspaceService = null,
   workosAuth = null,
   apiHubService = null,
-  allowEphemeralWorkOSTestSetup = false,
   signInOnlyPreview = false,
-  workosClientFactory = ({ apiKey, clientId }) => new WorkOS({ apiKey, clientId }),
 } = {}) {
   const runtime = {
     config,
     workosAuth,
-    ephemeralTestMode: false,
-    setupToken: null,
   };
 
   return http.createServer((req, res) => {
@@ -538,87 +640,12 @@ export function createServer({
         return;
       }
 
-      if (allowEphemeralWorkOSTestSetup && activeConfig.nodeEnv !== 'production'
-          && (url.pathname === '/__dev/workos-setup' || (signInOnlyPreview && url.pathname === '/'))
-          && req.method === 'GET') {
-        try {
-          const setupToken = crypto.randomBytes(32).toString('base64url');
-          runtime.setupToken = setupToken;
-          const html = readHtml(devWorkOSTestSetupHtmlPath)
-            .replace('%%WORKOS_SETUP_TOKEN%%', setupToken)
-            .replace('%%WORKOS_READY%%', String(runtime.ephemeralTestMode));
-          res.writeHead(200, {
-            'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'no-store, max-age=0',
-            'Pragma': 'no-cache',
-          });
-          res.end(html);
-        } catch {
-          res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-          res.end('Test setup page unavailable');
-        }
-        return;
-      }
-
-      if (allowEphemeralWorkOSTestSetup && url.pathname === '/api/dev/workos-setup' && req.method === 'POST') {
-        const setupToken = req.headers['x-keus-setup-token'] || req.headers['x-kues-setup-token'];
-        if (activeConfig.nodeEnv === 'production'
-            || !runtime.setupToken || !sameSetupToken(setupToken, runtime.setupToken)) {
-          sendJson(res, 403, { error: 'test_setup_token_invalid' });
-          return;
-        }
-        if (!authService) {
-          sendJson(res, 503, { error: 'local_auth_storage_not_ready' });
-          return;
-        }
-        try {
-          const body = await readJsonBody(req, 4096);
-          const apiKey = String(body.apiKey || '').trim();
-          const clientId = String(body.clientId || '').trim();
-          if (!apiKey.startsWith('sk_test_') || apiKey.length > 512) {
-            sendJson(res, 400, { error: 'test_api_key_required' });
-            return;
-          }
-          if (!/^client_[A-Za-z0-9_-]{4,120}$/.test(clientId)) {
-            sendJson(res, 400, { error: 'invalid_workos_client_id' });
-            return;
-          }
-          runtime.setupToken = null;
-          const workos = workosClientFactory({ apiKey, clientId });
-          const redirectUri = 'http://localhost:3100/auth/callback';
-          const adapter = createWorkOSAuth({ workos, clientId, redirectUri, authService });
-          runtime.workosAuth = adapter;
-          runtime.config = Object.freeze({
-            ...activeConfig,
-            authProvider: 'workos',
-            workosConfigured: true,
-            workosRedirectUri: redirectUri,
-          });
-          runtime.ephemeralTestMode = true;
-          runtime.setupToken = crypto.randomBytes(32).toString('base64url');
-          sendJson(res, 200, {
-            configured: true,
-            scope: 'memory_only',
-            setupToken: runtime.setupToken,
-          });
-        } catch (error) {
-          const status = Number(error?.status ?? error?.statusCode ?? error?.response?.status ?? 0);
-          const code = status === 401 ? 'workos_key_rejected'
-            : status === 403 ? 'workos_access_denied'
-              : status === 429 ? 'workos_rate_limited'
-                : status >= 500 || status === 0 ? 'workos_unreachable'
-                  : 'test_setup_invalid';
-          sendJson(res, status === 429 ? 429 : status === 401 || status === 403 ? 400 : 400, { error: code });
-        }
-        return;
-      }
-
       if (url.pathname === '/auth/start' && req.method === 'GET') {
-        if (!activeConfig.workosConfigured || !activeWorkosAuth || runtime.ephemeralTestMode) {
+        if (!activeConfig.workosConfigured || !activeWorkosAuth) {
           redirect(res, '/login?auth_error=not_configured');
           return;
         }
-        const provider = url.searchParams.get('provider') || 'authkit';
+        const provider = url.searchParams.get('provider') || '';
         const intent = url.searchParams.get('intent') || 'sign-in';
         if (!['sign-in', 'sign-up'].includes(intent)) {
           redirect(res, '/login?auth_error=invalid_request');
@@ -628,16 +655,14 @@ export function createServer({
           ? activeConfig.workosGoogleOAuthEnabled === true && !signInOnlyPreview
           : provider === 'GitHubOAuth'
             ? activeConfig.workosGithubOAuthEnabled === true && !signInOnlyPreview
-            : provider === 'authkit';
+            : false;
         if (!socialProviderEnabled) {
           redirect(res, '/login?auth_error=provider_disabled');
           return;
         }
         const state = crypto.randomBytes(32).toString('base64url');
         try {
-          const authorizationUrl = await activeWorkosAuth.getAuthorizationUrl({
-            state, provider, ...(provider === 'authkit' ? { screenHint: intent } : {}),
-          });
+          const authorizationUrl = await activeWorkosAuth.getAuthorizationUrl({ state, provider });
           redirect(res, authorizationUrl, setWorkOSStateCookie(activeConfig, state));
         } catch (error) {
           console.error('WorkOS sign-in start failed:', error?.name || 'Error');
@@ -653,7 +678,7 @@ export function createServer({
           redirect(res, '/login?auth_error=state', clearWorkOSStateCookie(activeConfig));
           return;
         }
-        if (!activeConfig.workosConfigured || !activeWorkosAuth || runtime.ephemeralTestMode || url.searchParams.has('error')) {
+        if (!activeConfig.workosConfigured || !activeWorkosAuth || url.searchParams.has('error')) {
           redirect(res, '/login?auth_error=provider', clearWorkOSStateCookie(activeConfig));
           return;
         }
@@ -666,7 +691,7 @@ export function createServer({
           res.writeHead(302, {
             Location: result.needsOnboarding === true || result.isNewUser === true ? '/onboarding' : '/app',
             'Cache-Control': 'no-store',
-            'Set-Cookie': [clearWorkOSStateCookie(activeConfig), setSessionCookie(activeConfig, result.sessionToken)],
+            'Set-Cookie': [clearWorkOSStateCookie(activeConfig), clearPendingAuthCookie(activeConfig), setSessionCookie(activeConfig, result.sessionToken)],
           });
           res.end();
         } catch (error) {
@@ -685,7 +710,7 @@ export function createServer({
         const payload = {
           ok: true,
           service: 'keus-desktop',
-          version: '2.2.1',
+          version: '2.2.2',
           surfaces: ['desktop:/app', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {
@@ -716,9 +741,8 @@ export function createServer({
       if (url.pathname.startsWith('/api/auth/')) {
         try {
           const handled = await handleAuthRequest(req, res, url, activeConfig, authService, activeWorkosAuth, {
-            googleEnabled: activeConfig.workosConfigured && activeConfig.workosGoogleOAuthEnabled === true && !runtime.ephemeralTestMode && !signInOnlyPreview,
-            githubEnabled: activeConfig.workosConfigured && activeConfig.workosGithubOAuthEnabled === true && !runtime.ephemeralTestMode && !signInOnlyPreview,
-            testSetupAvailable: allowEphemeralWorkOSTestSetup && activeConfig.nodeEnv !== 'production',
+            googleEnabled: activeConfig.workosConfigured && activeConfig.workosGoogleOAuthEnabled === true && !signInOnlyPreview,
+            githubEnabled: activeConfig.workosConfigured && activeConfig.workosGithubOAuthEnabled === true && !signInOnlyPreview,
           });
           if (handled) return;
         } catch (error) {
@@ -740,7 +764,12 @@ export function createServer({
         return;
       }
 
-      if (signInOnlyPreview && !['/', '/login', '/__dev/workos-setup', '/app', '/onboarding', '/keus-icon.svg', '/keus-logo.svg'].includes(url.pathname)) {
+      if (signInOnlyPreview && url.pathname === '/') {
+        redirect(res, '/login');
+        return;
+      }
+
+      if (signInOnlyPreview && !['/', '/login', '/app', '/onboarding', '/keus-icon.svg', '/keus-logo.svg'].includes(url.pathname)) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end('Not found in sign-in preview');
         return;
@@ -863,17 +892,8 @@ const isMain = process.argv[1]
   && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isMain) {
-  const ephemeralWorkOSTestSetup = process.env.ENABLE_WORKOS_TEST_SETUP === '1'
-    && String(process.env.NODE_ENV || 'development') !== 'production';
   const signInOnlyPreview = (process.env.KEUS_SIGNIN_ONLY_PREVIEW === '1' || process.env.KUES_SIGNIN_ONLY_PREVIEW === '1')
     && String(process.env.NODE_ENV || 'development') !== 'production';
-  if (ephemeralWorkOSTestSetup && !process.env.TURSO_DATABASE_URL) {
-    const legacyDb = path.resolve(process.cwd(), 'cueclaw.local.db');
-    const keusDb = path.resolve(process.cwd(), 'keus.local.db');
-    // Preserve an existing local database; new installs default to the Keus filename.
-    process.env.TURSO_DATABASE_URL = fs.existsSync(legacyDb) && !fs.existsSync(keusDb)
-      ? 'file:./cueclaw.local.db' : 'file:./keus.local.db';
-  }
   let config;
   try {
     config = loadServerConfig();
@@ -925,7 +945,6 @@ if (isMain) {
         workspaceService,
         workosAuth,
         apiHubService,
-        allowEphemeralWorkOSTestSetup: ephemeralWorkOSTestSetup,
         signInOnlyPreview,
       });
       server.on('close', () => { void db?.close(); });
@@ -934,7 +953,7 @@ if (isMain) {
         if (config.databaseConfigured) {
           console.log('Database schema ready.');
           console.log(config.workosConfigured
-            ? 'WorkOS AuthKit sign-in is configured.'
+            ? 'WorkOS email/password authentication is configured.'
             : config.emailDeliveryConfigured
               ? 'Brevo email delivery adapter configured.'
               : 'No external sign-in provider is configured; sign-in is disabled.');
