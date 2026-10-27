@@ -137,7 +137,21 @@
     <footer class="footer"><a class="footer-brand" href="/" aria-label="Keus home"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/></svg>Keus</a><span>Personal AI, on your terms.</span><div class="footer-links"><a id="footerAccountLink" href="/login">Sign in</a><a href="/app">Dashboard</a></div></footer>
   </div>
   <script>
-    (()=>{const root=document.documentElement,button=document.getElementById('themeToggle'),label=document.getElementById('themeLabel'),themeColor=document.getElementById('themeColor');function applyTheme(theme,save=false){const selected=theme==='dark'?'dark':'light';root.dataset.theme=selected;root.style.colorScheme=selected;const next=selected==='dark'?'light':'dark';const text=`Switch to ${next} theme`;button.setAttribute('aria-label',text);button.setAttribute('title',text);button.setAttribute('aria-pressed',String(selected==='dark'));label.textContent=text;themeColor.setAttribute('content',selected==='dark'?'#0b0e0e':'#f6f8f4');if(save){try{localStorage.setItem('keusTheme',selected)}catch{}}}applyTheme(root.dataset.theme||'light');button.addEventListener('click',()=>applyTheme(root.dataset.theme==='dark'?'light':'dark',true));window.addEventListener('storage',event=>{if(event.key==='keusTheme'&&(event.newValue==='light'||event.newValue==='dark'))applyTheme(event.newValue)});})();
+    (()=>{
+      const root=document.documentElement,button=document.getElementById('themeToggle'),label=document.getElementById('themeLabel'),themeColor=document.getElementById('themeColor');
+      let accountThemeAvailable=false,userChangedTheme=false;
+      function persistTheme(theme){if(!accountThemeAvailable)return;fetch('/api/settings/theme',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({theme})}).catch(()=>{});}
+      function applyTheme(theme,save=false){const selected=theme==='dark'?'dark':'light';root.dataset.theme=selected;root.style.colorScheme=selected;const next=selected==='dark'?'light':'dark';const text=`Switch to ${next} theme`;button.setAttribute('aria-label',text);button.setAttribute('title',text);button.setAttribute('aria-pressed',String(selected==='dark'));label.textContent=text;themeColor.setAttribute('content',selected==='dark'?'#0b0e0e':'#f6f8f4');if(save){try{localStorage.setItem('keusTheme',selected)}catch{}userChangedTheme=true;persistTheme(selected)}}
+      applyTheme(root.dataset.theme||'light');
+      button.addEventListener('click',()=>applyTheme(root.dataset.theme==='dark'?'light':'dark',true));
+      window.addEventListener('storage',event=>{if(event.key==='keusTheme'&&(event.newValue==='light'||event.newValue==='dark'))applyTheme(event.newValue)});
+      fetch('/api/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(response=>response.ok?response.json():null).then(data=>{
+        if(!data?.authenticated||!['dark','light'].includes(data.user?.theme))return;
+        accountThemeAvailable=true;
+        if(userChangedTheme)persistTheme(root.dataset.theme);
+        else {applyTheme(data.user.theme);try{localStorage.setItem('keusTheme',data.user.theme)}catch{}}
+      }).catch(()=>{});
+    })();
   </script>
 </body>
 </html>

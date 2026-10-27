@@ -566,7 +566,21 @@ document.getElementById('logoutButton').addEventListener('click',async()=>{
 refreshSession();loadAuthConfig();
 </script>
 <script>
-(()=>{const root=document.documentElement,button=document.getElementById('themeToggle'),label=document.getElementById('themeLabel'),themeColor=document.getElementById('themeColor');function applyTheme(theme,save=false){const selected=theme==='dark'?'dark':'light';root.dataset.theme=selected;root.style.colorScheme=selected;const next=selected==='dark'?'light':'dark';const text=`Switch to ${next} theme`;button.setAttribute('aria-label',text);button.setAttribute('title',text);button.setAttribute('aria-pressed',String(selected==='dark'));label.textContent=text;themeColor.setAttribute('content',selected==='dark'?'#0b0e0e':'#f6f8f4');if(save){try{localStorage.setItem('keusTheme',selected)}catch{}}}applyTheme(root.dataset.theme||'light');button.addEventListener('click',()=>applyTheme(root.dataset.theme==='dark'?'light':'dark',true));window.addEventListener('storage',event=>{if(event.key==='keusTheme'&&(event.newValue==='light'||event.newValue==='dark'))applyTheme(event.newValue)});})();
+(()=>{
+  const root=document.documentElement,button=document.getElementById('themeToggle'),label=document.getElementById('themeLabel'),themeColor=document.getElementById('themeColor');
+  let accountThemeAvailable=false,userChangedTheme=false;
+  function persistTheme(theme){if(!accountThemeAvailable)return;fetch('/api/settings/theme',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({theme})}).catch(()=>{});}
+  function applyTheme(theme,save=false){const selected=theme==='dark'?'dark':'light';root.dataset.theme=selected;root.style.colorScheme=selected;const next=selected==='dark'?'light':'dark';const text=`Switch to ${next} theme`;button.setAttribute('aria-label',text);button.setAttribute('title',text);button.setAttribute('aria-pressed',String(selected==='dark'));label.textContent=text;themeColor.setAttribute('content',selected==='dark'?'#0b0e0e':'#f6f8f4');if(save){try{localStorage.setItem('keusTheme',selected)}catch{}userChangedTheme=true;persistTheme(selected)}}
+  applyTheme(root.dataset.theme||'light');
+  button.addEventListener('click',()=>applyTheme(root.dataset.theme==='dark'?'light':'dark',true));
+  window.addEventListener('storage',event=>{if(event.key==='keusTheme'&&(event.newValue==='light'||event.newValue==='dark'))applyTheme(event.newValue)});
+  fetch('/api/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(response=>response.ok?response.json():null).then(data=>{
+    if(!data?.authenticated||!['dark','light'].includes(data.user?.theme))return;
+    accountThemeAvailable=true;
+    if(userChangedTheme)persistTheme(root.dataset.theme);
+    else {applyTheme(data.user.theme);try{localStorage.setItem('keusTheme',data.user.theme)}catch{}}
+  }).catch(()=>{});
+})();
 </script>
 </body>
 </html>

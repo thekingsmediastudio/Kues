@@ -103,6 +103,48 @@ function workosError(error, fallbackCode, { password = false, verification = fal
   return new AuthError(fallbackCode, 503);
 }
 
+function emailChangeError(error, phase) {
+  const status = statusOf(error);
+  const code = providerCode(error);
+  if (status === 429 || code === 'daily_email_quota_exceeded' || code === 'rate_limit_exceeded') {
+    return new AuthError('too_many_sign_in_requests', 429);
+  }
+  if (['email_not_available', 'email_already_exists', 'email_already_in_use', 'user_already_exists'].includes(code)
+      || (phase === 'send' && status === 409)) {
+    return new AuthError('email_unavailable', 409);
+  }
+  if (['email_managed_by_provider', 'email_change_not_available', 'user_email_change_not_available'].includes(code)) {
+    return new AuthError('email_change_not_available', 409);
+  }
+  if (phase === 'confirm' && (
+    code.includes('email_change_code')
+    || ['invalid_one_time_code', 'one_time_code_expired', 'invalid_or_expired_code', 'invalid_grant'].includes(code)
+    || [400, 404, 422].includes(status)
+  )) return new AuthError('invalid_email_change_code', 400);
+  if (phase === 'send' && [400, 422].includes(status)) return new AuthError('email_change_request_failed', 400);
+  if (status === 401) return new AuthError('workos_key_rejected', 503);
+  if (status === 403) return new AuthError('workos_access_denied', 503);
+  return new AuthError(phase === 'send' ? 'email_delivery_failed' : 'email_change_unavailable', 503);
+}
+
+function workosUserFromRest(user) {
+  if (!user || typeof user !== 'object') return null;
+  return {
+    id: user.id,
+    email: user.email,
+    emailVerified: user.email_verified === true || user.emailVerified === true,
+    firstName: user.first_name ?? user.firstName ?? null,
+    lastName: user.last_name ?? user.lastName ?? null,
+    profilePictureUrl: user.profile_picture_url ?? user.profilePictureUrl ?? null,
+  };
+}
+
+function requireWorkOSUserId(value) {
+  const userId = String(value || '').trim();
+  if (!userId || userId.length > 255) throw new AuthError('workos_identity_required', 409);
+  return userId;
+}
+
 function userName(user) {
   return [user?.firstName, user?.lastName]
     .map((part) => String(part || '').trim())
@@ -123,7 +165,14 @@ function userChallenge(userId, email) {
 }
 
 /** Thin WorkOS adapter; Keus owns identity linking, local sessions, and workspace provisioning. */
-export function createWorkOSAuth({ workos, clientId, redirectUri, authService } = {}) {
+export function createWorkOSAuth({
+  workos,
+  clientId,
+  redirectUri,
+  authService,
+  apiKey = '',
+  fetchImpl = globalThis.fetch,
+} = {}) {
   if (!workos?.userManagement) throw new TypeError('workos_client_required');
   if (!clientId || !redirectUri) throw new TypeError('workos_client_id_and_redirect_uri_required');
   if (typeof authService?.createWorkOSSession !== 'function'
@@ -174,6 +223,143 @@ export function createWorkOSAuth({ workos, clientId, redirectUri, authService } 
     } catch {
       return null;
     }
+  }
+
+  async function requestWorkOSApi(path, payload) {
+    const key = String(apiKey || '').trim();
+    if (!key || typeof fetchImpl !== 'function') throw new AuthError('auth_provider_not_configured', 503);
+    let response;
+    try {
+      response = await fetchImpl(`https://api.workos.com${path}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new AuthError('workos_auth_unavailable', 503);
+    }
+    let text = '';
+    try { text = await response.text(); } catch { /* parse as an empty response below */ }
+    if (text.length > 65_536) throw new AuthError('workos_auth_unavailable', 503);
+    let body = {};
+    if (text) {
+      try { body = JSON.parse(text); } catch { body = {}; }
+    }
+    if (!response.ok) {
+      const error = new Error('workos_api_request_failed');
+      error.status = response.status;
+      error.rawData = body;
+      throw error;
+    }
+    return body;
+  }
+
+  async function reauthenticatePassword({
+    userId: rawUserId,
+    email: rawEmail,
+    currentPassword: rawPassword,
+    ipAddress,
+    userAgent,
+  } = {}) {
+    const userId = requireWorkOSUserId(rawUserId);
+    const email = normalizeEmail(rawEmail);
+    const password = requirePassword(rawPassword);
+    let result;
+    try {
+      result = await workos.userManagement.authenticateWithPassword({
+        clientId,
+        email,
+        password,
+        ipAddress,
+        userAgent,
+      });
+    } catch (error) {
+      if (isEmailVerificationRequired(error)) throw new AuthError('email_not_verified', 403);
+      throw workosError(error, 'workos_auth_unavailable', { password: true });
+    }
+    const user = result?.user;
+    if (!user || user.id !== userId) throw new AuthError('invalid_email_or_password', 401);
+    if (user.emailVerified !== true) throw new AuthError('email_not_verified', 403);
+    return { authenticated: true };
+  }
+
+  async function changePassword({
+    userId,
+    email,
+    currentPassword,
+    newPassword: rawNewPassword,
+    ipAddress,
+    userAgent,
+  } = {}) {
+    const newPassword = requirePassword(rawNewPassword);
+    if (newPassword === currentPassword) throw new AuthError('new_password_must_differ', 400);
+    await reauthenticatePassword({ userId, email, currentPassword, ipAddress, userAgent });
+    try {
+      if (typeof workos.userManagement.updateUser !== 'function') throw new AuthError('password_update_unavailable', 503);
+      await workos.userManagement.updateUser({ userId: requireWorkOSUserId(userId), password: newPassword });
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw workosError(error, 'password_update_unavailable', { passwordUpdate: true });
+    }
+    return { passwordUpdated: true };
+  }
+
+  async function sendEmailChangeCode({ userId: rawUserId, newEmail: rawEmail } = {}) {
+    const userId = requireWorkOSUserId(rawUserId);
+    const newEmail = normalizeEmail(rawEmail);
+    try {
+      const result = await requestWorkOSApi(
+        `/user_management/users/${encodeURIComponent(userId)}/email_change/send`,
+        { new_email: newEmail },
+      );
+      const expiresAt = result.expires_at || result.expiresAt || null;
+      return { newEmail, expiresAt };
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw emailChangeError(error, 'send');
+    }
+  }
+
+  async function confirmEmailChange({
+    userId: rawUserId,
+    code: rawCode,
+    expectedEmail: rawExpectedEmail,
+  } = {}) {
+    const userId = requireWorkOSUserId(rawUserId);
+    const code = String(rawCode || '').trim();
+    if (!/^\d{6}$/.test(code)) throw new AuthError('invalid_email_change_code', 400);
+    const expectedEmail = normalizeEmail(rawExpectedEmail);
+    let user;
+    try {
+      const result = await requestWorkOSApi(
+        `/user_management/users/${encodeURIComponent(userId)}/email_change/confirm`,
+        { code },
+      );
+      user = workosUserFromRest(result.user || result.email_change_confirmation?.user);
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      const mapped = emailChangeError(error, 'confirm');
+      if (mapped.code === 'invalid_email_change_code' && typeof workos.userManagement.getUser === 'function') {
+        try {
+          const current = await workos.userManagement.getUser(userId);
+          if (current?.id === userId
+              && normalizeEmail(current.email) === expectedEmail
+              && current.emailVerified === true) {
+            return { user: current };
+          }
+        } catch { /* keep the original verification error */ }
+      }
+      throw mapped;
+    }
+    if (!user || user.id !== userId || normalizeEmail(user.email) !== expectedEmail || user.emailVerified !== true) {
+      throw new AuthError('email_change_confirmation_failed', 502);
+    }
+    return { user };
   }
 
   async function authenticatePassword({ email: rawEmail, password: rawPassword, ipAddress, userAgent, now } = {}) {
@@ -417,6 +603,10 @@ export function createWorkOSAuth({ workos, clientId, redirectUri, authService } 
     verifyPasswordEmail,
     startPasswordReset,
     completePasswordReset,
+    reauthenticatePassword,
+    changePassword,
+    sendEmailChangeCode,
+    confirmEmailChange,
     completeLogin,
   });
 }

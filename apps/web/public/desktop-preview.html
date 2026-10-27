@@ -1502,9 +1502,112 @@
   .sidebar .sidebar-bottom-tile:hover{background:rgba(255,255,255,.06)!important;background-image:none!important;border-color:rgba(255,255,255,.13)!important}
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile{background:rgba(255,255,255,.58)!important;background-image:none!important;border-color:#dce5dc!important;color:#5e7064!important}
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile:hover{background:#fff!important;border-color:#cbd7cc!important}
-  .app-settings-modal{width:min(480px,94vw);height:auto;min-height:250px;max-height:88vh}
-  .app-settings-empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:18px}
-  .app-settings-empty p{margin:0;color:var(--text-sec);font-size:13px;line-height:1.6}
+  .app-settings-modal{width:min(920px,94vw);height:min(650px,88vh);min-height:430px;max-height:88vh}
+  .app-settings-nav{width:225px}
+  .app-settings-nav .modal-side-title{margin-bottom:4px}
+  .app-settings-nav .modal-nav-btn{min-height:42px}
+  .app-settings-nav .modal-nav-ico svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .app-settings-modal .modal-content{min-height:0}
+  .app-settings-modal .modal-header{gap:12px}
+  .app-settings-modal .modal-body{display:flex;flex-direction:column;gap:13px;min-height:0;padding:15px 18px}
+  .app-settings-preview-badge,.app-settings-status{display:inline-flex;align-items:center;gap:5px;width:max-content;padding:4px 8px;border:1px solid rgba(245,185,66,.22);border-radius:999px;background:rgba(245,185,66,.08);color:#f1d596;font-size:11px;font-weight:650;line-height:1.3}
+  .app-settings-preview-note{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid rgba(233,185,93,.18);border-radius:12px;background:rgba(233,185,93,.045);color:var(--text-sec);font-size:12px;line-height:1.5}
+  .app-settings-preview-note svg{width:18px;height:18px;flex:none;margin-top:1px;fill:none;stroke:var(--cue-gold);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .app-settings-preview-note strong{display:block;margin-bottom:2px;color:#f1d596;font-size:12px}
+  .app-settings-preview-note p{margin:0}
+  .app-settings-pane{display:none;flex-direction:column;gap:12px;min-height:0}
+  .app-settings-pane.is-active{display:flex}
+  .app-settings-pane[hidden]{display:none!important}
+  .app-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .app-settings-card{min-width:0;padding:14px 15px;border:1px solid var(--border);border-radius:13px;background:var(--bg-card)}
+  .app-settings-card-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .app-settings-card h3{margin:0;color:var(--text-main);font-size:14px;font-weight:700}
+  .app-settings-card p{margin:0;color:var(--text-sec);font-size:13px;line-height:1.55}
+  .app-settings-card p+p{margin-top:8px}
+  .app-settings-status.neutral{border-color:var(--border);background:rgba(255,255,255,.035);color:var(--text-sec)}
+  .app-settings-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+  .app-settings-fact{min-width:0;padding:9px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card-inner)}
+  .app-settings-fact span,.app-settings-fact strong{display:block;overflow-wrap:anywhere}
+  .app-settings-fact span{color:var(--text-dim);font-size:11px}
+  .app-settings-fact strong{margin-top:3px;color:var(--text-main);font-size:13px;font-weight:650}
+  .app-settings-service-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .app-settings-service{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;padding:11px 12px;border:1px solid var(--border);border-radius:11px;background:var(--bg-card)}
+  .app-settings-service strong{display:block;overflow-wrap:anywhere;color:var(--text-main);font-size:13px;font-weight:650}
+  .app-settings-service small{display:block;margin-top:3px;color:var(--text-dim);font-size:11px}
+  .app-settings-theme-options{display:flex;flex-wrap:wrap;gap:9px;margin-top:11px}
+  .app-settings-theme-choice{min-width:105px;min-height:42px;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card-inner);color:var(--text-sec);font:600 13px var(--font);cursor:pointer}
+  .app-settings-theme-choice:hover{border-color:var(--border-strong);color:var(--text-main)}
+  .app-settings-theme-choice.is-selected{border-color:rgba(233,185,93,.58);background:var(--bg-active);color:var(--text-main);box-shadow:inset 0 0 0 1px rgba(233,185,93,.14)}
+  .app-settings-theme-choice:focus-visible{outline:2px solid var(--cue-gold);outline-offset:2px}
+  .app-settings-theme-preview{width:18px;height:18px;border:1px solid var(--border-strong);border-radius:50%;background:#17171a;box-shadow:inset -5px 0 0 #f3f6f1}
+  .app-settings-theme-choice[data-preview-theme="light"] .app-settings-theme-preview{background:#f3f6f1;box-shadow:inset -5px 0 0 #17171a}
+  .app-settings-card .pill-btn{min-height:36px;margin-top:11px;padding:0 13px}
+  .settings-form{display:grid;gap:11px;margin-top:10px}
+  .settings-form>label{display:flex;flex-direction:column;gap:6px;min-width:0;color:var(--text-sec);font-size:11px;font-weight:650}
+  .settings-form .form-input{min-height:38px;margin:0;font-size:13px;font-weight:400}
+  .settings-form .settings-textarea{height:auto;min-height:72px;padding:9px 10px;resize:vertical}
+  .settings-form-hint{margin:0!important;color:var(--text-dim)!important;font-size:11px!important;line-height:1.45!important}
+  .settings-form-status{min-height:17px;margin:0!important;color:var(--text-dim)!important;font-size:11px!important;line-height:1.45!important}
+  .settings-form-status[data-state="error"]{color:#ffaaa0!important}
+  .settings-form-status[data-state="success"]{color:#8fe1ae!important}
+  .settings-form-actions{display:flex;justify-content:flex-end;gap:8px}
+  .settings-form-actions .pill-btn{min-height:36px;padding:0 14px}
+  .settings-form button:disabled,.settings-form input:disabled,.settings-form textarea:disabled,.settings-choice-button:disabled,.settings-agent-selector button:disabled{opacity:.55;cursor:not-allowed}
+  .email-change-confirm-form[hidden],.settings-agent-editor[hidden],.settings-empty-state[hidden]{display:none!important}
+  .settings-agent-selector{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+  .settings-agent-selector button{min-height:38px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card-inner);color:var(--text-sec);font:600 11px var(--font);cursor:pointer;text-align:left}
+  .settings-agent-selector button:hover{border-color:var(--border-strong);color:var(--text-main)}
+  .settings-agent-selector button.is-selected{border-color:rgba(233,185,93,.55);background:var(--bg-active);color:var(--text-main)}
+  .settings-agent-selector button .agent-avatar-art{width:22px;height:22px;display:block}
+  .settings-empty-state{margin-top:10px;padding:12px;border:1px dashed var(--border-strong);border-radius:10px;color:var(--text-dim);font-size:12px;line-height:1.5}
+  .settings-agent-preview{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--bg-card-inner)}
+  .settings-agent-preview-avatar{width:48px;height:48px;display:grid;place-items:center;flex:0 0 48px;border:1px solid rgba(50,213,131,.28);border-radius:14px;background:rgba(50,213,131,.08)}
+  .settings-agent-preview-avatar .agent-avatar-art{width:40px;height:40px;display:block}
+  .settings-agent-preview strong,.settings-agent-preview small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .settings-agent-preview strong{color:var(--text-main);font-size:13px;font-weight:700}
+  .settings-agent-preview small{margin-top:3px;color:var(--text-sec);font-size:11px}
+  .settings-choice-fieldset{min-width:0;margin:0;padding:0;border:0}
+  .settings-choice-fieldset legend{margin:0 0 7px;padding:0;color:var(--text-sec);font-size:11px;font-weight:650}
+  .settings-agent-avatar-options{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:6px}
+  .settings-agent-avatar-options .new-agent-avatar-choice{height:40px}
+  .settings-agent-avatar-options .new-agent-avatar-choice .agent-avatar-art{width:31px;height:31px}
+  .settings-approval-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+  .settings-choice-button{min-height:37px;padding:6px 9px;border:1px solid var(--border);border-radius:9px;background:var(--bg-card-inner);color:var(--text-sec);font:600 11px var(--font);cursor:pointer}
+  .settings-choice-button:hover{border-color:var(--border-strong);color:var(--text-main)}
+  .settings-choice-button.is-selected{border-color:rgba(233,185,93,.55);background:var(--bg-active);color:var(--text-main)}
+  .settings-app-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .settings-app-option{position:relative;min-height:42px;display:flex!important;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card-inner);color:var(--text-sec)!important;font-size:10px!important;cursor:pointer}
+  .settings-app-option input{width:15px;height:15px;flex:none;accent-color:#dcb361}
+  .settings-app-option:has(input:checked){border-color:rgba(233,185,93,.5);background:var(--bg-active);color:var(--text-main)!important}
+  .settings-agent-color-options{justify-content:flex-start;margin-top:2px}
+  .settings-color-fieldset{padding-top:4px;border-top:1px solid var(--border)}
+  :root[data-theme="light"] .settings-agent-preview{background:#f7faf7}
+  :root[data-theme="light"] .settings-agent-selector button,:root[data-theme="light"] .settings-choice-button,:root[data-theme="light"] .settings-app-option{background:#f8faf7}
+  :root[data-theme="light"] .settings-agent-selector button.is-selected,:root[data-theme="light"] .settings-choice-button.is-selected,:root[data-theme="light"] .settings-app-option:has(input:checked){background:#f6f0e2;color:#43391f}
+  :root[data-theme="light"] .settings-agent-avatar-options .new-agent-avatar-choice{border-color:#dfe7de;background:#f8faf7}
+  :root[data-theme="light"] .settings-agent-avatar-options .new-agent-avatar-choice.is-selected{border-color:#b58e34;background:#fbf6e9}
+  :root[data-theme="light"] .settings-agent-color-options .new-agent-color-choice.is-selected{border-color:#253b2a;box-shadow:0 0 0 2px #fff,0 0 0 3px var(--swatch-color)}
+  @media(max-width:640px){
+    .settings-agent-avatar-options{grid-template-columns:repeat(5,minmax(0,1fr))}
+    .settings-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .settings-form-actions{justify-content:stretch}
+    .settings-form-actions .pill-btn{flex:1}
+    .settings-agent-selector button{min-height:42px}
+  }
+  @media(max-width:640px){
+    #generalOverlayBackdrop{padding:12px}
+    .app-settings-modal{width:calc(100vw - 32px)!important;height:min(86vh,760px)!important;min-height:0;max-height:86vh;flex-direction:column}
+    .app-settings-nav{width:100%;flex:0 0 auto;flex-direction:row;gap:4px;overflow-x:auto;overflow-y:hidden;padding:7px;border-right:0;border-bottom:1px solid var(--border)}
+    .app-settings-nav .modal-side-title{display:none}
+    .app-settings-nav .modal-nav-btn{width:auto;min-width:max-content;min-height:36px;flex:0 0 auto;gap:7px;padding:7px 9px;font-size:12px}
+    .app-settings-nav .modal-nav-ico{width:18px;height:18px}
+    .app-settings-nav .modal-nav-ico svg{width:13px;height:13px}
+    .app-settings-modal .modal-header{min-height:52px;height:52px;padding:0 14px}
+    .app-settings-modal .modal-body{gap:10px;padding:11px}
+    .app-settings-grid,.app-settings-service-grid{grid-template-columns:1fr}
+    .app-settings-card{padding:12px}
+    .app-settings-facts{grid-template-columns:1fr 1fr}
+  }
   .new-agent-form{display:flex;flex-direction:column;gap:9px}
   .new-agent-modal .modal-body{padding:14px 18px}
   .new-agent-form-intro{margin:0;color:var(--text-sec);font-size:11px;line-height:1.5}
@@ -1566,6 +1669,21 @@
   @media(max-width:640px){.new-agent-fields-grid{grid-template-columns:1fr}.new-agent-avatar-options{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.new-agent-avatar-choice{height:42px}.new-agent-color-choice{width:23px;height:23px}.new-agent-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.new-agent-app-surface{min-height:56px;padding:7px 6px}.new-agent-app-copy strong{font-size:8.5px}}
   .preview-toast{position:fixed;right:22px;bottom:22px;z-index:100;max-width:min(380px,calc(100vw - 36px));padding:11px 14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-card);color:var(--text-main);font-size:12px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.22)}
   :root[data-theme="light"] .app-settings-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
+  :root[data-theme="light"] .app-settings-modal .modal-content{background:#fff}
+  :root[data-theme="light"] .app-settings-modal .modal-header{background:#fff;border-color:#e1e8df}
+  :root[data-theme="light"] .app-settings-nav .modal-side-title{color:#718076}
+  :root[data-theme="light"] .app-settings-nav .modal-nav-btn{color:#5e7064}
+  :root[data-theme="light"] .app-settings-nav .modal-nav-btn:hover{background:rgba(33,70,42,.045);color:#25382b}
+  :root[data-theme="light"] .app-settings-nav .modal-nav-btn.active{background:#f6f0e2;border-color:#ebdfc1;color:#43391f}
+  :root[data-theme="light"] .app-settings-nav .modal-nav-ico{background:rgba(33,70,42,.055)}
+  :root[data-theme="light"] .app-settings-nav .modal-nav-btn.active .modal-nav-ico{background:rgba(192,143,48,.14)}
+  :root[data-theme="light"] .app-settings-preview-badge,:root[data-theme="light"] .app-settings-status{border-color:#e8d8b3;background:#fbf6e9;color:#725d26}
+  :root[data-theme="light"] .app-settings-status.neutral{border-color:#e0e7df;background:#f5f7f4;color:#627268}
+  :root[data-theme="light"] .app-settings-preview-note{border-color:#e6ddc4;background:#fbf8ef;color:#536354}
+  :root[data-theme="light"] .app-settings-preview-note strong{color:#735d25}
+  :root[data-theme="light"] .app-settings-preview-note svg{stroke:#8b6b2f}
+  :root[data-theme="light"] .settings-form-status[data-state="error"]{color:#a32f27!important}
+  :root[data-theme="light"] .settings-form-status[data-state="success"]{color:#267043!important}
 </style>
 </head>
 <body>
@@ -1606,7 +1724,7 @@
       </div>
     </div>
 
-    <button class="cue-footer app-settings-footer sidebar-bottom-tile" id="appSettingsButton" type="button" onclick="openGeneralOverlay('apps')" aria-label="Open Settings" title="Settings">
+    <button class="cue-footer app-settings-footer sidebar-bottom-tile" id="appSettingsButton" type="button" onclick="openGeneralOverlay('workspace')" aria-label="Open Settings" title="Settings">
       <svg class="app-settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       <span class="app-settings-footer-label">Settings</span>
     </button>
@@ -1673,14 +1791,188 @@
 
   <div class="overlay-backdrop" id="generalOverlayBackdrop" onclick="handleBackdropClick(event, 'generalOverlayBackdrop')">
     <div class="settings-modal app-settings-modal" role="dialog" aria-modal="true" aria-labelledby="appSettingsTitle" tabindex="-1" onclick="event.stopPropagation()">
+      <aside class="modal-sidebar app-settings-nav" role="tablist" aria-label="Settings sections">
+        <div class="modal-side-title">Settings sections</div>
+        <button class="modal-nav-btn active" id="settingsTabWorkspace" type="button" role="tab" aria-selected="true" aria-controls="settingsPaneWorkspace" data-settings-pane="workspace">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M3 17V5.5L10 3l7 2.5V17H3Z"/><path d="M7 17v-4h6v4M6.5 8h.01M10 8h.01M13.5 8h.01"/></svg></span><span>Workspace</span>
+        </button>
+        <button class="modal-nav-btn" id="settingsTabAgents" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAgents" data-settings-pane="agents">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="10" cy="6.5" r="3"/><path d="M4 17c.4-3 2.6-4.8 6-4.8s5.6 1.8 6 4.8"/></svg></span><span>Agents &amp; approval</span>
+        </button>
+        <button class="modal-nav-btn" id="settingsTabApps" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneApps" data-settings-pane="apps">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><rect x="12" y="12" width="5" height="5" rx="1"/></svg></span><span>Apps &amp; services</span>
+        </button>
+        <button class="modal-nav-btn" id="settingsTabUsage" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneUsage" data-settings-pane="usage">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M3 16.5h14M5 14V9m5 5V4m5 10v-7"/></svg></span><span>Usage &amp; plan</span>
+        </button>
+        <button class="modal-nav-btn" id="settingsTabAccount" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAccount" data-settings-pane="account">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 2.5 16 5v4.3c0 3.7-2.4 6.3-6 8.2-3.6-1.9-6-4.5-6-8.2V5l6-2.5Z"/><path d="m7.3 10 1.8 1.8 3.7-3.9"/></svg></span><span>Account &amp; security</span>
+        </button>
+        <button class="modal-nav-btn" id="settingsTabAppearance" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAppearance" data-settings-pane="appearance">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3v14a7 7 0 0 0 0-14Z"/></svg></span><span>Appearance</span>
+        </button>
+      </aside>
       <div class="modal-content">
         <div class="modal-header">
           <div class="modal-header-title" id="appSettingsTitle">Settings</div>
+          <span class="app-settings-preview-badge" id="settingsModeBadge">Loading account</span>
           <button class="modal-close" type="button" onclick="closeGeneralOverlay()" title="Close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         </div>
-        <div class="modal-body app-settings-empty" role="status">
-          <p>Settings are not connected to this preview.</p>
-          <button class="pill-btn dark" type="button" onclick="closeGeneralOverlay()">Close</button>
+        <div class="modal-body app-settings-body">
+          <div class="app-settings-preview-note" id="settingsPreviewNotice" role="status">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.2"/><path d="M10 8.5v4M10 5.8h.01"/></svg>
+            <div><strong id="settingsNoticeHeading">Loading account settings</strong><p id="settingsNoticeCopy">Settings load from your authenticated account. Local review data cannot save account or workspace changes.</p></div>
+          </div>
+          <section class="app-settings-pane is-active" id="settingsPaneWorkspace" role="tabpanel" aria-labelledby="settingsTabWorkspace">
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Workspace identity</h3><span class="app-settings-status neutral" id="workspaceSettingsBadge">Owner settings</span></div>
+              <form class="settings-form" id="workspaceSettingsForm">
+                <label for="workspaceSettingsName">Workspace name<input class="form-input" id="workspaceSettingsName" name="name" type="text" maxlength="80" autocomplete="organization" required></label>
+                <p class="settings-form-hint">Saved to the signed-in account's shared workspace. Only an owner can rename it.</p>
+                <p class="settings-form-status" id="workspaceSettingsStatus" role="status" aria-live="polite"></p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="workspaceSettingsSave" type="submit">Save workspace</button></div>
+              </form>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Workspace data</h3><span class="app-settings-status neutral">Shared database</span></div>
+              <p>Keus uses one shared Turso database rather than a separate database per user. Account records stay separate, and the same account's authorized workspaces share its usage quota.</p>
+            </div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneAgents" role="tabpanel" aria-labelledby="settingsTabAgents" hidden>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Saved agents</h3><span class="app-settings-status neutral" id="settingsAgentCount">Workspace settings</span></div>
+              <p>Edit a saved agent's identity, approval preference, limits, app labels, and memory preferences. Changes are saved to this signed-in workspace.</p>
+              <div class="settings-agent-selector" id="settingsAgentSelector" role="group" aria-label="Choose a saved agent"></div>
+              <div class="settings-empty-state" id="settingsAgentEmpty" hidden>No saved agents yet. Create one to manage its settings.</div>
+              <button class="pill-btn light" id="settingsOpenNewAgentPreview" type="button">Create a new agent</button>
+            </div>
+            <div class="app-settings-card settings-agent-editor" id="settingsAgentEditorCard" hidden>
+              <div class="app-settings-card-header"><h3 id="settingsAgentEditorTitle">Agent settings</h3><span class="app-settings-status neutral" id="settingsAgentPausedState">Paused</span></div>
+              <form class="settings-form" id="settingsAgentForm">
+                <div class="settings-agent-preview">
+                  <span class="settings-agent-preview-avatar" id="settingsAgentPreviewAvatar" aria-hidden="true"></span>
+                  <span><strong id="settingsAgentPreviewName">Agent</strong><small id="settingsAgentPreviewRole">Role</small></span>
+                </div>
+                <div class="new-agent-fields-grid">
+                  <label for="settingsAgentName">Agent name<input class="form-input" id="settingsAgentName" maxlength="30" required></label>
+                  <label for="settingsAgentRole">Role<input class="form-input" id="settingsAgentRole" maxlength="60" required></label>
+                </div>
+                <fieldset class="settings-choice-fieldset"><legend>Avatar</legend><div class="settings-agent-avatar-options" id="settingsAgentAvatarOptions" role="group" aria-label="Choose agent avatar"></div></fieldset>
+                <fieldset class="settings-choice-fieldset"><legend>Approval preference</legend>
+                  <div class="settings-approval-options" id="settingsAgentApprovalOptions" role="group" aria-label="Choose approval preference">
+                    <button class="settings-choice-button is-selected" type="button" data-settings-approval="desktop" aria-pressed="true">Desktop confirmation</button>
+                    <button class="settings-choice-button" type="button" data-settings-approval="keyfob" aria-pressed="false">Phone keyfob</button>
+                  </div>
+                  <p class="settings-form-hint">Approval and execution are not connected in this staging preview.</p>
+                </fieldset>
+                <div class="new-agent-fields-grid">
+                  <label for="settingsAgentOrderCap">Maximum per order (USD)<input class="form-input" id="settingsAgentOrderCap" type="number" min="20" max="500" step="1" required></label>
+                  <label for="settingsAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="settingsAgentDailyCap" type="number" min="100" max="2000" step="25" required></label>
+                </div>
+                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
+                  <div class="settings-app-grid" id="settingsAgentAppsOptions">
+                    <label class="settings-app-option"><input type="checkbox" value="paypal"><span>PayPal Sandbox</span></label>
+                    <label class="settings-app-option"><input type="checkbox" value="channel3"><span>Channel3</span></label>
+                    <label class="settings-app-option"><input type="checkbox" value="kernel"><span>KERNEL</span></label>
+                    <label class="settings-app-option"><input type="checkbox" value="whatsapp"><span>WhatsApp</span></label>
+                    <label class="settings-app-option"><input type="checkbox" value="gmail"><span>Inbox</span></label>
+                    <label class="settings-app-option"><input type="checkbox" value="instagram"><span>Instagram Shops</span></label>
+                  </div>
+                  <p class="settings-form-hint">Selections are stored as labels only; no provider is connected.</p>
+                </fieldset>
+                <label for="settingsAgentMemory">Memory preferences, optional<textarea class="form-input settings-textarea" id="settingsAgentMemory" rows="3" maxlength="1600" placeholder="One preference per line"></textarea></label>
+                <fieldset class="settings-choice-fieldset settings-color-fieldset"><legend>Avatar color</legend><div class="new-agent-color-options settings-agent-color-options" id="settingsAgentColorOptions" role="group" aria-label="Choose avatar color"></div></fieldset>
+                <p class="settings-form-status" id="settingsAgentStatus" role="status" aria-live="polite"></p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="settingsAgentSave" type="submit">Save agent settings</button></div>
+              </form>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Approval and execution</h3><span class="app-settings-status">Not connected</span></div>
+              <p>Desktop transaction-bound WebAuthn approval is planned. This preview has no agent runtime, live approval, or payment flow; displayed spend limits are stored preferences and are not enforced by a running agent.</p>
+            </div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneApps" role="tabpanel" aria-labelledby="settingsTabApps" hidden>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>App labels</h3><span class="app-settings-status">0 connected</span></div>
+              <p>These six labels may be selected per agent. They do not connect a provider or grant access to an account.</p>
+            </div>
+            <div class="app-settings-service-grid" aria-label="Preview-only app labels">
+              <div class="app-settings-service"><div><strong>PayPal Sandbox</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
+              <div class="app-settings-service"><div><strong>Channel3</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
+              <div class="app-settings-service"><div><strong>KERNEL</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
+              <div class="app-settings-service"><div><strong>WhatsApp</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
+              <div class="app-settings-service"><div><strong>Inbox</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
+              <div class="app-settings-service"><div><strong>Instagram Shops</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
+            </div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneUsage" role="tabpanel" aria-labelledby="settingsTabUsage" hidden>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Competition allowance</h3><span class="app-settings-status neutral">Staging configuration</span></div>
+              <div class="app-settings-facts"><div class="app-settings-fact"><span>Daily cap</span><strong>7,000,000 AI tokens</strong></div><div class="app-settings-fact"><span>Reset</span><strong>UTC midnight</strong></div></div>
+              <p style="margin-top:10px">The allowance is per verified account across its authorized workspaces; different accounts remain separate. Live token totals are not available because the agent runtime is not connected.</p>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Subscription</h3><span class="app-settings-status">Not active</span></div>
+              <p>PayPal is the intended future subscription provider. Paid checkout, webhook reconciliation, and cancellation are not implemented; agent purchase payments remain a separate product boundary.</p>
+            </div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneAccount" role="tabpanel" aria-labelledby="settingsTabAccount" hidden>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Profile</h3><span class="app-settings-status neutral">Signed-in account</span></div>
+              <form class="settings-form" id="profileSettingsForm">
+                <label for="profileDisplayName">Display name<input class="form-input" id="profileDisplayName" name="displayName" maxlength="120" autocomplete="name" required></label>
+                <p class="settings-form-status" id="profileSettingsStatus" role="status" aria-live="polite"></p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="profileSettingsSave" type="submit">Save profile</button></div>
+              </form>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Email address</h3><span class="app-settings-status neutral">Six-digit verification</span></div>
+              <p>Current email: <strong id="settingsCurrentEmail">Loading account</strong>. Enter your password to request a code at the new address. Your current email stays in place until the code is confirmed.</p>
+              <form class="settings-form" id="emailChangeStartForm">
+                <label for="emailChangeNewEmail">New email<input class="form-input" id="emailChangeNewEmail" name="newEmail" type="email" maxlength="254" autocomplete="email" required></label>
+                <label for="emailChangeCurrentPassword">Current password<input class="form-input" id="emailChangeCurrentPassword" name="currentPassword" type="password" autocomplete="current-password" required></label>
+                <p class="settings-form-status" id="emailChangeStartStatus" role="status" aria-live="polite"></p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="emailChangeStartButton" type="submit">Send verification code</button></div>
+              </form>
+              <form class="settings-form email-change-confirm-form" id="emailChangeConfirmForm" hidden>
+                <label for="emailChangeCode">Six-digit code<input class="form-input" id="emailChangeCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required></label>
+                <p class="settings-form-hint" id="emailChangePendingCopy">Enter the code sent to your new address.</p>
+                <p class="settings-form-status" id="emailChangeConfirmStatus" role="status" aria-live="polite"></p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="emailChangeConfirmButton" type="submit">Confirm new email</button></div>
+              </form>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Password</h3><span class="app-settings-status neutral">Current-password check</span></div>
+              <form class="settings-form" id="passwordChangeForm">
+                <label for="passwordChangeCurrent">Current password<input class="form-input" id="passwordChangeCurrent" name="currentPassword" type="password" autocomplete="current-password" required></label>
+                <div class="new-agent-fields-grid">
+                  <label for="passwordChangeNew">New password<input class="form-input" id="passwordChangeNew" name="newPassword" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+                  <label for="passwordChangeConfirm">Confirm new password<input class="form-input" id="passwordChangeConfirm" name="confirmPassword" type="password" minlength="8" maxlength="1024" autocomplete="new-password" required></label>
+                </div>
+                <p class="settings-form-status" id="passwordChangeStatus" role="status" aria-live="polite"></p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="passwordChangeSave" type="submit">Change password</button></div>
+              </form>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Forgot password recovery</h3><span class="app-settings-status neutral">Separate code flow</span></div>
+              <p>The sign-in page keeps its separate six-digit Forgot password flow. It verifies the recovery mailbox and lets you choose a password; no shared password or reset link is used.</p>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Other sign-in methods</h3><span class="app-settings-status">Not connected</span></div>
+              <p>Google and GitHub sign-in are controlled by the staging WorkOS configuration. Passkeys are not enabled for account sign-in; transaction-bound desktop WebAuthn approval remains a separate planned feature.</p>
+            </div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneAppearance" role="tabpanel" aria-labelledby="settingsTabAppearance" hidden>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Theme</h3><span class="app-settings-status neutral" id="themeSettingsBadge">Account-synced</span></div>
+              <p>For a signed-in account, this preference is stored with your profile and shared across the landing page, sign-in, dashboard, and desktop preview. The local Review Account can only change this browser.</p>
+              <div class="app-settings-theme-options" role="group" aria-label="Choose account theme">
+                <button class="app-settings-theme-choice" type="button" data-preview-theme="dark" aria-pressed="false"><span class="app-settings-theme-preview" aria-hidden="true"></span><span>Dark</span></button>
+                <button class="app-settings-theme-choice" type="button" data-preview-theme="light" aria-pressed="false"><span class="app-settings-theme-preview" aria-hidden="true"></span><span>Light</span></button>
+              </div>
+              <p class="settings-form-status" id="themeSettingsStatus" role="status" aria-live="polite"></p>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -1748,7 +2040,7 @@
           <label for="newAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="newAgentDailyCap" name="dailyCap" type="number" min="100" max="2000" step="25" value="100" required></label>
           <fieldset class="new-agent-app-picker">
             <legend class="new-agent-app-heading"><span>Apps</span><span class="new-agent-app-count" id="newAgentAppsCount" aria-live="polite">0 selected</span></legend>
-            <p class="new-agent-app-note">Select any preview labels to save with this agent. No integrations are connected.</p>
+            <p class="new-agent-app-note">Choose app labels to save with this agent. No integrations are connected.</p>
             <div class="new-agent-app-grid" id="newAgentAppsOptions" role="group" aria-label="Preview app selections">
               <label class="new-agent-app-option" style="--app-color:rgba(76,141,255,.17)"><input class="new-agent-app-checkbox" id="newAgentAppPaypal" type="checkbox" value="paypal" aria-label="PayPal Sandbox preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span><span class="new-agent-app-copy"><strong>PayPal Sandbox</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
               <label class="new-agent-app-option" style="--app-color:rgba(245,185,66,.17)"><input class="new-agent-app-checkbox" id="newAgentAppChannel3" type="checkbox" value="channel3" aria-label="Channel3 preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1 11H5L4 9Z"/><path d="M8 9a4 4 0 0 1 8 0"/><path d="M9 13v3m6-3v3"/></svg></span><span class="new-agent-app-copy"><strong>Channel3</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
@@ -1759,7 +2051,7 @@
             </div>
           </fieldset>
           <label for="newAgentMemoryPills">Memory preferences, optional<textarea class="form-input" id="newAgentMemoryPills" name="memoryPills" rows="2" maxlength="1600" placeholder="One preference per line"></textarea></label>
-          <p class="new-agent-form-status" id="newAgentFormStatus" role="status" aria-live="polite">App selections and memory preferences are saved as preview settings. No integrations are connected here.</p>
+          <p class="new-agent-form-status" id="newAgentFormStatus" role="status" aria-live="polite">App labels and memory preferences save with the agent. Integrations are not connected.</p>
           <div class="new-agent-form-actions">
             <button class="pill-btn dark" type="button" onclick="closeNewAgentModal()">Cancel</button>
             <button class="pill-btn light" id="createNewAgentButton" type="submit">Create Agent</button>
@@ -1782,6 +2074,11 @@
   let lastFocusedElement = null;
   let openOverlayId = null;
   let selectedAgentId = null;
+  let currentBootstrap = null;
+  let currentSettingsAgentId = null;
+  let currentSettingsAgentAvatar = 'bulb';
+  let currentSettingsAgentColor = '#32d583';
+  let currentSettingsApprovalPath = 'desktop';
   let savedAgentRowTemplate = null;
   function openOverlay(id) {
     const backdrop = document.getElementById(id);
@@ -1799,10 +2096,51 @@
     if (openOverlayId === id) openOverlayId = null;
     if (restoreFocus && lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
   }
-  function openGeneralOverlay() { openOverlay('generalOverlayBackdrop'); }
+  const settingsPaneIds = ['workspace', 'agents', 'apps', 'usage', 'account', 'appearance'];
+  function setSettingsPane(key) {
+    const selected = settingsPaneIds.includes(key) ? key : 'workspace';
+    document.querySelectorAll('.app-settings-nav [data-settings-pane]').forEach((button) => {
+      const active = button.dataset.settingsPane === selected;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', String(active));
+      button.tabIndex = active ? 0 : -1;
+      if (active && window.matchMedia('(max-width: 640px)').matches) {
+        button.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+      }
+    });
+    document.querySelectorAll('.app-settings-pane').forEach((pane) => {
+      const active = pane.id === `settingsPane${selected[0].toUpperCase()}${selected.slice(1)}`;
+      pane.classList.toggle('is-active', active);
+      pane.hidden = !active;
+    });
+  }
+  function openGeneralOverlay(pane = 'workspace') {
+    setSettingsPane(pane);
+    openOverlay('generalOverlayBackdrop');
+  }
   function closeGeneralOverlay() { closeOverlay('generalOverlayBackdrop'); }
   function openNewAgentModal() { openOverlay('newAgentOverlayBackdrop'); }
   function closeNewAgentModal() { closeOverlay('newAgentOverlayBackdrop'); }
+  const settingsTabs = Array.from(document.querySelectorAll('.app-settings-nav [data-settings-pane]'));
+  settingsTabs.forEach((button, index) => {
+    button.addEventListener('click', () => setSettingsPane(button.dataset.settingsPane));
+    button.addEventListener('keydown', (event) => {
+      let nextIndex = index;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % settingsTabs.length;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + settingsTabs.length) % settingsTabs.length;
+      else if (event.key === 'Home') nextIndex = 0;
+      else if (event.key === 'End') nextIndex = settingsTabs.length - 1;
+      else return;
+      event.preventDefault();
+      const next = settingsTabs[nextIndex];
+      setSettingsPane(next.dataset.settingsPane);
+      next.focus();
+    });
+  });
+  document.getElementById('settingsOpenNewAgentPreview')?.addEventListener('click', () => {
+    closeGeneralOverlay();
+    openNewAgentModal();
+  });
   function handleBackdropClick(event, id) {
     if (event.target === event.currentTarget) closeOverlay(id);
   }
@@ -1829,6 +2167,11 @@
       button.setAttribute('aria-pressed', String(selected === 'dark'));
     }
     textById('themeLabel', label);
+    document.querySelectorAll('[data-preview-theme]').forEach((choice) => {
+      const active = choice.dataset.previewTheme === selected;
+      choice.classList.toggle('is-selected', active);
+      choice.setAttribute('aria-pressed', String(active));
+    });
     const themeColor = document.getElementById('themeColor');
     if (themeColor) themeColor.setAttribute('content', selected === 'dark' ? '#0d0e11' : '#f3f6f1');
     if (save) {
@@ -1884,6 +2227,312 @@
     const c=safeAvatarColor(color);
     const shape=shapes[key].replaceAll('{c}',c).replaceAll('stroke="#111113"','stroke="var(--agent-avatar-outline)"');
     return `<svg class="agent-avatar-art" viewBox="${views[key]}" role="img" aria-label="${labels[key]} avatar">${shape}</svg>`;
+  }
+
+  const settingsAvatarChoices = [
+    ['bulb', 'Lightbulb'], ['laptop', 'Laptop'], ['shield', 'Shield'], ['cart', 'Shopping cart'], ['car', 'Car'],
+    ['parcel', 'Parcel'], ['magnifier', 'Magnifier'], ['tag', 'Price tag'], ['wallet', 'Wallet'], ['van', 'Delivery van'],
+  ];
+  const settingsColorChoices = [
+    ['#32d583', 'Green'], ['#f5b942', 'Gold'], ['#4c8dff', 'Blue'], ['#b57cff', 'Purple'], ['#ff7777', 'Coral'],
+  ];
+
+  function setSettingsStatus(id, message, state = '') {
+    const node = document.getElementById(id);
+    if (!node) return;
+    node.textContent = String(message || '');
+    if (state) node.dataset.state = state;
+    else delete node.dataset.state;
+  }
+
+  function setSettingsFormEnabled(formId, enabled) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    Array.from(form.elements).forEach((element) => { element.disabled = !enabled; });
+  }
+
+  function applySettingsAvailability() {
+    const user = currentBootstrap?.user || null;
+    const fixture = document.documentElement.dataset.reviewFixture === 'true';
+    const authenticated = Boolean(user?.id) && !fixture;
+    const owner = authenticated && currentBootstrap?.workspace?.role === 'owner';
+    setSettingsFormEnabled('profileSettingsForm', authenticated);
+    setSettingsFormEnabled('workspaceSettingsForm', owner);
+    setSettingsFormEnabled('settingsAgentForm', owner && Boolean(currentSettingsAgentId));
+    setSettingsFormEnabled('emailChangeStartForm', authenticated);
+    setSettingsFormEnabled('emailChangeConfirmForm', authenticated);
+    setSettingsFormEnabled('passwordChangeForm', authenticated);
+    const selector = document.getElementById('settingsAgentSelector');
+    if (selector) selector.querySelectorAll('button').forEach((button) => { button.disabled = !owner; });
+
+    const badge = document.getElementById('settingsModeBadge');
+    const heading = document.getElementById('settingsNoticeHeading');
+    const copy = document.getElementById('settingsNoticeCopy');
+    if (fixture) {
+      if (badge) badge.textContent = 'Local sample';
+      if (heading) heading.textContent = 'Review-only account';
+      if (copy) copy.textContent = 'Review Account and Route Scout are local sample data. Profile, email, password, workspace, and agent edits are disabled and cannot be saved.';
+      textById('workspaceSettingsBadge', 'Sample data');
+      textById('themeSettingsBadge', 'Browser-local');
+    } else if (authenticated) {
+      if (badge) badge.textContent = 'Account connected';
+      if (heading) heading.textContent = 'Changes save to your account';
+      if (copy) copy.textContent = 'Profile, theme, workspace name, and saved agent settings persist to this signed-in staging account. Usage totals and integration statuses remain informational.';
+      textById('workspaceSettingsBadge', owner ? 'Owner editable' : 'Read-only');
+      textById('themeSettingsBadge', 'Saved to account');
+    } else {
+      if (badge) badge.textContent = 'Sign in required';
+      if (heading) heading.textContent = 'Sign in to edit settings';
+      if (copy) copy.textContent = 'Settings changes require an authenticated account. This page has no signed-in account data, so save controls are disabled.';
+      textById('workspaceSettingsBadge', 'Unavailable');
+      textById('themeSettingsBadge', 'Browser-local');
+    }
+  }
+
+  function renderSettingsAgentPreview() {
+    const avatar = document.getElementById('settingsAgentPreviewAvatar');
+    if (avatar) {
+      avatar.innerHTML = objectAvatarSvg(currentSettingsAgentAvatar, currentSettingsAgentColor);
+      avatar.style.borderColor = `${currentSettingsAgentColor}66`;
+      avatar.style.backgroundColor = `${currentSettingsAgentColor}22`;
+    }
+    document.querySelectorAll('#settingsAgentAvatarOptions [data-settings-avatar]').forEach((button) => {
+      const selected = button.dataset.settingsAvatar === currentSettingsAgentAvatar;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+      button.innerHTML = objectAvatarSvg(button.dataset.settingsAvatar, currentSettingsAgentColor);
+    });
+    document.querySelectorAll('#settingsAgentColorOptions [data-settings-color]').forEach((button) => {
+      const selected = button.dataset.settingsColor.toLowerCase() === currentSettingsAgentColor.toLowerCase();
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    document.querySelectorAll('#settingsAgentApprovalOptions [data-settings-approval]').forEach((button) => {
+      const selected = button.dataset.settingsApproval === currentSettingsApprovalPath;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  function buildSettingsAgentChoices() {
+    const avatarContainer = document.getElementById('settingsAgentAvatarOptions');
+    const colorContainer = document.getElementById('settingsAgentColorOptions');
+    if (avatarContainer && avatarContainer.dataset.ready !== 'true') {
+      settingsAvatarChoices.forEach(([kind, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'new-agent-avatar-choice';
+        button.dataset.settingsAvatar = kind;
+        button.setAttribute('aria-label', label);
+        button.title = label;
+        button.setAttribute('aria-pressed', 'false');
+        button.addEventListener('click', () => {
+          currentSettingsAgentAvatar = kind;
+          renderSettingsAgentPreview();
+        });
+        avatarContainer.append(button);
+      });
+      avatarContainer.dataset.ready = 'true';
+    }
+    if (colorContainer && colorContainer.dataset.ready !== 'true') {
+      settingsColorChoices.forEach(([color, label]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'new-agent-color-choice';
+        button.dataset.settingsColor = color;
+        button.setAttribute('aria-label', label);
+        button.title = label;
+        button.setAttribute('aria-pressed', 'false');
+        button.style.setProperty('--swatch-color', color);
+        button.addEventListener('click', () => {
+          currentSettingsAgentColor = color;
+          renderSettingsAgentPreview();
+        });
+        colorContainer.append(button);
+      });
+      colorContainer.dataset.ready = 'true';
+    }
+    document.querySelectorAll('#settingsAgentApprovalOptions [data-settings-approval]').forEach((button) => {
+      if (button.dataset.bound === 'true') return;
+      button.addEventListener('click', () => {
+        currentSettingsApprovalPath = button.dataset.settingsApproval === 'keyfob' ? 'keyfob' : 'desktop';
+        renderSettingsAgentPreview();
+      });
+      button.dataset.bound = 'true';
+    });
+  }
+
+  function renderSettingsAgentEditor() {
+    buildSettingsAgentChoices();
+    const agents = Array.isArray(currentBootstrap?.agents) ? currentBootstrap.agents : [];
+    const agent = agents.find((entry) => String(entry.id) === String(currentSettingsAgentId)) || null;
+    const editor = document.getElementById('settingsAgentEditorCard');
+    const empty = document.getElementById('settingsAgentEmpty');
+    if (!agent) {
+      if (editor) editor.hidden = true;
+      if (empty) empty.hidden = agents.length > 0;
+      setSettingsFormEnabled('settingsAgentForm', false);
+      return;
+    }
+    if (editor) editor.hidden = false;
+    if (empty) empty.hidden = true;
+    const onboarding = currentBootstrap?.onboarding || {};
+    const profile = onboarding.profile || {};
+    const settings = agent.settings && typeof agent.settings === 'object' ? agent.settings : {};
+    const profileAgent = profile.agent && typeof profile.agent === 'object' ? profile.agent : {};
+    const limits = profile.purchaseLimits && typeof profile.purchaseLimits === 'object' ? profile.purchaseLimits : {};
+    const apps = Array.isArray(settings.apps) ? settings.apps : (Array.isArray(profile.apps) ? profile.apps : []);
+    const memoryPills = Array.isArray(settings.memoryPills) ? settings.memoryPills : (Array.isArray(profile.memoryPills) ? profile.memoryPills : []);
+    currentSettingsAgentAvatar = settingsAvatarChoices.some(([kind]) => kind === agent.avatar) ? agent.avatar : 'bulb';
+    currentSettingsAgentColor = safeAvatarColor(settings.color || profileAgent.color || agent.color || '#32d583');
+    const approvalPath = String(settings.approvalPath || profile.approvalPath || 'desktop');
+    currentSettingsApprovalPath = ['desktop', 'keyfob'].includes(approvalPath) ? approvalPath : 'desktop';
+    document.getElementById('settingsAgentName').value = String(agent.name || '');
+    document.getElementById('settingsAgentRole').value = String(agent.role || '');
+    document.getElementById('settingsAgentOrderCap').value = String(settings.orderCap ?? limits.maxPerOrder?.amount ?? 20);
+    document.getElementById('settingsAgentDailyCap').value = String(settings.dailyCap ?? limits.dailyWorkspace?.amount ?? 100);
+    document.getElementById('settingsAgentMemory').value = memoryPills.join('\n');
+    document.querySelectorAll('#settingsAgentAppsOptions input[type="checkbox"]').forEach((checkbox) => {
+      checkbox.checked = apps.includes(checkbox.value);
+    });
+    const status = String(agent.status || 'paused').toLowerCase();
+    textById('settingsAgentPausedState', status === 'paused' ? 'Paused' : status.charAt(0).toUpperCase() + status.slice(1));
+    textById('settingsAgentEditorTitle', `${agent.name || 'Agent'} settings`);
+    textById('settingsAgentPreviewName', agent.name || 'Agent');
+    textById('settingsAgentPreviewRole', agent.role || 'Role not set');
+    setSettingsStatus('settingsAgentStatus', '');
+    renderSettingsAgentPreview();
+    applySettingsAvailability();
+  }
+
+  function renderSettingsFromBootstrap(data) {
+    currentBootstrap = data && typeof data === 'object' ? data : null;
+    const user = currentBootstrap?.user || {};
+    const workspace = currentBootstrap?.workspace || {};
+    const authenticated = Boolean(user.id);
+    if (authenticated && (user.theme === 'dark' || user.theme === 'light')) applyKeusTheme(user.theme, true);
+    const workspaceName = String(workspace.name || '');
+    const workspaceNameInput = document.getElementById('workspaceSettingsName');
+    if (workspaceNameInput) workspaceNameInput.value = workspaceName;
+    const displayNameInput = document.getElementById('profileDisplayName');
+    if (displayNameInput) displayNameInput.value = String(user.displayName || '');
+    textById('settingsCurrentEmail', user.email || 'Email unavailable');
+    setSettingsStatus('workspaceSettingsStatus', '');
+    setSettingsStatus('profileSettingsStatus', '');
+    setSettingsStatus('emailChangeStartStatus', '');
+    setSettingsStatus('passwordChangeStatus', '');
+
+    const agents = Array.isArray(currentBootstrap?.agents)
+      ? currentBootstrap.agents.filter((entry) => entry && entry.id)
+      : (currentBootstrap?.onboarding?.agent?.id ? [currentBootstrap.onboarding.agent] : []);
+    textById('settingsAgentCount', `${agents.length} saved ${agents.length === 1 ? 'agent' : 'agents'}`);
+    const selector = document.getElementById('settingsAgentSelector');
+    const empty = document.getElementById('settingsAgentEmpty');
+    if (selector) selector.replaceChildren();
+    if (empty) empty.hidden = agents.length > 0;
+    if (!agents.some((agent) => String(agent.id) === String(currentSettingsAgentId))) {
+      const preferred = agents.find((agent) => String(agent.id) === String(selectedAgentId));
+      currentSettingsAgentId = preferred?.id ? String(preferred.id) : (agents[0]?.id ? String(agents[0].id) : null);
+    }
+    agents.forEach((agent) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.agentId = String(agent.id);
+      button.setAttribute('aria-pressed', String(String(agent.id) === String(currentSettingsAgentId)));
+      button.classList.toggle('is-selected', String(agent.id) === String(currentSettingsAgentId));
+      const avatar = document.createElement('span');
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', safeAvatarColor(agent.settings?.color || '#32d583'));
+      const name = document.createElement('span');
+      name.textContent = String(agent.name || 'Saved agent');
+      button.append(avatar, name);
+      button.addEventListener('click', () => {
+        currentSettingsAgentId = String(agent.id);
+        renderSettingsFromBootstrap(currentBootstrap);
+      });
+      selector?.append(button);
+    });
+    renderSettingsAgentEditor();
+    applySettingsAvailability();
+    if (authenticated && user.id !== localReviewFixture.user.id) void refreshPendingEmailChange();
+  }
+
+  async function refreshPendingEmailChange() {
+    if (document.documentElement.dataset.reviewFixture === 'true' || !currentBootstrap?.user?.id) return;
+    try {
+      const data = await requestSettings('/api/settings/email-change', 'GET');
+      const pending = data?.pending || null;
+      const confirmForm = document.getElementById('emailChangeConfirmForm');
+      if (confirmForm) confirmForm.hidden = !pending;
+      textById('emailChangePendingCopy', pending
+        ? `A code was sent to ${pending.email}. Your current email stays active until this code is confirmed.`
+        : 'Enter the code sent to your new address.');
+    } catch { /* no pending email-change request or temporary settings outage */ }
+  }
+
+  function settingsErrorMessage(code) {
+    const messages = {
+      authentication_required: 'Sign in again before saving settings.',
+      invalid_display_name: 'Enter a display name of up to 120 characters.',
+      invalid_theme: 'Choose Dark or Light.',
+      invalid_workspace_name: 'Enter a workspace name of up to 80 characters.',
+      workspace_owner_required: 'Only the workspace owner can change this name.',
+      agent_not_found: 'That agent is no longer in this workspace. Refresh and try again.',
+      agent_name_conflict: 'An agent with that name already exists in this workspace.',
+      invalid_agent_name: 'Enter a valid agent name with no more than 30 characters.',
+      invalid_agent_role: 'Enter a valid role with no more than 60 characters.',
+      invalid_agent_color: 'Choose one of the available colors.',
+      invalid_agent_avatar: 'Choose one of the available avatars.',
+      invalid_approval_path: 'Choose a supported approval preference.',
+      invalid_order_cap: 'Maximum per order must be between 20 and 500 USD.',
+      invalid_daily_spend_cap: 'Daily spend cap must be from 100 to 2,000 USD in increments of 25.',
+      invalid_apps: 'Select only the available app labels.',
+      invalid_memory_pills: 'Use up to 20 memory preferences, each no longer than 80 characters.',
+      email_unchanged: 'That is already your current email address.',
+      email_unavailable: 'That email address is already in use or reserved.',
+      email_change_not_available: 'This account cannot change email through Keus. Contact support for help.',
+      invalid_email: 'Enter a valid email address.',
+      invalid_email_or_password: 'The current password is incorrect.',
+      invalid_email_change_code: 'The code is incorrect or expired. Request a new code and try again.',
+      email_change_request_expired: 'This verification request expired. Start the email change again.',
+      password_too_short: 'Use a password with at least eight characters.',
+      password_too_long: 'Use a password with no more than 1,024 characters.',
+      password_rejected: 'WorkOS did not accept that password. Choose a stronger password.',
+      new_password_must_differ: 'Choose a new password that differs from your current password.',
+      too_many_sign_in_requests: 'Too many code requests. Wait before trying again.',
+      auth_provider_not_configured: 'Account credential changes are not configured in this staging environment.',
+      workos_identity_required: 'This account is not linked to a WorkOS sign-in identity.',
+      settings_request_failed: 'Settings could not be saved. Check your connection and try again.',
+      workspace_request_failed: 'Workspace settings could not be saved. Try again.',
+    };
+    return messages[code] || 'Settings could not be saved. Check your connection and try again.';
+  }
+
+  async function requestSettings(path, method = 'PUT', body = undefined) {
+    const options = {
+      method,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    };
+    if (body !== undefined) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(path, options);
+    let data = {};
+    try { data = await response.json(); } catch {}
+    if (response.status === 401) {
+      location.replace('/login?auth_error=session');
+      const error = new Error('authentication_required');
+      error.code = 'authentication_required';
+      throw error;
+    }
+    if (!response.ok) {
+      const error = new Error(String(data.error || 'settings_request_failed'));
+      error.code = String(data.error || 'settings_request_failed');
+      throw error;
+    }
+    return data;
   }
 
   function renderNewAgentPreview() {
@@ -2020,6 +2669,7 @@
   function renderLocalReviewFixture() {
     renderAuthenticatedWorkspace(localReviewFixture);
     document.documentElement.dataset.reviewFixture = 'true';
+    renderSettingsFromBootstrap(localReviewFixture);
     const badge = document.getElementById('sampleReviewBadge');
     if (badge) badge.hidden = false;
     textById('accountMenuLabel', 'Sample review account');
@@ -2032,6 +2682,8 @@
   }
 
   function setWorkspaceUnavailable() {
+    currentBootstrap = null;
+    renderSettingsFromBootstrap(null);
     const row = document.getElementById('savedAgentRow');
     if (row) row.hidden = true;
     const badge = document.getElementById('sampleReviewBadge');
@@ -2102,7 +2754,7 @@
     textById('chatPreviewNote', hasSavedAgent ? 'Messaging is not connected in this preview.' : 'Save an agent to use the message composer.');
     const createButton = document.getElementById('createNewAgentButton');
     if (createButton) createButton.disabled = false;
-    textById('newAgentFormStatus', 'App selections and memory preferences are saved as preview settings. No integrations are connected here.');
+    textById('newAgentFormStatus', 'App labels and memory preferences save with the agent. Integrations are not connected.');
 
     textById('accountName', displayName);
     textById('accountEmail', email || 'Email unavailable');
@@ -2112,6 +2764,7 @@
     textById('accountMenuWorkspace', `${workspaceName}${roleLabel ? ` - ${roleLabel}` : ''}`);
     textById('accountAvatar', displayName.trim().charAt(0).toLocaleUpperCase() || 'K');
     filterTeammates(document.getElementById('agentSearchInput')?.value || '');
+    renderSettingsFromBootstrap(data);
   }
 
   async function loadAuthenticatedWorkspace() {
@@ -2201,7 +2854,7 @@
       selectedAgentId = String(data.createdAgentId || '');
       renderAuthenticatedWorkspace(data);
       form.reset();
-      textById('newAgentFormStatus', 'App selections and memory preferences are saved as preview settings. No integrations are connected here.');
+      textById('newAgentFormStatus', 'App labels and memory preferences save with the agent. Integrations are not connected.');
       closeNewAgentModal();
       showToast(`${name} was added as a paused agent.`);
     } catch {
@@ -2212,6 +2865,167 @@
   }
 
   document.getElementById('newAgentForm')?.addEventListener('submit', submitNewAgent);
+
+  document.getElementById('workspaceSettingsForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('workspaceSettingsSave');
+    const name = String(document.getElementById('workspaceSettingsName')?.value || '').trim();
+    if (!name) return setSettingsStatus('workspaceSettingsStatus', 'Enter a workspace name.', 'error');
+    if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      return setSettingsStatus('workspaceSettingsStatus', 'This local sample cannot save workspace changes.', 'error');
+    }
+    button.disabled = true;
+    setSettingsStatus('workspaceSettingsStatus', 'Saving workspace name...');
+    try {
+      const data = await requestSettings('/api/settings/workspace', 'PUT', { name });
+      renderAuthenticatedWorkspace(data);
+      setSettingsStatus('workspaceSettingsStatus', 'Workspace name saved to your account.', 'success');
+    } catch (error) {
+      setSettingsStatus('workspaceSettingsStatus', settingsErrorMessage(error.code), 'error');
+    } finally {
+      applySettingsAvailability();
+    }
+  });
+
+  document.getElementById('profileSettingsForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('profileSettingsSave');
+    const displayName = String(document.getElementById('profileDisplayName')?.value || '').trim();
+    if (!displayName) return setSettingsStatus('profileSettingsStatus', 'Enter a display name.', 'error');
+    if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      return setSettingsStatus('profileSettingsStatus', 'This local sample cannot save profile changes.', 'error');
+    }
+    button.disabled = true;
+    setSettingsStatus('profileSettingsStatus', 'Saving profile...');
+    try {
+      await requestSettings('/api/settings/profile', 'PUT', { displayName });
+      await loadAuthenticatedWorkspace();
+      setSettingsStatus('profileSettingsStatus', 'Display name saved to your account.', 'success');
+    } catch (error) {
+      setSettingsStatus('profileSettingsStatus', settingsErrorMessage(error.code), 'error');
+    } finally {
+      applySettingsAvailability();
+    }
+  });
+
+  document.getElementById('settingsAgentForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('settingsAgentSave');
+    const agentId = currentSettingsAgentId;
+    if (!agentId || !currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      return setSettingsStatus('settingsAgentStatus', 'Sign in to save agent settings.', 'error');
+    }
+    const payload = {
+      name: String(document.getElementById('settingsAgentName')?.value || '').trim(),
+      role: String(document.getElementById('settingsAgentRole')?.value || '').trim(),
+      avatar: currentSettingsAgentAvatar,
+      color: currentSettingsAgentColor,
+      approvalPath: currentSettingsApprovalPath,
+      orderCap: Number(document.getElementById('settingsAgentOrderCap')?.value),
+      dailyCap: Number(document.getElementById('settingsAgentDailyCap')?.value),
+      apps: Array.from(document.querySelectorAll('#settingsAgentAppsOptions input[type="checkbox"]:checked'), (checkbox) => checkbox.value),
+      memoryPills: String(document.getElementById('settingsAgentMemory')?.value || '').split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean),
+    };
+    button.disabled = true;
+    setSettingsStatus('settingsAgentStatus', 'Saving agent settings...');
+    try {
+      const data = await requestSettings(`/api/settings/agents/${encodeURIComponent(agentId)}`, 'PUT', payload);
+      renderAuthenticatedWorkspace(data);
+      setSettingsStatus('settingsAgentStatus', 'Agent settings saved to this workspace.', 'success');
+    } catch (error) {
+      setSettingsStatus('settingsAgentStatus', settingsErrorMessage(error.code), 'error');
+    } finally {
+      applySettingsAvailability();
+    }
+  });
+
+  document.getElementById('emailChangeStartForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('emailChangeStartButton');
+    const newEmail = String(document.getElementById('emailChangeNewEmail')?.value || '').trim();
+    const currentPassword = String(document.getElementById('emailChangeCurrentPassword')?.value || '');
+    if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      return setSettingsStatus('emailChangeStartStatus', 'Sign in to request an email change.', 'error');
+    }
+    button.disabled = true;
+    setSettingsStatus('emailChangeStartStatus', 'Verifying your password and sending a code to the new address...');
+    try {
+      const data = await requestSettings('/api/settings/email-change/start', 'POST', { newEmail, currentPassword });
+      document.getElementById('emailChangeCurrentPassword').value = '';
+      document.getElementById('emailChangeNewEmail').value = data.email || newEmail;
+      document.getElementById('emailChangeConfirmForm').hidden = false;
+      textById('emailChangePendingCopy', `A code was sent to ${data.email || newEmail}. Your current email stays active until this code is confirmed.`);
+      setSettingsStatus('emailChangeStartStatus', 'Verification code sent to the new email address.', 'success');
+      document.getElementById('emailChangeCode')?.focus();
+    } catch (error) {
+      setSettingsStatus('emailChangeStartStatus', settingsErrorMessage(error.code), 'error');
+    } finally {
+      applySettingsAvailability();
+    }
+  });
+
+  document.getElementById('emailChangeCode')?.addEventListener('input', (event) => {
+    event.currentTarget.value = String(event.currentTarget.value || '').replace(/\D/g, '').slice(0, 6);
+  });
+  document.getElementById('emailChangeConfirmForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('emailChangeConfirmButton');
+    const code = String(document.getElementById('emailChangeCode')?.value || '').trim();
+    if (!/^\d{6}$/.test(code)) return setSettingsStatus('emailChangeConfirmStatus', 'Enter the six-digit code sent to your new email.', 'error');
+    button.disabled = true;
+    setSettingsStatus('emailChangeConfirmStatus', 'Confirming the new email address...');
+    try {
+      const result = await requestSettings('/api/settings/email-change/confirm', 'POST', { code });
+      document.getElementById('emailChangeConfirmForm').reset();
+      document.getElementById('emailChangeConfirmForm').hidden = true;
+      document.getElementById('emailChangeStartForm').reset();
+      await loadAuthenticatedWorkspace();
+      setSettingsStatus('emailChangeStartStatus', `Email changed to ${result.user?.email || 'the new address'}.`, 'success');
+      setSettingsStatus('emailChangeConfirmStatus', '');
+    } catch (error) {
+      setSettingsStatus('emailChangeConfirmStatus', settingsErrorMessage(error.code), 'error');
+    } finally {
+      applySettingsAvailability();
+    }
+  });
+
+  document.getElementById('passwordChangeForm')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = document.getElementById('passwordChangeSave');
+    const currentPassword = String(document.getElementById('passwordChangeCurrent')?.value || '');
+    const newPassword = String(document.getElementById('passwordChangeNew')?.value || '');
+    const confirmPassword = String(document.getElementById('passwordChangeConfirm')?.value || '');
+    if (newPassword !== confirmPassword) return setSettingsStatus('passwordChangeStatus', 'The new passwords do not match.', 'error');
+    if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      return setSettingsStatus('passwordChangeStatus', 'Sign in to change your password.', 'error');
+    }
+    button.disabled = true;
+    setSettingsStatus('passwordChangeStatus', 'Verifying your current password...');
+    try {
+      await requestSettings('/api/settings/password', 'PUT', { currentPassword, newPassword });
+      document.getElementById('passwordChangeForm').reset();
+      setSettingsStatus('passwordChangeStatus', 'Password changed. Your current Keus session remains active.', 'success');
+    } catch (error) {
+      setSettingsStatus('passwordChangeStatus', settingsErrorMessage(error.code), 'error');
+    } finally {
+      applySettingsAvailability();
+    }
+  });
+
+  async function persistThemeSetting(theme) {
+    if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      setSettingsStatus('themeSettingsStatus', 'Theme saved only in this browser for the local review sample.');
+      return;
+    }
+    setSettingsStatus('themeSettingsStatus', 'Saving theme to your account...');
+    try {
+      const result = await requestSettings('/api/settings/theme', 'PUT', { theme });
+      if (currentBootstrap?.user) currentBootstrap.user.theme = result.theme;
+      setSettingsStatus('themeSettingsStatus', 'Theme saved to your account and shared across Keus pages.', 'success');
+    } catch (error) {
+      setSettingsStatus('themeSettingsStatus', `${settingsErrorMessage(error.code)} This choice remains in this browser.`, 'error');
+    }
+  }
 
   const accountMenuButton = document.getElementById('accountMenuToggle');
   const accountMenuPanel = document.getElementById('accountMenu');
@@ -2247,7 +3061,16 @@
     if (storedTheme === 'light' || storedTheme === 'dark') applyKeusTheme(storedTheme);
   } catch {}
   document.getElementById('themeToggle')?.addEventListener('click', () => {
-    applyKeusTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
+    const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    applyKeusTheme(theme, true);
+    void persistThemeSetting(theme);
+  });
+  document.querySelectorAll('[data-preview-theme]').forEach((choice) => {
+    choice.addEventListener('click', () => {
+      const theme = choice.dataset.previewTheme;
+      applyKeusTheme(theme, true);
+      void persistThemeSetting(theme);
+    });
   });
   window.addEventListener('storage', (event) => {
     if (event.key === 'keusTheme' && (event.newValue === 'light' || event.newValue === 'dark')) {
