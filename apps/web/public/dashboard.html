@@ -191,6 +191,7 @@
     const appShell=document.getElementById('appShell');
     const errorMessage=document.getElementById('errorMessage');
     const retryButton=document.getElementById('retryButton');
+    let accountThemeAvailable=false;
     function formatNumber(value){const number=Number(value);return Number.isSafeInteger(number)&&number>=0?new Intl.NumberFormat('en-US').format(number):null}
     function displayName(value){const text=String(value||'').trim();return text||'Keus user'}
     function accessCopy(access){switch(String(access?.state||'')){case'competition_free':return 'Daily account allowance available';case'subscription_active':return 'Active workspace plan';case'competition_not_started':return 'Allowance not active yet';case'subscription_required':return 'No active allowance';case'usage_not_configured':return 'Allowance not configured';case'competition_entitlement_unavailable':return 'Allowance unavailable';default:return access?.allowed?'Allowance available':'No active allowance'}}
@@ -199,6 +200,8 @@
     function renderDashboard(data){
       const user=data?.user||{};const workspace=data?.workspace||{};const onboarding=data?.onboarding||{};const access=data?.usageAccess||{};
       if(!user.id){location.replace('/login?auth_error=session');return}
+      accountThemeAvailable=true;
+      if(user.theme==='dark'||user.theme==='light')applyTheme(user.theme,true);
       const email=String(user.email||'').trim();
       setText('accountEmail',email||'Keus account');
       const initial=(String(user.displayName||email||'K').trim().charAt(0)||'K').toLocaleUpperCase();setText('accountAvatar',initial);
@@ -262,8 +265,9 @@
     const themeLabel=document.getElementById('themeLabel');
     const themeColor=document.getElementById('themeColor');
     function applyTheme(theme,save=false){const selected=theme==='dark'?'dark':'light';document.documentElement.dataset.theme=selected;document.documentElement.style.colorScheme=selected;const next=selected==='dark'?'light':'dark';const text=`Switch to ${next} theme`;themeToggle.setAttribute('aria-label',text);themeToggle.setAttribute('title',text);themeToggle.setAttribute('aria-pressed',String(selected==='dark'));themeLabel.textContent=text;themeColor.setAttribute('content',selected==='dark'?'#0b0e0e':'#f6f8f4');if(save){try{localStorage.setItem('keusTheme',selected)}catch{}}}
+    function persistTheme(theme){if(!accountThemeAvailable)return;fetch('/api/settings/theme',{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({theme})}).catch(()=>{});}
     applyTheme(document.documentElement.dataset.theme||'light');
-    themeToggle.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark',true));
+    themeToggle.addEventListener('click',()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';applyTheme(theme,true);persistTheme(theme)});
     window.addEventListener('storage',event=>{if(event.key==='keusTheme'&&(event.newValue==='light'||event.newValue==='dark'))applyTheme(event.newValue)});
     loadDashboard();
   </script>
