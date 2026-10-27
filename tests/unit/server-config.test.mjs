@@ -160,7 +160,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.2');
+    assert.equal(body.version, '2.3.3');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -191,7 +191,8 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.doesNotMatch(landing, /href="\/desktop(?:\.html)?"/);
     assert.match(landing, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(landing, /id="themeToggle"/);
-    assert.match(landing, /api\/auth\/session/);
+    assert.doesNotMatch(landing, /api\/auth\/session/);
+    assert.match(landing, /id="headerAccountLink" href="\/login">Sign in/);
     assert.match(landing, /headerAccountLink/);
     assert.match(landing, /footerAccountLink/);
     assert.match(landing, /localStorage\.getItem\('keusTheme'\)/);
@@ -223,6 +224,28 @@ test('public landing and authenticated dashboard have separate page routes', asy
       assert.equal(response.headers.get('location'), '/app');
     }
   });
+});
+
+test('landing renders the signed-in dashboard links before returning HTML', async () => {
+  const sessions = {
+    async getSession({ token }) {
+      return token === 'valid-session' ? { id: 'user-1', email: 'person@example.test' } : null;
+    },
+  };
+  await withServer(loadServerConfig({}), async (base) => {
+    const signedIn = await fetch(`${base}/`, { headers: { Cookie: 'kues_session=valid-session' } });
+    assert.equal(signedIn.status, 200);
+    assert.equal(signedIn.headers.get('cache-control'), 'no-store');
+    const signedInHtml = await signedIn.text();
+    assert.match(signedInHtml, /id="headerAccountLink" href="\/app">Dashboard/);
+    assert.match(signedInHtml, /id="footerAccountLink" href="\/app">Dashboard/);
+    assert.doesNotMatch(signedInHtml, /api\/auth\/session/);
+
+    const signedOut = await fetch(`${base}/`);
+    const signedOutHtml = await signedOut.text();
+    assert.match(signedOutHtml, /id="headerAccountLink" href="\/login">Sign in/);
+    assert.match(signedOutHtml, /id="footerAccountLink" href="\/login">Sign in/);
+  }, sessions);
 });
 
 test('unknown page and static paths return 404; approved assets are explicit', async () => {

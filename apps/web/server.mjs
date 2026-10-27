@@ -763,7 +763,7 @@ export function createServer({
         const payload = {
           ok: true,
           service: 'keus-web',
-          version: '2.3.2',
+          version: '2.3.3',
           surfaces: ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {
@@ -925,7 +925,20 @@ export function createServer({
       }
 
       try {
-        const html = readHtml(htmlPath);
+        let html = readHtml(htmlPath);
+        if (url.pathname === '/') {
+          let signedIn = false;
+          const token = cookieValue(req, sessionCookieName(activeConfig));
+          if (token && authService) {
+            try { signedIn = Boolean(await authService.getSession({ token })); }
+            catch { signedIn = false; }
+          }
+          if (signedIn) {
+            html = html
+              .replace('id="headerAccountLink" href="/login">Sign in', 'id="headerAccountLink" href="/app">Dashboard')
+              .replace('id="footerAccountLink" href="/login">Sign in', 'id="footerAccountLink" href="/app">Dashboard');
+          }
+        }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(req.method === 'HEAD' ? undefined : html);
       } catch (error) {
