@@ -9,6 +9,7 @@ import {
 const AVATARS = new Set(['bulb', 'laptop', 'shield', 'cart', 'car', 'parcel', 'magnifier', 'tag', 'wallet', 'van']);
 const COLORS = new Set(['#32d583', '#f5b942', '#4c8dff', '#b57cff', '#ff7777']);
 const APPROVAL_PATHS = new Set(['desktop', 'keyfob']);
+const APP_LABELS = new Set(['paypal', 'channel3', 'kernel', 'whatsapp', 'gmail', 'instagram']);
 const AGENT_PREFIX = 'onb_';
 
 export class WorkspaceError extends Error {
@@ -253,8 +254,13 @@ async function workspaceBootstrapInTransaction(tx, { userId, now, competition })
   });
   const onboardingProfile = parseJson(row.profile_json);
   const settings = parseJson(row.agent_settings_json);
+  const preferenceResult = await tx.execute({
+    sql: 'SELECT theme FROM user_preferences WHERE user_id = ?',
+    args: [user.id],
+  });
+  const theme = preferenceResult.rows[0]?.theme === 'light' ? 'light' : 'dark';
   return {
-    user: { id: user.id, email: user.email_normalized, displayName: user.display_name },
+    user: { id: user.id, email: user.email_normalized, displayName: user.display_name, theme },
     workspace: {
       id: row.workspace_id,
       name: row.workspace_name,
@@ -401,5 +407,110 @@ export function createWorkspaceService({ db, competition = null } = {}) {
     });
   }
 
-  return Object.freeze({ getBootstrap, completeOnboarding, createAgent });
+  async function updateWorkspaceName({ userId, name: rawName, now = new Date().toISOString() }) {
+    const checkedAt = isoNow(now);
+    const name = requiredText(rawName, 'workspace_name', 80);
+    return withWriteTransaction(db, async (tx) => {
+      const { user, workspace } = await ensureDefaultWorkspaceInTransaction(tx, {
+        userId,
+        now: checkedAt,
+        competition,
+      });
+      if (workspace.owner_user_id !== user.id) throw new WorkspaceError('workspace_owner_required', 403);
+      await tx.execute({
+        sql: `UPDATE workspaces SET name = ?, updated_at = ?
+              WHERE id = ? AND owner_user_id = ? AND status = 'active'`,
+        args: [name, checkedAt, workspace.id, user.id],
+      });
+      return workspaceBootstrapInTransaction(tx, { userId, now: checkedAt, competition });
+    });
+  }
+
+  async function updateAgent({ userId, agentId: rawAgentId, input, now = new Date().toISOString() }) {
+    const checkedAt = isoNow(now);
+    const agentId = requiredText(rawAgentId, 'agent_id', 255);
+    const payload = normalizeOnboardingInput(input);
+    payload.apps = payload.apps.map((app) => app.toLowerCase());
+    if (payload.apps.some((app) => !APP_LABELS.has(app))) {
+      throw new WorkspaceError('invalid_apps', 400);
+    }
+
+    return withWriteTransaction(db, async (tx) => {
+      const { user, workspace } = await ensureDefaultWorkspaceInTransaction(tx, {
+        userId,
+        now: checkedAt,
+        competition,
+      });
+      const existing = await tx.execute({
+        sql: `SELECT id, name, role, avatar, status, settings_json
+              FROM agents WHERE id = ? AND workspace_id = ? LIMIT 1`,
+        args: [agentId, workspace.id],
+      });
+      const agent = existing.rows[0];
+      if (!agent) throw new WorkspaceError('agent_not_found', 404);
+      const duplicate = await tx.execute({
+        sql: `SELECT id FROM agents
+              WHERE workspace_id = ? AND lower(name) = lower(?) AND id <> ? LIMIT 1`,
+        args: [workspace.id, payload.name, agentId],
+      });
+      if (duplicate.rows.length) throw new WorkspaceError('agent_name_conflict', 409);
+
+      const currentSettings = parseJson(agent.settings_json);
+      const settings = {
+        ...currentSettings,
+        color: payload.color,
+        approvalPath: payload.approvalPath,
+        orderCap: payload.orderCap,
+        dailyCap: payload.dailyCap,
+        currency: String(currentSettings.currency || 'USD').toUpperCase(),
+        apps: payload.apps,
+        memoryPills: payload.memoryPills,
+        previewOnly: true,
+        onboardingVersion: Number(currentSettings.onboardingVersion) || 1,
+      };
+      await tx.execute({
+        sql: `UPDATE agents
+              SET name = ?, role = ?, avatar = ?, settings_json = ?, updated_at = ?
+              WHERE id = ? AND workspace_id = ?`,
+        args: [payload.name, payload.role, payload.avatar, JSON.stringify(settings), checkedAt, agentId, workspace.id],
+      });
+
+      if (agentId === onboardingAgentId(workspace.id)) {
+        const onboardingResult = await tx.execute({
+          sql: 'SELECT profile_json FROM workspace_onboarding WHERE workspace_id = ?',
+          args: [workspace.id],
+        });
+        const profile = parseJson(onboardingResult.rows[0]?.profile_json);
+        const previousLimits = profile.purchaseLimits && typeof profile.purchaseLimits === 'object'
+          ? profile.purchaseLimits
+          : {};
+        const previousOrder = previousLimits.maxPerOrder && typeof previousLimits.maxPerOrder === 'object'
+          ? previousLimits.maxPerOrder
+          : {};
+        const previousDaily = previousLimits.dailyWorkspace && typeof previousLimits.dailyWorkspace === 'object'
+          ? previousLimits.dailyWorkspace
+          : {};
+        const updatedProfile = {
+          ...profile,
+          agent: { ...(profile.agent || {}), name: payload.name, role: payload.role, avatar: payload.avatar, color: payload.color },
+          approvalPath: payload.approvalPath,
+          purchaseLimits: {
+            ...previousLimits,
+            maxPerOrder: { ...previousOrder, amount: payload.orderCap, currency: 'USD', enforcement: 'preview_only' },
+            dailyWorkspace: { ...previousDaily, amount: payload.dailyCap, currency: 'USD', enforcement: 'preview_only' },
+          },
+          apps: payload.apps,
+          memoryPills: payload.memoryPills,
+        };
+        await tx.execute({
+          sql: `UPDATE workspace_onboarding SET profile_json = ?, updated_at = ? WHERE workspace_id = ?`,
+          args: [JSON.stringify(updatedProfile), checkedAt, workspace.id],
+        });
+      }
+
+      return workspaceBootstrapInTransaction(tx, { userId: user.id, now: checkedAt, competition });
+    });
+  }
+
+  return Object.freeze({ getBootstrap, completeOnboarding, createAgent, updateWorkspaceName, updateAgent });
 }
