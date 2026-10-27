@@ -106,6 +106,14 @@ export function loadServerConfig(env = process.env) {
   if (aiProviderAdminEmails.length && !isValid32ByteEncryptionKey(aiProviderEncryptionKey)) {
     issues.push('AI_PROVIDER_ENCRYPTION_KEY must be a 32-byte base64 or 64-character hexadecimal key when AI provider administration is enabled');
   }
+  const aiProviderChatTestFlag = String(env.AI_PROVIDER_CHAT_TEST_ENABLED || '').trim();
+  if (aiProviderChatTestFlag && !['0', '1'].includes(aiProviderChatTestFlag)) {
+    issues.push('AI_PROVIDER_CHAT_TEST_ENABLED must be 0 or 1');
+  }
+  const aiProviderChatTestEnabled = aiProviderChatTestFlag === '1';
+  if (aiProviderChatTestEnabled && !aiProviderAdminEmails.length) {
+    issues.push('AI_PROVIDER_CHAT_TEST_ENABLED requires AI_PROVIDER_ADMIN_EMAILS');
+  }
 
   const databaseUrl = String(env.TURSO_DATABASE_URL || '').trim();
   const databaseToken = String(env.TURSO_AUTH_TOKEN || '').trim();
@@ -242,5 +250,6 @@ export function loadServerConfig(env = process.env) {
     apiHubAdminEmails: Object.freeze(apiHubAdminEmails),
     aiProvidersEnabled: aiProviderAdminEmails.length > 0,
     aiProviderAdminEmails: Object.freeze(aiProviderAdminEmails),
+    aiProviderChatTestEnabled,
   });
 }
