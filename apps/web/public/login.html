@@ -162,9 +162,9 @@ body { display:block; min-height:100vh; min-height:100dvh; padding:clamp(16px,3v
       <span id="codeHint" hidden>Enter the six-digit code from your email.</span>
       <button class="primary" id="verifyButton" type="button">Verify email and continue</button>
       <div class="status" id="codeStatus" role="status" aria-live="polite"></div>
-      <p class="hint" id="legacyAccountHelp">If you previously signed in with an email code, use the password setup link sent to your inbox. Your existing Keus workspace stays connected.</p>
+      <p class="hint" id="legacyAccountHelp">If this email already belongs to a Keus account, open the separate Forgot password form to receive a recovery code. Your existing workspace stays connected.</p>
       <div class="code-actions"><button class="text-button" id="resendButton" type="button">Resend code</button><button class="text-button" id="changeEmailButton" type="button">Back to sign in</button></div>
-      <div class="password-actions"><button class="text-button" id="resetFromCodeButton" type="button">Send a password setup link</button></div>
+      <div class="password-actions"><button class="text-button" id="resetFromCodeButton" type="button">Reset password with an email code</button></div>
     </section>
     <div class="alt-methods" id="altMethods">
       <div class="divider"><span>OR CONTINUE WITH</span></div>
@@ -180,6 +180,28 @@ body { display:block; min-height:100vh; min-height:100dvh; padding:clamp(16px,3v
       </div>
       <p class="social-note" id="socialNote">Google and GitHub are unavailable until enabled for this WorkOS environment.</p>
     </div>
+  </section>
+  <section class="card" id="passwordResetPanel" hidden>
+    <form id="resetStartForm">
+      <div class="code-head"><h2>Reset your password</h2><p>Enter your account email. If it matches an account, we’ll send a six-digit recovery code.</p></div>
+      <div class="field"><label for="resetEmail">Email</label><input id="resetEmail" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com"></div>
+      <button class="primary" id="resetSendButton" type="submit" disabled>Send recovery code</button>
+      <div class="status" id="resetStartStatus" role="status" aria-live="polite"></div>
+      <p class="hint">A recovery code can only set a new password; it will not sign you in. You’ll return here to sign in after the password changes.</p>
+      <div class="code-actions"><button class="text-button" id="cancelPasswordResetButton" type="button">Back to sign in</button></div>
+    </form>
+    <form id="resetCodeForm" hidden>
+      <div class="code-head"><h2>Check your email</h2><p>If an account exists for <strong id="resetEmailLabel"></strong>, a six-digit code is on its way. Enter it with your new password.</p></div>
+      <div class="field"><label for="resetCode">Recovery code</label><input class="code-input" id="resetCode" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000"></div>
+      <div class="field"><label for="resetNewPassword">New password</label><input id="resetNewPassword" name="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required placeholder="At least 8 characters"></div>
+      <div class="field"><label for="resetConfirmPassword">Confirm new password</label><input id="resetConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="1024" required placeholder="Re-enter your new password"></div>
+      <button class="primary" id="resetVerifyButton" type="submit" disabled>Set new password</button>
+      <div class="status" id="resetCodeStatus" role="status" aria-live="polite"></div>
+      <div class="code-actions"><button class="text-button" id="resetResendButton" type="button" disabled>Resend code</button><button class="text-button" id="cancelPasswordResetCodeButton" type="button">Back to sign in</button></div>
+    </form>
+    <section class="signed" id="passwordResetSuccess" aria-live="polite" hidden>
+      <h2>Password updated</h2><p>Your password has changed. Sign in with it to return to your existing Keus workspace.</p><button class="secondary" type="button" id="returnToSignInButton">Back to sign in</button>
+    </section>
   </section>
   <section class="signed" id="signedPanel" aria-live="polite" hidden>
     <svg class="signed-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg>
@@ -203,6 +225,19 @@ const resendButton=document.getElementById('resendButton');
 const forgotPasswordButton=document.getElementById('forgotPasswordButton');
 const resetFromCodeButton=document.getElementById('resetFromCodeButton');
 const signInPanel=document.getElementById('signInPanel');
+const passwordResetPanel=document.getElementById('passwordResetPanel');
+const resetStartForm=document.getElementById('resetStartForm');
+const resetCodeForm=document.getElementById('resetCodeForm');
+const resetEmailInput=document.getElementById('resetEmail');
+const resetCodeInput=document.getElementById('resetCode');
+const resetNewPasswordInput=document.getElementById('resetNewPassword');
+const resetConfirmPasswordInput=document.getElementById('resetConfirmPassword');
+const resetSendButton=document.getElementById('resetSendButton');
+const resetVerifyButton=document.getElementById('resetVerifyButton');
+const resetResendButton=document.getElementById('resetResendButton');
+const resetStartStatus=document.getElementById('resetStartStatus');
+const resetCodeStatus=document.getElementById('resetCodeStatus');
+const passwordResetSuccess=document.getElementById('passwordResetSuccess');
 const signedPanel=document.getElementById('signedPanel');
 const altMethods=document.getElementById('altMethods');
 let activeEmail='';
@@ -212,12 +247,14 @@ let googleEnabled=false;
 let githubEnabled=false;
 let authMode='sign-in';
 let resendTimer=null;
+let resetResendTimer=null;
 let cooldownUntil=0;
+let resetCooldownUntil=0;
 function setStatus(element,text,kind=''){element.textContent=text;element.className=`status ${kind}`.trim()}
 const authErrors={
   email_not_verified:'We could not confirm that email. Start sign-in again and verify the new code.',
   email_delivery_failed:'We could not send a verification email right now. Please try again later.',
-  password_reset_unavailable:'We could not start password setup right now. Please try again later.',
+  password_reset_unavailable:'We could not start password recovery right now. Please try again later.',
   password_too_short:'Use a password with at least eight characters.',
   password_too_long:'That password is too long. Please use fewer than 1,024 characters.',
   password_rejected:'WorkOS rejected that password. Choose a stronger password and try again.',
@@ -226,7 +263,7 @@ const authErrors={
   verification_flow_unavailable:'This verification session could not be started. Try again.',
   too_many_sign_in_requests:'Too many requests for this address. Wait a little before trying again.',
   invalid_email:'Enter a valid email address.',
-  invalid_or_expired_code:'That code is invalid or expired. Request a fresh code, or use the password setup link if this is an existing email-code account.',
+  invalid_or_expired_code:'That code is invalid or expired. Request a fresh code and try again.',
   account_unavailable:'This account cannot sign in right now. Contact Keus support.',
   workos_key_rejected:'The WorkOS service rejected its staging configuration. Please try again later.',
   workos_access_denied:'WorkOS denied this request. Check the staging authentication settings.',
@@ -291,7 +328,7 @@ async function submitPassword(event){
     if(response.status===202){
       passwordInput.value='';
       const message=authMode==='sign-up'
-        ?'Check your inbox for the next step. New accounts receive a verification code; existing email-code accounts can use the password setup link sent to the same inbox.'
+        ?'Check your inbox for the next step. New accounts receive a verification code; if you already have an account, use the separate Forgot password form to receive a recovery code.'
         :'Check your inbox for the six-digit email verification code to finish signing in.';
       showCodePanel(email,message);
       startResendCooldown();
@@ -305,21 +342,91 @@ async function submitPassword(event){
   }finally{sendButton.disabled=!authEnabled}
 }
 emailForm.addEventListener('submit',submitPassword);
-async function requestPasswordReset(email,target= formStatus,button=forgotPasswordButton){
-  const normalized=String(email||'').trim().toLowerCase();
-  if(!normalized){setStatus(target,'Enter your email address first.','error');emailInput.focus();return}
-  button.disabled=true;
-  setStatus(target,'Requesting a password setup email…');
+function openPasswordReset(email=''){
+  clearInterval(resetResendTimer);resetCooldownUntil=0;
+  signInPanel.hidden=true;signedPanel.hidden=true;passwordResetPanel.hidden=false;
+  document.getElementById('pageTitle').textContent='Reset your password';
+  document.getElementById('pageSubtitle').textContent='Use a one-time email code to choose a new password';
+  resetStartForm.hidden=false;resetCodeForm.hidden=true;passwordResetSuccess.hidden=true;
+  resetEmailInput.value=String(email||'').trim().toLowerCase();
+  document.getElementById('resetEmailLabel').textContent=resetEmailInput.value;
+  resetCodeInput.value='';resetNewPasswordInput.value='';resetConfirmPasswordInput.value='';
+  resetResendButton.disabled=true;resetResendButton.textContent='Resend code';
+  resetSendButton.disabled=!authEnabled;resetVerifyButton.disabled=!authEnabled;
+  setStatus(resetStartStatus,'');setStatus(resetCodeStatus,'');
+  resetEmailInput.focus();
+}
+function closePasswordReset(message='Enter your email and password to continue.',kind=''){
+  clearInterval(resetResendTimer);resetCooldownUntil=0;
+  passwordResetPanel.hidden=true;signedPanel.hidden=true;signInPanel.hidden=false;
+  codePanel.hidden=true;emailForm.hidden=false;altMethods.hidden=false;
+  document.getElementById('accountModeSwitch').hidden=false;
+  emailInput.value=resetEmailInput.value||activeEmail;passwordInput.value='';activePassword='';
+  setAuthMode('sign-in');setStatus(formStatus,message,kind);emailInput.focus();
+}
+function startPasswordResetResendCooldown(){
+  clearInterval(resetResendTimer);
+  let remaining=30;resetCooldownUntil=Date.now()+30000;resetResendButton.disabled=true;
+  resetResendButton.textContent=`Resend code · ${remaining}s`;
+  resetResendTimer=setInterval(()=>{
+    remaining-=1;
+    if(remaining<=0){
+      clearInterval(resetResendTimer);resetCooldownUntil=0;
+      resetResendButton.disabled=!authEnabled;resetResendButton.textContent='Resend code';return;
+    }
+    resetResendButton.textContent=`Resend code · ${remaining}s`;
+  },1000);
+}
+async function requestPasswordResetCode({resend=false}={}){
+  const normalized=String(resetEmailInput.value||'').trim().toLowerCase();
+  const button=resend?resetResendButton:resetSendButton;
+  const status=resend?resetCodeStatus:resetStartStatus;
+  if(!normalized){setStatus(status,'Enter your email address first.','error');resetEmailInput.focus();return}
+  if(!authEnabled){setStatus(status,'Password recovery is not enabled in this environment.','error');return}
+  button.disabled=true;setStatus(status,resend?'Requesting a fresh recovery code…':'Requesting a recovery code…');
   try{
     const response=await fetch('/api/auth/password/reset/start',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({email:normalized})});
     const data=await readJson(response);
-    if(!response.ok){setStatus(target,authErrors[data.error]||'We could not request a password setup email. Try again later.','error');return}
-    setStatus(target,'If an account exists for that email, a password setup link is on its way. This also works for existing email-code accounts.','success');
-  }catch{setStatus(target,'Could not reach Keus. Check your connection and try again.','error')}
-  finally{button.disabled=false}
+    if(!response.ok){setStatus(status,authErrors[data.error]||'We could not request a recovery code. Please try again later.','error');return}
+    resetEmailInput.value=normalized;document.getElementById('resetEmailLabel').textContent=normalized;
+    if(!resend){resetStartForm.hidden=true;resetCodeForm.hidden=false;resetCodeInput.focus()}
+    setStatus(resetCodeStatus,'If an account exists for this email, a six-digit recovery code is on its way. Enter it with your new password.','success');
+    startPasswordResetResendCooldown();
+  }catch{setStatus(status,'Could not reach Keus. Check your connection and try again.','error')}
+  finally{if(Date.now()>=resetCooldownUntil)button.disabled=!authEnabled}
 }
-forgotPasswordButton.addEventListener('click',()=>requestPasswordReset(emailInput.value));
-resetFromCodeButton.addEventListener('click',()=>requestPasswordReset(activeEmail,codeStatus,resetFromCodeButton));
+forgotPasswordButton.addEventListener('click',()=>openPasswordReset(emailInput.value));
+resetFromCodeButton.addEventListener('click',()=>openPasswordReset(activeEmail));
+resetStartForm.addEventListener('submit',(event)=>{event.preventDefault();requestPasswordResetCode()});
+resetResendButton.addEventListener('click',()=>requestPasswordResetCode({resend:true}));
+resetCodeForm.addEventListener('submit',async(event)=>{
+  event.preventDefault();
+  const code=resetCodeInput.value.trim();
+  const newPassword=resetNewPasswordInput.value;
+  const confirmation=resetConfirmPasswordInput.value;
+  if(!/^\d{6}$/.test(code)){setStatus(resetCodeStatus,'Enter the six-digit recovery code from your email.','error');resetCodeInput.focus();return}
+  if(newPassword!==confirmation){setStatus(resetCodeStatus,'The passwords do not match. Please check both fields.','error');resetConfirmPasswordInput.focus();return}
+  if(newPassword.length<8){setStatus(resetCodeStatus,authErrors.password_too_short,'error');resetNewPasswordInput.focus();return}
+  if(newPassword.length>1024){setStatus(resetCodeStatus,authErrors.password_too_long,'error');resetNewPasswordInput.focus();return}
+  resetVerifyButton.disabled=true;setStatus(resetCodeStatus,'Verifying the code and updating your password…');
+  try{
+    const response=await fetch('/api/auth/password/reset/verify',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({code,newPassword})});
+    const data=await readJson(response);
+    if(!response.ok){setStatus(resetCodeStatus,authErrors[data.error]||'We could not reset the password. Check the code and try again.','error');return}
+    if(data.passwordUpdated===true){
+      clearInterval(resetResendTimer);resetCooldownUntil=0;
+      resetStartForm.hidden=true;resetCodeForm.hidden=true;passwordResetSuccess.hidden=false;
+      resetCodeInput.value='';resetNewPasswordInput.value='';resetConfirmPasswordInput.value='';
+      return;
+    }
+    setStatus(resetCodeStatus,'We could not finish password recovery. Please try again.','error');
+  }catch{setStatus(resetCodeStatus,'Could not reach Keus. Check your connection and try again.','error')}
+  finally{resetVerifyButton.disabled=!authEnabled}
+});
+resetCodeInput.addEventListener('input',()=>{resetCodeInput.value=resetCodeInput.value.replace(/\D/g,'').slice(0,6)});
+document.getElementById('cancelPasswordResetButton').addEventListener('click',()=>closePasswordReset());
+document.getElementById('cancelPasswordResetCodeButton').addEventListener('click',()=>closePasswordReset());
+document.getElementById('returnToSignInButton').addEventListener('click',()=>closePasswordReset('Password updated. Sign in with your new password.','success'));
 resendButton.addEventListener('click',async()=>{
   if(!activeEmail||!activePassword||!authEnabled){setStatus(codeStatus,'Enter your email and password again to request a new code.','error');return}
   resendButton.disabled=true;
@@ -329,7 +436,7 @@ resendButton.addEventListener('click',async()=>{
     const data=await readJson(response);
     if(response.status===202){setStatus(codeStatus,'A fresh code is on its way. Check your inbox.','success');startResendCooldown();return}
     if(response.ok&&data.authenticated===true){finishSignIn(data);return}
-    setStatus(codeStatus,authErrors[data.error]||'We could not resend the code. Check your password or use password setup.','error');
+    setStatus(codeStatus,authErrors[data.error]||'We could not resend the code. Check your password or use Forgot password to reset with a recovery code.','error');
   }catch{setStatus(codeStatus,'Could not reach Keus. Check your connection and try again.','error')}
   finally{if(Date.now()>=cooldownUntil)resendButton.disabled=!authEnabled||!activePassword}
 });
@@ -383,7 +490,7 @@ setAuthMode('sign-in');
 async function refreshSession(){
   try{
     const response=await fetch('/api/auth/session',{headers:{Accept:'application/json'}});const data=await readJson(response);
-    if(response.ok&&data.authenticated){signInPanel.hidden=true;signedPanel.hidden=false;document.getElementById('signedMessage').textContent=`Signed in as ${data.user.email}.`}
+    if(response.ok&&data.authenticated){signInPanel.hidden=true;passwordResetPanel.hidden=true;signedPanel.hidden=false;document.getElementById('signedMessage').textContent=`Signed in as ${data.user.email}.`}
   }catch{}
 }
 async function loadAuthConfig(){
@@ -394,6 +501,8 @@ async function loadAuthConfig(){
     githubEnabled=authEnabled&&data.githubEnabled===true;
     sendButton.disabled=!authEnabled;document.getElementById('googleButton').disabled=!googleEnabled;document.getElementById('githubButton').disabled=!githubEnabled;
     resendButton.disabled=!authEnabled||!activePassword;forgotPasswordButton.disabled=!authEnabled;resetFromCodeButton.disabled=!authEnabled;
+    resetSendButton.disabled=!authEnabled;resetVerifyButton.disabled=!authEnabled;
+    resetResendButton.disabled=!authEnabled||Date.now()<resetCooldownUntil;
     document.getElementById('socialNote').textContent=googleEnabled||githubEnabled
       ? `${googleEnabled?'Google':''}${googleEnabled&&githubEnabled?' and ':''}${githubEnabled?'GitHub':''} sign-in is ready for this environment.`
       : 'Google and GitHub are unavailable until enabled for this WorkOS environment.';
