@@ -153,6 +153,47 @@ function normalizeInput(input) {
   return { providerKey, displayName, apiProtocol, baseUrl, modelId, apiKey, enabled, isPrimary };
 }
 
+function normalizeUpdateInput(existing, input) {
+  if (!plainObject(input)) throw new AiProviderError('ai_provider_input_invalid');
+  const allowedFields = new Set([
+    'displayName', 'apiProtocol', 'baseUrl', 'modelId', 'apiKey', 'enabled', 'isPrimary',
+  ]);
+  if (Object.keys(input).some((field) => !allowedFields.has(field))) {
+    throw new AiProviderError('ai_provider_input_invalid');
+  }
+
+  const displayName = cleanString(input.displayName, 'ai_provider_name_invalid', 80);
+  const apiProtocol = cleanString(input.apiProtocol, 'ai_provider_protocol_invalid', 40).toLowerCase();
+  if (!ALLOWED_PROTOCOLS.has(apiProtocol)) throw new AiProviderError('ai_provider_protocol_invalid');
+  const baseUrl = normalizeBaseUrl(input.baseUrl);
+  const modelId = cleanString(input.modelId, 'ai_provider_model_invalid', 160);
+  let apiKey = null;
+  if (input.apiKey !== undefined) {
+    if (typeof input.apiKey !== 'string') throw new AiProviderError('ai_provider_key_invalid');
+    const replacement = input.apiKey.trim();
+    if (replacement.length > MAX_API_KEY_LENGTH || /[\r\n\0]/.test(replacement)) {
+      throw new AiProviderError('ai_provider_key_invalid');
+    }
+    if (replacement) apiKey = replacement;
+  }
+  const enabled = input.enabled;
+  const isPrimary = input.isPrimary;
+  if (typeof enabled !== 'boolean' || typeof isPrimary !== 'boolean') {
+    throw new AiProviderError('ai_provider_status_invalid');
+  }
+  if (isPrimary && !enabled) throw new AiProviderError('ai_provider_primary_requires_enabled');
+  return {
+    providerKey: String(existing.provider_key),
+    displayName,
+    apiProtocol,
+    baseUrl,
+    modelId,
+    apiKey,
+    enabled,
+    isPrimary,
+  };
+}
+
 function safeProvider(row) {
   return {
     id: row.id,
@@ -217,6 +258,90 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     return safeProvider(result.rows[0]);
   }
 
+  async function updateProvider({ providerId, input }) {
+    const id = String(providerId || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new AiProviderError('ai_provider_id_invalid');
+    const existingResult = await db.execute({
+      sql: 'SELECT * FROM ai_providers WHERE id = ?',
+      args: [id],
+    });
+    const existing = existingResult.rows[0];
+    if (!existing) throw new AiProviderError('ai_provider_not_found', 404);
+    const normalized = normalizeUpdateInput(existing, input);
+    const timestamp = new Date(now()).toISOString();
+    const encrypted = normalized.apiKey
+      ? encryptApiKey(normalized.apiKey, key, {
+        id: existing.id,
+        provider_key: existing.provider_key,
+        key_version: 1,
+      })
+      : null;
+
+    try {
+      await withWriteTransaction(db, async (tx) => {
+        if (normalized.isPrimary) {
+          await tx.execute({
+            sql: 'UPDATE ai_providers SET is_primary = 0, updated_at = ? WHERE is_primary = 1 AND id <> ?',
+            args: [timestamp, id],
+          });
+        }
+        const result = encrypted
+          ? await tx.execute({
+            sql: `UPDATE ai_providers
+                  SET display_name = ?, api_protocol = ?, base_url = ?, model_id = ?,
+                      api_key_ciphertext = ?, api_key_nonce = ?, api_key_tag = ?, key_version = 1,
+                      enabled = ?, is_primary = ?, updated_at = ?
+                  WHERE id = ?`,
+            args: [
+              normalized.displayName, normalized.apiProtocol, normalized.baseUrl, normalized.modelId,
+              encrypted.ciphertext, encrypted.nonce, encrypted.tag,
+              normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0, timestamp, id,
+            ],
+          })
+          : await tx.execute({
+            sql: `UPDATE ai_providers
+                  SET display_name = ?, api_protocol = ?, base_url = ?, model_id = ?,
+                      enabled = ?, is_primary = ?, updated_at = ?
+                  WHERE id = ?`,
+            args: [
+              normalized.displayName, normalized.apiProtocol, normalized.baseUrl, normalized.modelId,
+              normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0, timestamp, id,
+            ],
+          });
+        if (Number(result.rowsAffected || 0) !== 1) throw new AiProviderError('ai_provider_not_found', 404);
+      });
+    } catch (error) {
+      if (error instanceof AiProviderError) throw error;
+      const detail = String(error?.message || '');
+      if (/UNIQUE constraint failed: ai_providers\.is_primary/i.test(detail)) {
+        throw new AiProviderError('ai_provider_primary_exists', 409);
+      }
+      if (/UNIQUE constraint failed/i.test(detail)) {
+        throw new AiProviderError('ai_provider_already_exists', 409);
+      }
+      throw error;
+    }
+
+    const updated = await db.execute({
+      sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
+                   enabled, is_primary, created_at, updated_at
+            FROM ai_providers WHERE id = ?`,
+      args: [id],
+    });
+    return safeProvider(updated.rows[0]);
+  }
+
+  async function deleteProvider({ providerId }) {
+    const id = String(providerId || '').trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new AiProviderError('ai_provider_id_invalid');
+    const result = await db.execute({
+      sql: 'DELETE FROM ai_providers WHERE id = ?',
+      args: [id],
+    });
+    if (Number(result.rowsAffected || 0) !== 1) throw new AiProviderError('ai_provider_not_found', 404);
+    return { deleted: true };
+  }
+
   async function listProviders() {
     const result = await db.execute(`
       SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
@@ -242,5 +367,5 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     return { ...safeProvider(row), apiKey: decryptApiKey(row, key) };
   }
 
-  return Object.freeze({ createProvider, listProviders, getProviderForRuntime });
+  return Object.freeze({ createProvider, updateProvider, deleteProvider, listProviders, getProviderForRuntime });
 }
