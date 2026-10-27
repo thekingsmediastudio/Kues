@@ -41,8 +41,39 @@ function asIso(value) {
   return date.toISOString();
 }
 
+function normalizeDisplayName(value) {
+  const displayName = String(value ?? '').trim().normalize('NFKC');
+  if (!displayName || displayName.length > 120 || /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(displayName)) {
+    throw new AuthError('invalid_display_name', 400);
+  }
+  return displayName;
+}
+
+function normalizeTheme(value) {
+  const theme = String(value || '').trim().toLowerCase();
+  if (!['dark', 'light'].includes(theme)) throw new AuthError('invalid_theme', 400);
+  return theme;
+}
+
+function normalizedUserId(value) {
+  const userId = String(value || '').trim();
+  if (!userId || userId.length > 255) throw new AuthError('account_unavailable', 403);
+  return userId;
+}
+
+function hashSessionToken(value) {
+  const token = String(value || '').trim();
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new AuthError('authentication_required', 401);
+  return sha256(token);
+}
+
 function userView(row) {
-  return { id: row.id, email: row.email_normalized, displayName: row.display_name };
+  return {
+    id: row.id,
+    email: row.email_normalized,
+    displayName: row.display_name,
+    theme: row.theme === 'light' ? 'light' : 'dark',
+  };
 }
 
 export function createAuthService({ db, emailDelivery = null, competition = null } = {}) {
@@ -251,8 +282,10 @@ export function createAuthService({ db, emailDelivery = null, competition = null
 
     return withWriteTransaction(db, async (tx) => {
       const linked = await tx.execute({
-        sql: `SELECT users.id, users.email_normalized, users.display_name, users.status
+        sql: `SELECT users.id, users.email_normalized, users.display_name, users.status,
+                     user_preferences.theme
               FROM auth_identities JOIN users ON users.id = auth_identities.user_id
+              LEFT JOIN user_preferences ON user_preferences.user_id = users.id
               WHERE auth_identities.provider = 'workos'
                 AND auth_identities.provider_subject = ?`,
         args: [subject],
@@ -262,10 +295,21 @@ export function createAuthService({ db, emailDelivery = null, competition = null
       let isNewUser = false;
       if (!user) {
         const existing = await tx.execute({
-          sql: 'SELECT id, email_normalized, display_name, status FROM users WHERE email_normalized = ?',
+          sql: `SELECT users.id, users.email_normalized, users.display_name, users.status,
+                       user_preferences.theme
+                FROM users LEFT JOIN user_preferences ON user_preferences.user_id = users.id
+                WHERE users.email_normalized = ?`,
           args: [email],
         });
         user = existing.rows[0];
+        const reservedEmail = await tx.execute({
+          sql: `SELECT user_id FROM pending_email_changes
+                WHERE new_email = ? AND expires_at > ? LIMIT 1`,
+          args: [email, createdAt],
+        });
+        if (reservedEmail.rows.length && reservedEmail.rows[0].user_id !== user?.id) {
+          throw new AuthError('email_unavailable', 409);
+        }
         if (!user) {
           const userId = crypto.randomUUID();
           await tx.execute({
@@ -278,6 +322,7 @@ export function createAuthService({ db, emailDelivery = null, competition = null
             email_normalized: email,
             display_name: name,
             status: 'active',
+            theme: 'dark',
           };
           isNewUser = true;
         }
@@ -291,6 +336,24 @@ export function createAuthService({ db, emailDelivery = null, competition = null
         });
       } else {
         if (user.status !== 'active') throw new AuthError('account_unavailable', 403);
+        if (normalizeEmail(user.email_normalized) !== email) {
+          const emailOwner = await tx.execute({
+            sql: 'SELECT id FROM users WHERE email_normalized = ? AND id <> ? LIMIT 1',
+            args: [email, user.id],
+          });
+          if (emailOwner.rows.length) throw new AuthError('email_unavailable', 409);
+          const reservedEmail = await tx.execute({
+            sql: `SELECT user_id FROM pending_email_changes
+                  WHERE new_email = ? AND user_id <> ? AND expires_at > ? LIMIT 1`,
+            args: [email, user.id, createdAt],
+          });
+          if (reservedEmail.rows.length) throw new AuthError('email_unavailable', 409);
+          await tx.execute({
+            sql: 'UPDATE users SET email_normalized = ?, updated_at = ? WHERE id = ?',
+            args: [email, createdAt, user.id],
+          });
+          user = { ...user, email_normalized: email };
+        }
         await tx.execute({
           sql: `UPDATE auth_identities SET email_at_provider = ?, last_used_at = ?
                 WHERE provider = 'workos' AND provider_subject = ?`,
@@ -298,6 +361,12 @@ export function createAuthService({ db, emailDelivery = null, competition = null
         });
       }
 
+      await tx.execute({
+        sql: `INSERT INTO user_preferences(user_id, theme, updated_at)
+              VALUES (?, 'dark', ?)
+              ON CONFLICT(user_id) DO NOTHING`,
+        args: [user.id, createdAt],
+      });
       if (!String(user.display_name || '').trim() && name) {
         await tx.execute({
           sql: 'UPDATE users SET display_name = ?, updated_at = ? WHERE id = ?',
@@ -337,13 +406,278 @@ export function createAuthService({ db, emailDelivery = null, competition = null
     });
   }
 
+  async function getWorkOSIdentity({ userId: rawUserId } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const result = await db.execute({
+      sql: `SELECT provider_subject FROM auth_identities
+            WHERE user_id = ? AND provider = 'workos' LIMIT 1`,
+      args: [userId],
+    });
+    const providerSubject = result.rows[0]?.provider_subject;
+    if (!providerSubject) throw new AuthError('workos_identity_required', 409);
+    return { providerSubject };
+  }
+
+  async function updateDisplayName({ userId: rawUserId, displayName: rawDisplayName, now = new Date().toISOString() } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const displayName = normalizeDisplayName(rawDisplayName);
+    const updatedAt = asIso(now);
+    return withWriteTransaction(db, async (tx) => {
+      const updated = await tx.execute({
+        sql: `UPDATE users SET display_name = ?, updated_at = ?
+              WHERE id = ? AND status = 'active'`,
+        args: [displayName, updatedAt, userId],
+      });
+      if (Number(updated.rowsAffected) !== 1) throw new AuthError('account_unavailable', 403);
+      const result = await tx.execute({
+        sql: `SELECT users.id, users.email_normalized, users.display_name, user_preferences.theme
+              FROM users LEFT JOIN user_preferences ON user_preferences.user_id = users.id
+              WHERE users.id = ?`,
+        args: [userId],
+      });
+      return userView(result.rows[0]);
+    });
+  }
+
+  async function updateTheme({ userId: rawUserId, theme: rawTheme, now = new Date().toISOString() } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const theme = normalizeTheme(rawTheme);
+    const updatedAt = asIso(now);
+    return withWriteTransaction(db, async (tx) => {
+      const activeUser = await tx.execute({
+        sql: "SELECT id FROM users WHERE id = ? AND status = 'active'",
+        args: [userId],
+      });
+      if (!activeUser.rows.length) throw new AuthError('account_unavailable', 403);
+      await tx.execute({
+        sql: `INSERT INTO user_preferences(user_id, theme, updated_at)
+              VALUES (?, ?, ?)
+              ON CONFLICT(user_id) DO UPDATE SET theme = excluded.theme, updated_at = excluded.updated_at`,
+        args: [userId, theme, updatedAt],
+      });
+      return { theme };
+    });
+  }
+
+  async function reservePendingEmailChange({
+    userId: rawUserId,
+    newEmail: rawEmail,
+    sessionToken,
+    now = new Date().toISOString(),
+    expiresAt = null,
+  } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const newEmail = normalizeEmail(rawEmail);
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    const createdAt = asIso(now);
+    const expiry = expiresAt
+      ? asIso(expiresAt)
+      : new Date(Date.parse(createdAt) + 10 * 60 * 1000).toISOString();
+    if (Date.parse(expiry) <= Date.parse(createdAt)) throw new AuthError('email_change_request_expired', 400);
+    const requestId = crypto.randomUUID();
+
+    try {
+      await withWriteTransaction(db, async (tx) => {
+        await tx.execute({
+          sql: 'DELETE FROM pending_email_changes WHERE expires_at <= ?',
+          args: [createdAt],
+        });
+        const userResult = await tx.execute({
+          sql: `SELECT id, email_normalized, status FROM users WHERE id = ?`,
+          args: [userId],
+        });
+        const user = userResult.rows[0];
+        if (!user || user.status !== 'active') throw new AuthError('account_unavailable', 403);
+        if (normalizeEmail(user.email_normalized) === newEmail) throw new AuthError('email_unchanged', 400);
+
+        const emailOwner = await tx.execute({
+          sql: 'SELECT id FROM users WHERE email_normalized = ? AND id <> ? LIMIT 1',
+          args: [newEmail, userId],
+        });
+        if (emailOwner.rows.length) throw new AuthError('email_unavailable', 409);
+        const pendingOwner = await tx.execute({
+          sql: 'SELECT user_id FROM pending_email_changes WHERE new_email = ? AND user_id <> ? LIMIT 1',
+          args: [newEmail, userId],
+        });
+        if (pendingOwner.rows.length) throw new AuthError('email_unavailable', 409);
+
+        await tx.execute({
+          sql: 'DELETE FROM pending_email_changes WHERE user_id = ?',
+          args: [userId],
+        });
+        await tx.execute({
+          sql: `INSERT INTO pending_email_changes
+                  (id, user_id, new_email, session_token_hash, expires_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [requestId, userId, newEmail, sessionTokenHash, expiry, createdAt],
+        });
+      });
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      if (/UNIQUE constraint failed: pending_email_changes\.(new_email|user_id)/i.test(String(error?.message || error))) {
+        throw new AuthError('email_unavailable', 409);
+      }
+      throw error;
+    }
+    return { newEmail, expiresAt: expiry };
+  }
+
+  async function setPendingEmailChangeExpiry({ userId: rawUserId, sessionToken, expiresAt, now = new Date().toISOString() } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    const expiry = asIso(expiresAt);
+    const checkedAt = asIso(now);
+    if (Date.parse(expiry) <= Date.parse(checkedAt)) throw new AuthError('email_change_request_expired', 400);
+    const result = await db.execute({
+      sql: `UPDATE pending_email_changes SET expires_at = ?
+            WHERE user_id = ? AND session_token_hash = ? AND expires_at > ?`,
+      args: [expiry, userId, sessionTokenHash, checkedAt],
+    });
+    if (Number(result.rowsAffected) !== 1) throw new AuthError('email_change_request_expired', 400);
+    return { expiresAt: expiry };
+  }
+
+  async function cancelPendingEmailChange({ userId: rawUserId, sessionToken, now = new Date().toISOString() } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    await db.execute({
+      sql: 'DELETE FROM pending_email_changes WHERE user_id = ? AND session_token_hash = ?',
+      args: [userId, sessionTokenHash],
+    });
+    return { cancelled: true };
+  }
+
+  async function getPendingEmailChange({ userId: rawUserId, sessionToken, now = new Date().toISOString() } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    const checkedAt = asIso(now);
+    const result = await db.execute({
+      sql: `SELECT id, new_email, expires_at, failed_attempts
+            FROM pending_email_changes
+            WHERE user_id = ? AND session_token_hash = ? LIMIT 1`,
+      args: [userId, sessionTokenHash],
+    });
+    const pending = result.rows[0];
+    if (!pending) return null;
+    if (Date.parse(pending.expires_at) <= Date.parse(checkedAt)) {
+      await db.execute({
+        sql: 'DELETE FROM pending_email_changes WHERE id = ? AND session_token_hash = ?',
+        args: [pending.id, sessionTokenHash],
+      });
+      return null;
+    }
+    return {
+      newEmail: pending.new_email,
+      expiresAt: pending.expires_at,
+      failedAttempts: Number(pending.failed_attempts || 0),
+    };
+  }
+
+  async function recordPendingEmailChangeFailure({ userId: rawUserId, sessionToken, now = new Date().toISOString() } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    const checkedAt = asIso(now);
+    return withWriteTransaction(db, async (tx) => {
+      const found = await tx.execute({
+        sql: `SELECT id, failed_attempts FROM pending_email_changes
+              WHERE user_id = ? AND session_token_hash = ? AND expires_at > ? LIMIT 1`,
+        args: [userId, sessionTokenHash, checkedAt],
+      });
+      const row = found.rows[0];
+      if (!row) return { attempts: 0, locked: true };
+      const attempts = Number(row.failed_attempts || 0) + 1;
+      if (attempts >= 5) {
+        await tx.execute({
+          sql: 'DELETE FROM pending_email_changes WHERE id = ? AND session_token_hash = ?',
+          args: [row.id, sessionTokenHash],
+        });
+      } else {
+        await tx.execute({
+          sql: 'UPDATE pending_email_changes SET failed_attempts = ? WHERE id = ?',
+          args: [attempts, row.id],
+        });
+      }
+      return { attempts, locked: attempts >= 5 };
+    });
+  }
+
+  async function completePendingEmailChange({
+    userId: rawUserId,
+    providerSubject: rawSubject,
+    newEmail: rawEmail,
+    sessionToken,
+    now = new Date().toISOString(),
+  } = {}) {
+    const userId = normalizedUserId(rawUserId);
+    const subject = String(rawSubject || '').trim();
+    if (!subject || subject.length > 255) throw new AuthError('workos_identity_required', 409);
+    const newEmail = normalizeEmail(rawEmail);
+    const sessionTokenHash = hashSessionToken(sessionToken);
+    const updatedAt = asIso(now);
+
+    return withWriteTransaction(db, async (tx) => {
+      const pendingResult = await tx.execute({
+        sql: `SELECT id, new_email, expires_at FROM pending_email_changes
+              WHERE user_id = ? AND session_token_hash = ? LIMIT 1`,
+        args: [userId, sessionTokenHash],
+      });
+      const pending = pendingResult.rows[0];
+      if (!pending || pending.new_email !== newEmail || Date.parse(pending.expires_at) <= Date.parse(updatedAt)) {
+        if (pending && Date.parse(pending.expires_at) <= Date.parse(updatedAt)) {
+          await tx.execute({ sql: 'DELETE FROM pending_email_changes WHERE id = ?', args: [pending.id] });
+        }
+        throw new AuthError('invalid_email_change_code', 400);
+      }
+      const userResult = await tx.execute({
+        sql: `SELECT id, email_normalized, display_name, status FROM users WHERE id = ?`,
+        args: [userId],
+      });
+      const user = userResult.rows[0];
+      if (!user || user.status !== 'active') throw new AuthError('account_unavailable', 403);
+      const identity = await tx.execute({
+        sql: `SELECT id FROM auth_identities
+              WHERE user_id = ? AND provider = 'workos' AND provider_subject = ? LIMIT 1`,
+        args: [userId, subject],
+      });
+      if (!identity.rows.length) throw new AuthError('workos_identity_required', 409);
+      const emailOwner = await tx.execute({
+        sql: 'SELECT id FROM users WHERE email_normalized = ? AND id <> ? LIMIT 1',
+        args: [newEmail, userId],
+      });
+      if (emailOwner.rows.length) throw new AuthError('email_unavailable', 409);
+
+      await tx.execute({
+        sql: 'UPDATE users SET email_normalized = ?, updated_at = ? WHERE id = ?',
+        args: [newEmail, updatedAt, userId],
+      });
+      await tx.execute({
+        sql: `UPDATE auth_identities SET email_at_provider = ?, last_used_at = ?
+              WHERE user_id = ? AND provider = 'workos' AND provider_subject = ?`,
+        args: [newEmail, updatedAt, userId, subject],
+      });
+      await tx.execute({
+        sql: 'DELETE FROM pending_email_changes WHERE id = ?',
+        args: [pending.id],
+      });
+      const updatedUser = await tx.execute({
+        sql: `SELECT users.id, users.email_normalized, users.display_name, user_preferences.theme
+              FROM users LEFT JOIN user_preferences ON user_preferences.user_id = users.id
+              WHERE users.id = ?`,
+        args: [userId],
+      });
+      return userView(updatedUser.rows[0]);
+    });
+  }
+
   async function getSession({ token, now = new Date().toISOString() }) {
     const sessionToken = String(token || '').trim();
     if (!/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) return null;
     const checkedAt = asIso(now);
     const result = await db.execute({
-      sql: `SELECT users.id, users.email_normalized, users.display_name, sessions.id AS session_id
+      sql: `SELECT users.id, users.email_normalized, users.display_name,
+                   user_preferences.theme, sessions.id AS session_id
             FROM sessions JOIN users ON users.id = sessions.user_id
+            LEFT JOIN user_preferences ON user_preferences.user_id = users.id
             WHERE sessions.token_hash = ? AND sessions.revoked_at IS NULL
               AND sessions.expires_at > ? AND users.status = 'active'`,
       args: [sha256(sessionToken), checkedAt],
@@ -361,12 +695,19 @@ export function createAuthService({ db, emailDelivery = null, competition = null
     const sessionToken = String(token || '').trim();
     if (!/^[A-Za-z0-9_-]{43}$/.test(sessionToken)) return { revoked: false };
     const revokedAt = asIso(now);
-    const result = await db.execute({
-      sql: `UPDATE sessions SET revoked_at = ?
-            WHERE token_hash = ? AND revoked_at IS NULL`,
-      args: [revokedAt, sha256(sessionToken)],
+    const tokenHash = sha256(sessionToken);
+    return withWriteTransaction(db, async (tx) => {
+      const result = await tx.execute({
+        sql: `UPDATE sessions SET revoked_at = ?
+              WHERE token_hash = ? AND revoked_at IS NULL`,
+        args: [revokedAt, tokenHash],
+      });
+      await tx.execute({
+        sql: 'DELETE FROM pending_email_changes WHERE session_token_hash = ?',
+        args: [tokenHash],
+      });
+      return { revoked: Number(result.rowsAffected) === 1 };
     });
-    return { revoked: Number(result.rowsAffected) === 1 };
   }
 
   return Object.freeze({
@@ -374,6 +715,15 @@ export function createAuthService({ db, emailDelivery = null, competition = null
     consumeEmailMagicLink,
     reserveWorkOSCodeRequest,
     createWorkOSSession,
+    getWorkOSIdentity,
+    updateDisplayName,
+    updateTheme,
+    reservePendingEmailChange,
+    setPendingEmailChangeExpiry,
+    cancelPendingEmailChange,
+    getPendingEmailChange,
+    recordPendingEmailChangeFailure,
+    completePendingEmailChange,
     getSession,
     revokeSession,
   });
