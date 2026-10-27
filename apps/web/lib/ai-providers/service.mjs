@@ -34,6 +34,17 @@ function decodeEncryptionKey(value) {
   return key;
 }
 
+export function deriveAiChatHistoryKey(encryptionKey) {
+  const key = decodeEncryptionKey(encryptionKey);
+  return Buffer.from(crypto.hkdfSync(
+    'sha256',
+    key,
+    Buffer.alloc(0),
+    Buffer.from('keus:ai-chat-history:v1', 'utf8'),
+    32,
+  ));
+}
+
 function encryptedKeyAad({ id, provider_key, key_version }) {
   return Buffer.from(`keus:ai-provider:${id}:${provider_key}:v${key_version}`, 'utf8');
 }
