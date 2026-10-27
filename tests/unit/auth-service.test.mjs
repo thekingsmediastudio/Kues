@@ -74,7 +74,7 @@ test('magic link is stored as a hash, creates a one-time session, and can be rev
   }
 });
 
-test('WorkOS email-code request ledger stores no code and enforces provider-aligned rate limits', async () => {
+test('WorkOS email request ledger stores no code or reset token and enforces provider-aligned rate limits', async () => {
   const db = await createAuthDb();
   try {
     const auth = createAuthService({ db });
