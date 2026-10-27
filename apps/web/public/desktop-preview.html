@@ -7,9 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="/keus-icon.svg">
 <meta id="themeColor" name="theme-color" content="#0d0e11">
 <meta name="description" content="Authenticated Keus desktop workspace preview.">
-<script>
-  (()=>{try{const saved=localStorage.getItem('keusTheme');const systemDark=window.matchMedia?.('(prefers-color-scheme: dark)').matches===true;document.documentElement.dataset.theme=saved==='light'||saved==='dark'?saved:(systemDark?'dark':'light')}catch{document.documentElement.dataset.theme='light'}})();
-</script>
+
 <style>
   :root {
     --bg-app: #111113;
@@ -764,7 +762,7 @@
     flex-shrink: 0;
   }
   .composer-inner {
-    max-width: 740px;
+    max-width: 860px;
     margin: 0 auto;
     position: relative;
   }
@@ -849,6 +847,7 @@
   }
   .composer-pill input {
     flex: 1;
+    min-width: 0;
     background: transparent;
     border: none;
     outline: none;
@@ -874,9 +873,8 @@
 
   /* =========================================================
      CENTERED ROUNDED-BORDER OVERLAY MODALS
-     1. Agent-Particular Settings Overlay (#agentOverlayBackdrop)
-     2. General Identity & Settings Overlay (#generalOverlayBackdrop)
-     3. New Agent Setup Form Overlay (#newAgentOverlayBackdrop)
+     1. Settings dialog (#generalOverlayBackdrop)
+     2. New Agent information dialog (#newAgentOverlayBackdrop)
      ========================================================= */
   .overlay-backdrop {
     position: fixed;
@@ -1193,7 +1191,6 @@
   .mode-pill.active { color:#111; background:#f3f3f5; border-color:#f3f3f5; }
   .computer-focus-note { font-size:11px; color:var(--text-dim); }
   .desktop-focus-btn { position:relative; }
-  .desktop-focus-btn:hover::after { content:"Jump to this agent's computer preview"; position:absolute; top:calc(100% + 9px); right:0; white-space:nowrap; background:#242428; color:#fff; border:1px solid var(--border); border-radius:8px; padding:7px 9px; z-index:20; font:11px var(--font); }
 
   .ui-icon { width:16px; height:16px; display:inline-block; vertical-align:middle; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .modal-nav-ico .ui-icon { width:16px;height:16px; }
@@ -1314,10 +1311,10 @@
   .composer-extras { margin-bottom:9px; }
   .memory-pill,.mode-pill { background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.075); }
   .memory-pill { padding:5px 9px; }
-  .composer-pill { height:52px;background:linear-gradient(145deg,rgba(32,34,40,.96),rgba(24,26,31,.97));border-color:rgba(255,255,255,.14);box-shadow:0 12px 36px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.035); }
-  .composer-pill:focus-within { border-color:rgba(233,185,93,.38);box-shadow:0 0 0 3px rgba(233,185,93,.045),0 14px 38px rgba(0,0,0,.4); }
-  .comp-send { width:35px;height:35px;background:linear-gradient(145deg,#f2d18d,#dfb45d);color:#17130b;box-shadow:0 3px 10px rgba(233,185,93,.17); }
-  .comp-send:hover { background:#f6dfa9;transform:translateX(1px); }
+  .composer-pill { height:48px;background:#1f2022;border-color:rgba(255,255,255,.12);box-shadow:none;padding:0 7px;gap:7px; }
+  .composer-pill:focus-within { border-color:rgba(255,255,255,.2);box-shadow:none; }
+  .comp-send { width:32px;height:32px;background:#303136;color:#7b7d84;box-shadow:none; }
+  .comp-send:hover { background:#303136;transform:none; }
   .comp-plus { width:auto;min-width:64px;height:34px;padding:0 10px;gap:6px;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.085);color:#c7c8cd;font:600 10.5px var(--font); }
   .comp-plus .ui-icon { width:14px;height:14px;stroke-width:2; }
   .comp-plus:hover,.comp-plus.active { background:rgba(233,185,93,.12);border-color:rgba(233,185,93,.26);color:#f0d391; }
@@ -1365,38 +1362,44 @@
     .composer-extras { align-items:flex-start;flex-direction:column; }
   }
   @media (max-width:640px) {
-    .sidebar { width:76px; }
-    .sidebar-top { justify-content:center;gap:3px;padding:0 5px; }.mac-dots { display:none; }.cueclaw-brand-name { display:none; }.cueclaw-brand-mark { width:22px;height:22px; }
-    .new-agent-plus-btn { width:36px;overflow:hidden;justify-content:center;font-size:0;padding:0; }.new-agent-plus-btn > span:first-child { font-size:18px!important; }.new-agent-plus-btn #newAgentButtonLabel { display:none; }
-    .search-wrap { padding:4px 8px; }.search-box { justify-content:center;padding:0; }.search-box input { display:none; }
-    .agent-list { padding:6px 7px; }.agent-row { justify-content:center;padding:9px 2px;min-height:55px; }.agent-meta { display:none; }
-    .cue-footer { justify-content:center;padding:10px 4px; }.cue-shapes { gap:5px; }.cue-shapes > span:last-of-type { display:none; }.cue-footer > span:last-child { display:none; }
-    .header-sub { display:none; }.chat-header { height:58px; }.stream-inner { padding:0 14px; }.chat-stream { padding-top:18px; }
-    .composer-area { padding:8px 12px 14px; }.run-modes { flex-wrap:wrap; }.memory-pills { flex-wrap:wrap; }
-    .settings-modal { width:96vw!important;height:90vh!important; }.modal-sidebar { width:145px; }.modal-body { padding:14px; }
-    .app-grid { grid-template-columns:1fr; }.new-agent-modal { max-width:96vw; }
+    .sidebar { width:180px;min-width:180px; }
+    .sidebar-top { justify-content:space-between;gap:6px;padding:0 10px; }
+    .mac-dots { display:none; }
+    .cueclaw-brand-name { display:none; }
+    .new-agent-plus-btn { width:auto;min-height:32px;height:auto;gap:6px;padding:6px 8px;font-size:9px;white-space:nowrap; }
+    .new-agent-plus-btn > span:first-child { font-size:15px!important; }
+    .new-agent-plus-btn #newAgentButtonLabel { display:inline;font-size:9px; }
+    .search-wrap { padding:5px 9px 10px; }
+    .search-box { justify-content:flex-start;padding:0 9px; }
+    .search-box input { display:block;min-width:0;font-size:10px; }
+    .agent-list { padding:4px 7px 10px; }
+    .agent-row { justify-content:flex-start;padding:9px 7px;min-height:54px; }
+    .agent-meta { display:block; }
+    .cue-footer { justify-content:flex-start;padding:10px; }
+    .cue-footer > span:last-child { display:block; }
+    .app-settings-footer { width:calc(100% - 14px);margin:0 7px 7px;padding:9px 10px;justify-content:flex-start; }
+    .app-settings-footer-label { display:inline;font-size:10px; }
+    .account-footer { padding:0; }
+    .account-trigger-copy { display:block; }
+    .account-caret { display:block; }
+    .account-menu { left:0;bottom:calc(100% + 8px); }
+    .header-sub { display:none; }
+    .chat-header { height:58px;padding:0 12px; }
+    .stream-inner { padding:0 14px; }
+    .chat-stream { padding-top:18px; }
+    .settings-modal { width:94vw!important;height:auto!important;max-height:88vh; }
+    .app-settings-modal { width:94vw!important;height:auto!important; }
+    .modal-body { padding:18px; }
+    .new-agent-modal { max-width:96vw; }
   }
 
 
-
-  .workspace-context-card{margin:0 11px 7px;padding:11px 12px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));flex:none}
-  .workspace-context-label{color:var(--cue-gold);font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
-  .workspace-context-name{display:block;overflow:hidden;margin-top:4px;color:var(--text-main);font-size:12px;font-weight:650;letter-spacing:-.02em;text-overflow:ellipsis;white-space:nowrap}
-  .workspace-context-email{display:block;overflow:hidden;margin-top:2px;color:var(--text-dim);font-size:9px;text-overflow:ellipsis;white-space:nowrap}
-  .workspace-context-divider{height:1px;margin:9px 0;background:var(--border)}
-  .saved-setup-row{display:flex;align-items:center;gap:8px;min-width:0}
-  .saved-agent-avatar{width:30px;height:30px;display:grid;place-items:center;flex:none}
-  .saved-agent-avatar .agent-avatar-art{width:30px;height:30px;display:block;animation:none}
-  .saved-agent-copy{min-width:0;flex:1}
-  .saved-agent-copy strong,.saved-agent-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .saved-agent-copy strong{color:var(--text-main);font-size:10px;font-weight:620}
-  .saved-agent-copy small{margin-top:2px;color:var(--text-dim);font-size:8px}
-  .workspace-context-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding-top:7px;border-top:1px solid var(--border);color:var(--text-dim);font-size:8px}
-  .workspace-context-footer span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .example-section-label{padding:0 18px 4px;color:#777b84;font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-  .preview-status-banner{display:flex;align-items:flex-start;gap:9px;margin:0;padding:9px 24px;border-bottom:1px solid rgba(233,185,93,.18);background:linear-gradient(90deg,rgba(233,185,93,.075),rgba(233,185,93,.025));color:var(--text-sec);font-size:10px;line-height:1.5}
-  .preview-status-banner strong{flex:none;color:var(--cue-gold);font-size:10px;font-weight:700}
-  .preview-status-banner span{min-width:0}
+  .app-settings-footer{width:calc(100% - 18px);margin:0 9px 8px;padding:10px 12px;justify-content:flex-start;gap:10px;text-align:left;color:var(--text-sec);font:600 11px var(--font)}
+  .app-settings-footer:hover{color:var(--text-main);background:rgba(233,185,93,.065);border-color:rgba(233,185,93,.2)}
+  .app-settings-icon{width:16px;height:16px;flex:none}
+  .saved-agent-list-row{cursor:default;pointer-events:none}
+  .saved-agent-avatar{width:38px;height:38px;display:grid;place-items:center;flex:none}
+  .saved-agent-avatar .agent-avatar-art{width:34px;height:34px;display:block;animation:none}
   .sample-prompt-label{display:inline-block;margin-bottom:5px;color:#e9b95d;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
   .account-footer{position:relative;display:block;padding:0;overflow:visible;cursor:default;background-color:var(--bg-sidebar)!important;background-image:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018))}
   .account-footer:hover{border-color:var(--border-strong);background-color:var(--bg-sidebar)!important;background-image:linear-gradient(145deg,rgba(255,255,255,.065),rgba(255,255,255,.025))}
@@ -1432,12 +1435,11 @@
   :root[data-theme="light"] .sidebar{background:linear-gradient(180deg,#f0f3ee,#eaf0e9);border-right-color:#dce5dc;box-shadow:none}
   :root[data-theme="light"] .chat-pane{background:radial-gradient(ellipse at 76% -10%,rgba(190,155,86,.09),transparent 36%),#f8faf7}
   :root[data-theme="light"] .chat-header{background:rgba(255,255,255,.92);border-bottom-color:#e1e8e0}
-  :root[data-theme="light"] .workspace-context-card,:root[data-theme="light"] .cue-footer,:root[data-theme="light"] .agent-row.active{background:#fff;border-color:#dce5dc;box-shadow:none}
+  :root[data-theme="light"] .cue-footer,:root[data-theme="light"] .agent-row.active{background:#fff;border-color:#dce5dc;box-shadow:none}
   :root[data-theme="light"] .account-footer{background-color:#fff!important;background-image:none}
   :root[data-theme="light"] .agent-row:hover,:root[data-theme="light"] .account-menu-trigger:hover{background:rgba(33,70,42,.045)}
-  :root[data-theme="light"] .preview-status-banner{background:#f5f0e4;border-color:#e9dfc7;color:#546657}
-  :root[data-theme="light"] .header-title,:root[data-theme="light"] .agent-name,:root[data-theme="light"] .saved-agent-copy strong,:root[data-theme="light"] .workspace-context-name{color:#22362a}
-  :root[data-theme="light"] .header-sub,:root[data-theme="light"] .agent-preview,:root[data-theme="light"] .workspace-context-email,:root[data-theme="light"] .workspace-context-footer{color:#718076}
+  :root[data-theme="light"] .header-title,:root[data-theme="light"] .agent-name{color:#22362a}
+  :root[data-theme="light"] .header-sub,:root[data-theme="light"] .agent-preview{color:#718076}
   :root[data-theme="light"] .user-bubble{background:#fff;border-color:#e0e7df;color:#243629;box-shadow:0 5px 14px rgba(25,45,30,.06)}
   :root[data-theme="light"] .msg-text{color:#3e4b42}
   :root[data-theme="light"] .msg-text strong{color:#1e3225}
@@ -1456,8 +1458,52 @@
   :root[data-theme="light"] .sample-product strong,:root[data-theme="light"] .phone-preview-line span{color:#243629}
   :root[data-theme="light"] .run-timeline-list li{background:#f1f5ef}
   :root[data-theme="light"] .composer-area{background:linear-gradient(180deg,transparent,rgba(248,250,247,.95) 28%)}
-  @media(max-width:640px){.workspace-context-card{margin:0 7px 6px;padding:8px 6px}.workspace-context-name,.workspace-context-email,.saved-agent-copy,.workspace-context-footer,.workspace-context-label{display:none}.workspace-context-divider{display:none}.saved-setup-row{justify-content:center}.saved-agent-avatar{width:30px;height:30px}.example-section-label{display:none}.account-footer{padding:0}.account-trigger-copy,.account-caret{display:none}.account-menu{left:calc(100% + 7px);bottom:0}.preview-status-banner{padding:8px 11px;font-size:9px}.preview-status-banner strong{display:none}}
 
+
+  .active-agent-summary{display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;flex:1}
+  .review-data-badge{flex:none;margin-left:10px;padding:4px 8px;border:1px solid rgba(233,185,93,.25);border-radius:999px;background:rgba(233,185,93,.08);color:var(--cue-gold);font-size:9px;font-weight:650;letter-spacing:.02em;white-space:nowrap}
+  .review-data-badge[hidden]{display:none!important}
+  .review-badge-compact{display:none}
+  .active-agent-summary .header-title{min-width:0;flex:1}
+  .active-agent-summary .header-title>span:first-child{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .active-agent-summary .header-sub{flex:none}
+  .header-agent-avatar,.saved-agent-avatar{display:grid;place-items:center;flex:none;border:0;border-radius:0;background:transparent;color:var(--text-sec);font-size:12px;font-weight:650}
+  .header-agent-avatar{width:28px;height:28px}
+  .saved-agent-avatar{width:38px;height:38px}
+  .header-agent-avatar .agent-avatar-art{width:27px;height:27px;display:block;animation:none}
+  .saved-agent-avatar .agent-avatar-art{width:36px;height:36px;display:block;animation:none}
+  .saved-agent-list-row{cursor:default;pointer-events:none}
+  .saved-agent-list-row[hidden]{display:none!important}
+  .composer-icon-btn{width:28px;height:32px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-sec);padding:0}
+  .composer-icon-btn svg{width:16px;height:16px;display:block}
+  .composer-icon-btn:disabled{opacity:.72!important;filter:none!important;cursor:not-allowed!important}
+  .comp-send:disabled{opacity:1!important;filter:none!important;cursor:not-allowed!important;background:#303136!important;color:#85868d!important;box-shadow:none!important;transform:none!important}
+  .composer-preview-note{margin:7px 6px 0;color:var(--text-dim);font-size:9px;line-height:1.4;text-align:center}
+  @media(max-width:640px){
+    .chat-header{height:58px;padding:0 5px;gap:4px}
+    .active-agent-summary{gap:4px}
+    .header-agent-avatar{width:23px;height:23px}
+    .header-agent-avatar .agent-avatar-art{width:22px;height:22px}
+    .header-title{gap:3px;font-size:11px}
+    .active-agent-summary .header-title>span:first-child{max-width:52px}
+    .review-data-badge{max-width:52px;margin-left:4px;padding:3px 5px;font-size:7px;white-space:normal;text-align:center;line-height:1.15}
+    .review-badge-full{display:none}
+    .review-badge-compact{display:inline}
+    .header-actions{gap:3px}
+    .header-actions .hdr-btn.icon-only{width:24px;height:24px;padding:0;border-radius:7px;justify-content:center}
+    .header-actions .hdr-btn svg{width:13px;height:13px}
+    .composer-area{padding:8px 10px 12px}
+    .composer-preview-note{font-size:8px}
+  }
+  .sidebar .sidebar-bottom-tile{background:rgba(255,255,255,.035)!important;background-image:none!important;border-color:rgba(255,255,255,.085)!important;color:#a4a5ad!important;box-shadow:none!important}
+  .sidebar .sidebar-bottom-tile:hover{background:rgba(255,255,255,.06)!important;background-image:none!important;border-color:rgba(255,255,255,.13)!important}
+  :root[data-theme="light"] .sidebar .sidebar-bottom-tile{background:rgba(255,255,255,.58)!important;background-image:none!important;border-color:#dce5dc!important;color:#5e7064!important}
+  :root[data-theme="light"] .sidebar .sidebar-bottom-tile:hover{background:#fff!important;border-color:#cbd7cc!important}
+  .app-settings-modal{width:min(480px,94vw);height:auto;min-height:250px;max-height:88vh}
+  .app-settings-empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:18px}
+  .app-settings-empty p{margin:0;color:var(--text-sec);font-size:13px;line-height:1.6}
+  .preview-toast{position:fixed;right:22px;bottom:22px;z-index:100;max-width:min(380px,calc(100vw - 36px));padding:11px 14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-card);color:var(--text-main);font-size:12px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.22)}
+  :root[data-theme="light"] .app-settings-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
 </style>
 </head>
 <body>
@@ -1474,25 +1520,13 @@
         <span class="mac-dot y"></span>
         <span class="mac-dot g"></span>
       </div>
-      <a class="cueclaw-brand" href="/" aria-label="Keus home"><span class="cueclaw-brand-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg></span><span class="cueclaw-brand-name">Keus</span></a>
+      <div class="cueclaw-brand" role="img" aria-label="Keus"><span class="cueclaw-brand-mark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg></span><span class="cueclaw-brand-name">Keus</span></div>
       <!-- '+' button opens the dedicated New Agent Setup Form Overlay -->
-      <button class="new-agent-plus-btn" id="newAgentButton" onclick="goToWorkspaceSetup()" title="Open your Keus workspace setup">
-        <span style="font-size:15px;line-height:1;">+</span> <span id="newAgentButtonLabel">Set up</span>
+      <button class="new-agent-plus-btn" id="newAgentButton" onclick="openNewAgentModal()" title="New Agent" aria-label="New Agent">
+        <span aria-hidden="true" style="font-size:15px;line-height:1;">+</span> <span id="newAgentButtonLabel">New Agent</span>
       </button>
     </div>
 
-    <section class="workspace-context-card" aria-label="Signed-in Keus workspace">
-      <div class="workspace-context-label">Your Keus workspace</div>
-      <strong class="workspace-context-name" id="workspaceName">Loading workspace</strong>
-      <span class="workspace-context-email" id="workspaceEmail">Loading account</span>
-      <div class="workspace-context-divider" aria-hidden="true"></div>
-      <div class="saved-setup-row">
-        <span class="saved-agent-avatar" id="savedAgentAvatar" aria-hidden="true"></span>
-        <span class="saved-agent-copy"><strong id="savedSetupName">Checking saved setup</strong><small id="savedSetupRole">Loading setup details</small><small id="savedPaymentState">Checking payment setup</small></span>
-      </div>
-      <div class="workspace-context-footer"><span id="savedSetupState">Checking status</span><span id="allowanceShort">Checking allowance</span></div>
-    </section>
-    <div class="example-section-label">Example teammates, not live agents</div>
     <div class="search-wrap">
       <div class="search-box">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -1501,90 +1535,27 @@
     </div>
 
     <div class="agent-list" id="agentList">
-      <!-- Shopping Crew -->
-      <div class="agent-row active" data-agent-id="crew" onclick="selectTeammate('crew', this)">
-        <div class="crew-cluster" role="img" aria-label="Shopping Crew: Nova, Atlas, and Aegis">
-          <div class="crew-mini m1"><span data-crew-avatar="bulb" aria-hidden="true"></span></div>
-          <div class="crew-mini m2"><span data-crew-avatar="laptop" aria-hidden="true"></span></div>
-          <div class="crew-mini m3"><span data-crew-avatar="shield" aria-hidden="true"></span></div>
-        </div>
+      <div class="agent-row saved-agent-list-row" id="savedAgentRow" role="group" aria-label="Saved agent profile, display only" hidden>
+        <span class="saved-agent-avatar" id="savedAgentAvatar" aria-hidden="true"></span>
         <div class="agent-meta">
-          <div class="agent-top">
-            <span class="agent-name">Shopping Crew</span>
-            <span class="agent-time">Example</span>
-          </div>
-          <div class="agent-preview">
-            <span class="unread-dot"></span>
-            <span>Sample bundle - $78.50 illustrative</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Nova -->
-      <div class="agent-row" data-agent-id="nova" onclick="selectTeammate('nova', this)">
-        <div class="dot-avatar" style="background: #f5b942;">
-          <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-        </div>
-        <div class="agent-meta">
-          <div class="agent-top">
-            <span class="agent-name">Nova</span>
-            <span class="agent-time">Sample</span>
-          </div>
-          <div class="agent-preview">Example product search - sample data</div>
-        </div>
-      </div>
-
-      <!-- Atlas -->
-      <div class="agent-row" data-agent-id="atlas" onclick="selectTeammate('atlas', this)">
-        <div class="dot-avatar" style="background: #32d583;">
-          <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-        </div>
-        <div class="agent-meta">
-          <div class="agent-top">
-            <span class="agent-name">Atlas</span>
-            <span class="agent-time">Sample</span>
-          </div>
-          <div class="agent-preview">Illustrative seller transcript</div>
-        </div>
-      </div>
-
-      <!-- Aegis -->
-      <div class="agent-row" data-agent-id="aegis" onclick="selectTeammate('aegis', this)">
-        <div class="dot-avatar" style="background: #4c8dff;">
-          <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-        </div>
-        <div class="agent-meta">
-          <div class="agent-top">
-            <span class="agent-name">Aegis</span>
-            <span class="agent-time">Sample</span>
-          </div>
-          <div class="agent-preview">Approval preview - no payment</div>
-        </div>
-      </div>
-
-      <!-- Price Watcher -->
-      <div class="agent-row" data-agent-id="watcher" onclick="selectTeammate('watcher', this)">
-        <div class="dot-avatar" style="background: #b57cff;">
-          <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-        </div>
-        <div class="agent-meta">
-          <div class="agent-top">
-            <span class="agent-name">Price Watcher</span>
-            <span class="agent-time">Inactive</span>
-          </div>
-          <div class="agent-preview">Example price target - watcher inactive</div>
+          <div class="agent-top"><span class="agent-name" id="savedAgentName">Saved agent</span><span class="agent-time" id="savedAgentStatus">Status unavailable</span></div>
+          <div class="agent-preview" id="savedAgentRole">Saved workspace profile</div>
         </div>
       </div>
     </div>
 
-    <div class="cue-footer account-footer">
+    <button class="cue-footer app-settings-footer sidebar-bottom-tile" id="appSettingsButton" type="button" onclick="openGeneralOverlay('apps')" aria-label="Open Settings" title="Settings">
+      <svg class="app-settings-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="app-settings-footer-label">Settings</span>
+    </button>
+    <div class="cue-footer account-footer sidebar-bottom-tile">
       <button class="account-menu-trigger" id="accountMenuToggle" type="button" aria-label="Open account menu" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">
         <span class="account-avatar" id="accountAvatar" aria-hidden="true">K</span>
         <span class="account-trigger-copy"><strong id="accountName">Keus account</strong><small id="accountEmail">Loading account</small></span>
         <svg class="account-caret" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
       </button>
       <div class="account-menu" id="accountMenu" aria-label="Account options" hidden>
-        <div class="account-menu-user"><span>Signed in as</span><strong id="accountMenuEmail">Loading account</strong><small id="accountMenuWorkspace">Loading workspace</small></div>
+        <div class="account-menu-user"><span id="accountMenuLabel">Signed in as</span><strong id="accountMenuEmail">Loading account</strong><small id="accountMenuWorkspace">Loading workspace</small></div>
         <a class="account-menu-item" href="/app"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 7.2 8 2.8l5.5 4.4v6.2H9.8V9.8H6.2v3.6H2.5V7.2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg><span>Account dashboard</span></a>
         <button class="account-menu-item" id="themeToggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.4 12.9A7.1 7.1 0 0 1 7.1 3.6a7.3 7.3 0 1 0 9.3 9.3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="sun-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.2v1.6M10 16.2v1.6M17.8 10h-1.6M3.8 10H2.2m13.3-5.5-1.1 1.1M5.6 14.4l-1.1 1.1m11.1 0-1.1-1.1M5.6 5.6 4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="themeLabel">Switch theme</span></button>
         <button class="account-menu-item signout" id="signOutButton" type="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M7 3H3v10h4M9 5l3 3-3 3m3-3H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Sign out</span></button>
@@ -1598,707 +1569,72 @@
   <main class="chat-pane">
 
     <header class="chat-header">
-      <div class="header-agent" onclick="openAgentOverlay('profile')" title="Open settings particular to this agent">
-        <div id="hdrAvatar" class="dot-avatar" style="width: 28px; height: 28px; background: #f5b942;">
-          <div class="dot-eyes" style="gap:3px;">
-            <span class="dot-eye" style="width:2.5px;height:6px;"></span>
-            <span class="dot-eye" style="width:2.5px;height:6px;"></span>
-          </div>
-        </div>
+      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite">
+        <span id="hdrAvatar" class="header-agent-avatar" aria-hidden="true"></span>
         <div class="header-title">
-          <span id="hdrName">Shopping Crew</span>
-          <span class="header-sub" id="hdrSub">Nova, Atlas &amp; Aegis</span>
+          <span id="hdrName">Workspace</span>
+          <span class="header-sub" id="hdrSub">No saved agent</span>
         </div>
       </div>
-
-      <div class="header-actions">
-        <!-- Sentinel Guard Pill -->
-        <button class="hdr-btn" onclick="simulateInjection()" title="Sentinel interaction preview - runtime wiring is the next phase">
-          <span style="width:7px;height:7px;border-radius:50%;background:var(--amber);"></span>
-          <span id="sentinelStatus">Demo - sample content - integrations off</span>
+      <span class="review-data-badge" id="sampleReviewBadge" role="status" aria-label="Sample review data, not an authenticated account" hidden><span class="review-badge-full">Sample review data</span><span class="review-badge-compact" aria-hidden="true">Sample data</span></span>
+      <div class="header-actions" aria-label="Conversation controls">
+        <button class="hdr-btn icon-only" id="voiceCallButton" type="button" disabled aria-label="Voice call, not connected in this preview" title="Voice call is not connected in this preview">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
         </button>
-
-        <!-- OpenAI Dots Live Voice Call Button -->
-        <button class="hdr-btn icon-only" type="button" disabled aria-label="Voice calls unavailable" title="Voice calls are not connected in this preview">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-        </button>
-
-        <!-- Grok Bot Cloud Computer Toggle -->
-        <button class="hdr-btn icon-only desktop-focus-btn" onclick="scrollToComputer()" aria-label="Jump to this agent's computer preview" title="Jump to this agent's computer preview" aria-label="Jump to this agent's computer preview">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        </button>
-
-        <!-- PARTICULAR AGENT ICON BUTTON (replaces generic card icon; updates per agent!) -->
-        <button class="agent-particular-btn" id="agentParticularBtn" onclick="openAgentOverlay('profile')" title="Configure this agent's particular apps, card & settings">
-          <span class="agent-particular-Glyph" id="agentParticularGlyph" style="background: #f5b942;"><svg class="ui-icon" data-icon="spark" viewBox="0 0 24 24"><path d="m12 2 2.1 7.9L22 12l-7.9 2.1L12 22l-2.1-7.9L2 12l7.9-2.1L12 2Z"/></svg></span>
-          <span id="agentParticularLabel">Example Shopping Crew settings</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <button class="hdr-btn icon-only" id="desktopButton" type="button" disabled aria-label="Desktop view, not connected in this preview" title="Desktop view is not connected in this preview">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         </button>
       </div>
     </header>
-    <div class="preview-status-banner" role="status"><strong>Authenticated workspace preview</strong><span>Account and workspace data load from Keus. Example activity and controls are illustrative only; no messages, agent runs, token usage, or payments occur.</span></div>
-
-    <!-- OpenAI Dots Floating Call Overlay -->
-    <div class="dots-call-float" id="callOverlay">
-      <div class="dot-avatar" id="callDotAvatar" style="width: 34px; height: 34px; background: #f5b942;">
-        <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-      </div>
-      <div>
-        <div style="font-size: 13px; font-weight: 600;" id="callAgentName">Shopping Crew</div>
-        <div class="call-timer" id="callTimer">00:14 - Voice-call preview - not connected</div>
-      </div>
-      <button class="call-end-pill" onclick="toggleCall()">End</button>
-    </div>
-
-    <!-- Conversation Stream -->
     <div class="chat-stream" id="chatStream">
-      <div class="stream-inner" id="streamInner">
-
-        <!-- User Prompt -->
-        <div class="user-msg-row">
-          <div class="user-bubble">
-            <strong class="sample-prompt-label">Example prompt, not sent</strong><br>
-            Find me a matte black ceramic pour-over set with 2 mugs under $85. Check our WhatsApp ceramic studio seller too and hold the better deal on PayPal.
-          </div>
-        </div>
-
-        <!-- Reply + Grok Bot Inline Computer Window -->
-        <div class="agent-msg-row" id="computerCardAnchor">
-          <div class="dot-avatar" style="background: #f5b942; width: 32px; height: 32px; margin-top: 2px;">
-            <div class="dot-eyes"><span class="dot-eye" style="height:7px;"></span><span class="dot-eye" style="height:7px;"></span></div>
-          </div>
-          <div class="agent-msg-body">
-            <div class="msg-sender-line">
-              <span class="msg-sender">Nova &amp; Atlas</span>
-              <span class="msg-badge">Computer preview - sample web/phone surfaces</span>
-            </div>
-            <div class="msg-text">
-              <strong>Illustrative example only:</strong> this screen shows a $92.00 product listing and a sample $78.50 studio quote. No Channel3 search or WhatsApp message was sent.
-            </div>
-
-            <!-- GROK BOT INLINE COMPUTER CARD -->
-            <div class="grok-computer-card">
-              <div class="comp-top">
-                <div class="comp-title">
-                  <span>Computer</span>
-                </div>
-                <span class="comp-status-pill" id="compControlBadge">No computer connected</span>
-              </div>
-              <div class="comp-sub" id="compSubText">Illustrative computer surface only; no browser session exists.</div>
-
-              <div class="comp-wallpaper">
-                <div class="mini-window">
-                  <div class="mini-win-bar">
-                    <div class="mini-win-dots"><i></i><i></i><i></i></div>
-                    <div class="mini-win-url">kanso-studio.jp/checkout</div>
-                  </div>
-                  <div class="mini-win-body">
-                    <div>
-                      <div style="color:#9a9aa2;font-size:10px;">WEB RETAIL PRICE</div>
-                      <div style="color:#fff;font-weight:600;font-size:12px;margin-top:2px;">Matte Black Pour-Over + 2 Mugs</div>
-                    </div>
-                    <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid rgba(255,255,255,0.07);padding-top:8px;">
-                      <span style="color:#9a9aa2;font-size:10px;">Subtotal + Ship</span>
-                      <span style="color:#f3f3f5;font-weight:700;font-size:13px;">$92.00</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="mini-phone">
-                  <div class="mini-phone-bar">
-                    <span>WhatsApp - ADB</span>
-                    <span>Preview</span>
-                  </div>
-                  <div class="mini-phone-body">
-                    <div class="wa-bubble">
-                      "Sample transcript: an example $78.50 studio quote. No seller was contacted and no invoice was sent."
-                    </div>
-                    <div style="margin-top:auto;display:flex;justify-content:space-between;font-size:10px;color:#6ce9a6;">
-                      <span>Example difference - $13.50</span>
-                      <span>Sample quote - not verified</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="comp-footer">
-                <div class="comp-btn-group">
-                  <button class="pill-btn light" id="takeOverBtn" type="button" disabled>Take over unavailable</button>
-                  <button class="pill-btn dark" type="button" disabled>Runtime unavailable</button>
-                </div>
-                <span style="font-size: 11px; color: var(--text-dim);">Prototype - demo data</span>
-              </div>
-              <details class="run-details">
-                <summary>Run surfaces, activity &amp; proof <span>Expand</span></summary>
-                <div class="run-detail-shell">
-                  <div class="run-surface-tabs" role="tablist">
-                    <button class="run-surface-tab active" onclick="switchRunSurface('web',this)">Web</button>
-                    <button class="run-surface-tab" onclick="switchRunSurface('phone',this)">Phone / ADB - deferred preview</button>
-                    <button class="run-surface-tab" onclick="switchRunSurface('timeline',this)">Timeline &amp; steer</button>
-                    <button class="run-surface-tab" onclick="switchRunSurface('proof',this)">Mandate &amp; receipt</button>
-                  </div>
-                  <section class="run-surface-panel active" data-surface="web">
-                    <div class="run-preview-label">KERNEL browser - sample preview - not a live merchant session</div>
-                    <div class="sample-product"><span>Example listing - Matte V60 + 2 mugs</span><strong>$92.00</strong><small>Illustrative price - no search performed</small></div>
-                    <div class="sample-product"><span>Example studio quote - direct bundle</span><strong>$78.50</strong><small>Illustrative only - not a real seller quote</small></div>
-                    <div class="sample-product"><span>Northstar Home - Ceramic set</span><strong>$84.20</strong><small>Illustrative marketplace price - not fetched</small></div>
-                    <div class="d-card-sub">Planned checks only. This preview makes no merchant request and enforces no live spend envelope.</div>
-                  </section>
-                  <section class="run-surface-panel" data-surface="phone">
-                    <div class="run-preview-label">Android viewport - Wireless ADB / simulator - demo transcript</div>
-                    <div class="phone-preview-line"><b>Device</b><span>Mobile / ADB surface deferred - no device paired</span></div>
-                    <div class="phone-preview-line"><b>WhatsApp</b><span>Illustrative transcript only - no message sent</span></div>
-                    <div class="phone-preview-line"><b>Evidence</b><span>No frames, seller evidence, or receipt are generated here</span></div>
-                    <button class="pill-btn dark" onclick="openGeneralOverlay('device')">Open deferred mobile/ADB preview settings</button>
-                  </section>
-                  <section class="run-surface-panel" data-surface="timeline">
-                    <div class="run-preview-label">Example workflow - no run exists or was executed</div>
-                    <ol class="run-timeline-list">
-                      <li><b>PLANNING - example</b><span>Future web search and policy check</span></li>
-                      <li><b>NEGOTIATING - example</b><span>Seller contact is not connected</span></li>
-                      <li><b>HELD - not performed</b><span>No PayPal authorization was made</span></li>
-                      <li><b>APPROVED - not performed</b><span>Desktop WebAuthn is planned, not connected</span></li>
-                      <li><b>CAPTURED - not performed</b><span>No receipt, capture, or refund exists</span></li>
-                    </ol>
-                    <div class="steer-row"><input class="form-input steer-input" placeholder="Steering unavailable in this preview" disabled /><button class="pill-btn light" type="button" disabled>Steering unavailable</button></div>
-                    <div class="steer-feedback" aria-live="polite">Steering is shown here as a UI preview; no agent run is connected yet.</div>
-                    <button class="pill-btn dark" type="button" disabled>Sentinel test unavailable</button>
-                  </section>
-                  <section class="run-surface-panel" data-surface="proof">
-                    <div class="run-preview-label">Example mandate fields - no signed receipt exists</div>
-                    <div class="proof-grid"><span>Example payee</span><b>kanso-studio.jp - not checked</b><span>Example amount</span><b>$78.50 USD - not transacted</b><span>Example hash</span><code>placeholder - not evidence</code><span>Signature</span><b>None - desktop WebAuthn not connected</b><span>Receipt</span><b>None - no capture or refund was made</b></div>
-                    <div class="d-card-sub">Target design: bind exact amount, payee, and trusted evidence; this sample screen does not run an approval flow.</div>
-                    <button class="pill-btn dark" onclick="openGeneralOverlay('receipts')">Open Flight-Box receipt &amp; refund</button>
-                  </section>
-                </div>
-              </details>
-            </div>
-          </div>
-        </div>
-
-        <!-- Aegis Reply + PayPal Hold Card -->
-        <div class="agent-msg-row">
-          <div class="dot-avatar" style="background: #4c8dff; width: 32px; height: 32px; margin-top: 2px;">
-            <div class="dot-eyes"><span class="dot-eye" style="height:7px;"></span><span class="dot-eye" style="height:7px;"></span></div>
-          </div>
-          <div class="agent-msg-body">
-            <div class="msg-sender-line">
-              <span class="msg-sender">Aegis</span>
-              <span class="msg-badge">Payment approval concept - not connected</span>
-            </div>
-            <div class="msg-text">
-              This <strong>demo hold preview</strong> illustrates a possible PayPal `AUTHORIZE` for <strong>$78.50</strong>. No PayPal request, card connection, or money movement has occurred.
-            </div>
-
-            <div class="cue-hold-card">
-              <div class="hold-top">
-                <div>
-                  <div style="font-size: 11.5px; color: var(--text-sec);">Example order - no merchant transaction</div>
-                  <div class="hold-amount">$78.50 <span style="font-size:12px;font-weight:400;color:var(--text-sec);">USD</span></div>
-                </div>
-                <span class="hold-badge" id="holdStateBadge">Sample - no hold exists</span>
-              </div>
-
-              <div class="hold-grid">
-                <div>
-                  <div class="hold-cell-lbl">Agent Card</div>
-                  <div class="hold-cell-val" id="holdCardDisplay"><svg class="ui-icon" data-icon="star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg> Example Visa ending 4242</div>
-                </div>
-                <div>
-                  <div class="hold-cell-lbl">Agent Limit</div>
-                  <div class="hold-cell-val" id="holdLimitDisplay">$85.00 cap</div>
-                </div>
-                <div>
-                  <div class="hold-cell-lbl">Planned approval</div>
-                  <div class="hold-cell-val" id="passkeyCellVal">Desktop WebAuthn - planned, not connected</div>
-                </div>
-                <div>
-                  <div class="hold-cell-lbl">Agent Daily Envelope</div>
-                  <div class="hold-cell-val" id="holdDailyLimit">$250.00 / day</div>
-                </div>
-              </div>
-
-              <div class="hold-actions">
-                <button class="pill-btn light" id="approveBtn" type="button" disabled>Approval unavailable</button>
-                <button class="pill-btn dark" id="voidBtn" type="button" disabled>No hold exists</button>
-                <button class="pill-btn dark" type="button" disabled title="No approval path is connected">Approval path unavailable</button>
-                <button class="pill-btn dark" style="margin-left:auto;" onclick="openAgentOverlay('card')">
-                  Preview card label &amp; settings
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-      </div>
+      <div class="stream-inner" id="streamInner" role="log" aria-label="Conversation message history" aria-live="polite"></div>
     </div>
-
-    <!-- Bottom Input Pill Bar -->
-    <div class="composer-area">
-      <div class="composer-extras">
-        <div class="memory-pills" id="memoryPills" aria-label="Visible memory preferences"><span>Memory</span></div>
-        <div class="run-modes" aria-label="Agent control mode">
-          <button class="mode-pill active" data-mode="autonomous" type="button" disabled>Autonomous preview</button>
-          <button class="mode-pill" data-mode="steer" type="button" disabled>Steer unavailable</button>
-          <button class="mode-pill" data-mode="takeover" type="button" disabled>Take over unavailable</button>
-        </div>
-      </div>
+    <footer class="composer-area" id="chatComposer" aria-label="Message composer">
       <div class="composer-inner">
-        <input id="quoteFileInput" type="file" accept="image/*,.pdf,application/pdf" hidden disabled />
-        <!-- Quick Chat Actions Popover -->
-        <div class="plus-popover" id="plusPopover">
-          <button class="pop-item" onclick="closePlusPopover(); window.location.href='/onboarding';">
-            <span class="pop-ico" style="color:var(--cue-gold);"><svg class="ui-icon" data-icon="spark" viewBox="0 0 24 24"></svg></span>
-            <span>Start onboarding<span class="pop-sub">Payment, phone, safety and your first agent</span></span>
-          </button>
-          <button class="pop-item" onclick="closePlusPopover(); window.location.href='/pocket';">
-            <span class="pop-ico" style="color:var(--green);"><svg class="ui-icon" data-icon="phone" viewBox="0 0 24 24"></svg></span>
-            <span>Open phone companion<span class="pop-sub">Mobile approvals, team and quick controls</span></span>
-          </button>
-          <button class="pop-item" type="button" disabled>
-            <span class="pop-ico" style="color:var(--cue-gold);">+</span>
-            <span>Additional agent creation unavailable<span class="pop-sub">Only the saved workspace setup is connected</span></span>
-          </button>
-          <button class="pop-item" onclick="closePlusPopover(); openAgentOverlay('apps');">
-            <span class="pop-ico" style="color:var(--green);"><svg class="ui-icon" data-icon="puzzle" viewBox="0 0 24 24"><path d="M8 4h3a2 2 0 1 1 4 0h3v5a2 2 0 1 0 0 4v7h-5a2 2 0 1 1-4 0H4v-6a2 2 0 1 0 0-4V4h4Z"/></svg></span>
-            <span>Configure This Agent's Apps<span class="pop-sub">Connect surfaces particular to this agent</span></span>
-          </button>
-          <button class="pop-item" type="button" disabled>
-            <span class="pop-ico" style="color:var(--cue-blue);"><svg class="ui-icon" data-icon="clip" viewBox="0 0 24 24"><path d="m8 12.5 7.8-7.8a4 4 0 0 1 5.7 5.7l-9.9 9.9a6 6 0 0 1-8.5-8.5l9.2-9.2"/></svg></span>
-            <span>Attachments unavailable<span class="pop-sub">No document will be uploaded or analyzed</span></span>
-          </button>
-          <button class="pop-item" onclick="closePlusPopover(); startJudgeTour();">
-            <span class="pop-ico" style="color:var(--cue-gold);"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 3 14.7 9l6.3.8-4.7 4.2 1.3 6.2-5.6-3.2-5.6 3.2 1.3-6.2L3 9.8 9.3 9 12 3Z"/></svg></span>
-            <span>Start Judge Tour - 60 seconds<span class="pop-sub">Guided happy path with a clearly labelled virtual keyfob</span></span>
-          </button>
-          <button class="pop-item" type="button" disabled>
-            <span class="pop-ico" style="color:var(--cue-red);"><svg class="ui-icon" data-icon="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></span>
-            <span>Sentinel test unavailable<span class="pop-sub">No agent runtime is connected</span></span>
-          </button>
-        </div>
-
         <div class="composer-pill">
-          <button class="comp-plus" id="plusBtn" type="button" disabled title="Messaging and attachments are unavailable in this preview" aria-label="Messaging unavailable"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add</span></button>
-          <input type="text" id="chatInput" placeholder="Messaging is unavailable in this preview." disabled aria-label="Messaging unavailable" />
-          <button class="comp-mic" type="button" disabled title="Voice is not connected">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          <button class="composer-icon-btn" id="chatPlusButton" type="button" disabled aria-label="Additional actions, unavailable in this preview" title="Additional actions are not connected in this preview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           </button>
-          <button class="comp-send" type="button" disabled title="Messages are not sent from this preview">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          <input type="text" id="chatInput" placeholder="Message your agent..." aria-label="Message your agent" aria-describedby="chatPreviewNote" autocomplete="off" />
+          <button class="composer-icon-btn" id="chatMicButton" type="button" disabled aria-label="Voice input, unavailable in this preview" title="Voice input is not connected in this preview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5v1.2a6.5 6.5 0 0 0 13 0v-1.2M12 18.2v3.3M9 21.5h6"/></svg>
+          </button>
+          <button class="comp-send" id="chatSendButton" type="button" disabled aria-label="Send message" title="Messaging is not connected in this preview">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
           </button>
         </div>
+        <p class="composer-preview-note" id="chatPreviewNote">Messaging is not connected in this preview.</p>
       </div>
-    </div>
+    </footer>
 
   </main>
 
-  <!-- =========================================================
-       OVERLAY 1: AGENT-PARTICULAR SETTINGS OVERLAY
-       (Opened from the top-right Agent button in the chat header;
-        everything inside is particular to the currently active agent!)
-       ========================================================= -->
-  <div class="overlay-backdrop" id="agentOverlayBackdrop" onclick="handleBackdropClick(event, 'agentOverlayBackdrop')">
-    <div class="settings-modal" onclick="event.stopPropagation()">
-      <aside class="modal-sidebar">
-        <div class="modal-side-title">Particular Agent</div>
-        <div style="padding:4px 10px 12px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border);margin-bottom:6px;">
-          <div class="dot-avatar" id="agentModalMiniDot" style="width:28px;height:28px;background:#f5b942;">
-            <div class="dot-eyes" style="gap:3px;"><span class="dot-eye" style="width:2px;height:5px;"></span><span class="dot-eye" style="width:2px;height:5px;"></span></div>
-          </div>
-          <div style="min-width:0;">
-            <div style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="agentModalSideName">Shopping Crew</div>
-            <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);" id="agentModalSideHandle">@crew.cue</div>
-          </div>
-        </div>
-
-        <button class="modal-nav-btn active" data-apane="profile" onclick="switchAgentTab('profile', this)">
-          <span class="modal-nav-ico" style="color: var(--cue-gold);"><svg class="ui-icon" data-icon="star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg></span>
-          <span>Agent Identity</span>
-        </button>
-        <button class="modal-nav-btn" data-apane="card" onclick="switchAgentTab('card', this)">
-          <span class="modal-nav-ico" style="color: var(--cue-blue);"><svg class="ui-icon" data-icon="card" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 10h20M6 16h4"/></svg></span>
-          <span>Assigned Card &amp; Cap</span>
-        </button>
-        <button class="modal-nav-btn" data-apane="apps" onclick="switchAgentTab('apps', this)">
-          <span class="modal-nav-ico" style="color: var(--green);"><svg class="ui-icon" data-icon="puzzle" viewBox="0 0 24 24"><path d="M8 4h3a2 2 0 1 1 4 0h3v5a2 2 0 1 0 0 4v7h-5a2 2 0 1 1-4 0H4v-6a2 2 0 1 0 0-4V4h4Z"/></svg></span>
-          <span>Agent's Apps</span>
-        </button>
-        <button class="modal-nav-btn" data-apane="skills" onclick="switchAgentTab('skills', this)">
-          <span class="modal-nav-ico" style="color: var(--purple);"><svg class="ui-icon" data-icon="spark" viewBox="0 0 24 24"><path d="m12 2 2.1 7.9L22 12l-7.9 2.1L12 22l-2.1-7.9L2 12l7.9-2.1L12 2Z"/></svg></span>
-          <span>Goals &amp; SKILL.md</span>
-        </button>
-        <button class="modal-nav-btn" data-apane="policy" onclick="switchAgentTab('policy', this)">
-          <span class="modal-nav-ico" style="color: var(--cue-red);"><svg class="ui-icon" data-icon="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></span>
-          <span>Merchant Allowlist</span>
-        </button>
-
-        <div style="margin-top:auto;padding:10px;border-top:1px solid var(--border);">
-          <button class="pill-btn dark" style="width:100%;height:30px;font-size:11.5px;" onclick="closeAgentOverlay(); openGeneralOverlay('vault');">
-            Open General Settings >
-          </button>
-        </div>
-      </aside>
-
-      <div class="modal-content">
-        <div class="modal-header">
-          <div class="modal-header-title" id="agentModalHeaderTitle">Shopping Crew - Agent Identity</div>
-          <button class="modal-close" onclick="closeAgentOverlay()" title="Close (Esc)" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
-        </div>
-
-        <div class="modal-body">
-          <!-- Agent Tab 1: Profile & Dedicated Cue Identity -->
-          <div class="modal-pane active" id="apane-profile">
-            <div class="d-card" style="display:flex;align-items:center;gap:14px;">
-              <div class="dot-avatar" id="agentProfileBigDot" style="width:46px;height:46px;background:#f5b942;">
-                <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-              </div>
-              <div style="flex:1;">
-                <div class="d-card-val" id="agentProfileName">Shopping Crew (@crew.cue)</div>
-                <div class="d-card-sub" id="agentProfileRole">Multi-Agent preview - local sample profile</div>
-              </div>
-              <span style="font-size:11px;font-family:var(--mono);padding:4px 9px;border-radius:999px;background:rgba(255,255,255,0.06);color:var(--text-sec);" id="agentProfileIdBadge">agt_crew_01</span>
-            </div>
-
-            <div class="d-card">
-              <div class="d-card-lbl"><span><svg class="ui-icon" data-icon="mail" viewBox="0 0 24 24" style="color:var(--cue-blue);width:14px;height:14px"></svg> &nbsp;Agent email label - preview</span><span style="color:var(--amber);">Not a mailbox</span></div>
-              <div class="d-card-val" id="agentProfileEmail">crew@kues.example</div>
-              <div class="d-card-sub">Placeholder address only; no mailbox or delivery route is connected.</div>
-            </div>
-
-            <div class="d-card">
-              <div class="d-card-lbl"><span><svg class="ui-icon" data-icon="phone" viewBox="0 0 24 24" style="color:var(--cue-red);width:14px;height:14px"></svg> &nbsp;Agent communication surface</span><span style="color:var(--amber);">Preview only</span></div>
-              <div class="d-card-val" id="agentProfilePhone">+1 (833) 928-1386 - WhatsApp &amp; Web</div>
-              <div class="d-card-sub">No phone number, messaging channel, or device is connected.</div>
-            </div>
-          </div>
-
-          <!-- Agent Tab 2: Particular Card & Budget Cap for THIS Agent -->
-          <div class="modal-pane" id="apane-card">
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Assigned Funding Card for <strong id="agentCardOwnerName" style="color:#fff;">Shopping Crew</strong></span><span style="color:var(--cue-gold);">Local selection only</span></div>
-              <div class="d-card-sub" style="margin-bottom:10px;">Choose an example card label for this agent's local preview; no wallet or card is connected.</div>
-              <div class="card-grid" id="agentCardSelectorGrid"></div>
-            </div>
-
-            <div class="d-card">
-              <div class="d-card-lbl">
-                <span>This Agent's Per-Order Spend Limit</span>
-                <span id="agentSpendVal" style="color:#fff;font-weight:700;">$85.00</span>
-              </div>
-              <input type="range" id="agentSpendSlider" min="15" max="500" value="85" style="width:100%;accent-color:var(--cue-gold);margin:6px 0;" oninput="updateCurrentAgentBudget(this.value)" />
-              <div class="d-card-sub">Example cap only. No checkout, policy enforcement, or passkey route is connected.</div>
-            </div>
-            <div class="d-card">
-              <div class="d-card-lbl"><span>This Agent's Daily Spend Envelope</span><span id="agentDailySpendVal" style="color:#fff;font-weight:700;">$250.00 / day</span></div>
-              <input type="range" id="agentDailySpendSlider" min="50" max="2000" step="10" value="250" style="width:100%;accent-color:var(--cue-blue);margin:6px 0;" oninput="updateCurrentAgentDailyBudget(this.value)" />
-              <div class="d-card-sub">Example daily limit only; it is not enforced by a live run.</div>
-            </div>
-          </div>
-
-          <!-- Agent Tab 3: Particular Connected Apps for THIS Agent -->
-          <div class="modal-pane" id="apane-apps">
-            <div class="d-card" style="padding:11px 14px;">
-              <div class="d-card-sub" style="margin:0;">Select example app labels for <strong id="agentAppsOwnerName" style="color:#fff;">Shopping Crew</strong>. Selection does not grant access or connect a service.</div>
-            </div>
-            <div class="app-grid" id="agentAppsGrid"></div>
-          </div>
-
-          <!-- Agent Tab 4: Particular Goals & SKILL.md for THIS Agent -->
-          <div class="modal-pane" id="apane-skills">
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Example goal for this agent</span><span style="color:var(--amber);">Inactive preview</span></div>
-              <div class="d-card-val" id="agentGoalText">Compare retail Web checkout vs. WhatsApp studio quotes under $85.00</div>
-              <div style="margin-top:10px;display:flex;gap:8px;">
-                <input class="form-input" id="agentCustomGoalInput" placeholder="Update this agent's proactive watch goal..." />
-                <button class="pill-btn light" style="height:34px;font-size:12px;flex-shrink:0;" onclick="saveCurrentAgentGoal()">Save Goal</button>
-              </div>
-            </div>
-
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Agent-Particular Teach-Once SKILL.md</span><span style="color:var(--amber);">Local checksum preview</span></div>
-              <pre id="agentSkillPre" style="margin-top:6px;padding:10px;background:#111113;border-radius:8px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:#c8c8d2;overflow-x:auto;line-height:1.45;"></pre>
-              <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button class="pill-btn dark" onclick="downloadCurrentSkill()">Export SKILL.md</button></div>
-            </div>
-          </div>
-
-          <!-- Agent Tab 5: Particular Merchant Allowlist for THIS Agent -->
-          <div class="modal-pane" id="apane-policy">
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Allowed Merchant Domains for This Agent</span><span style="color:var(--amber);">Preview only</span></div>
-              <div id="agentDomainTags" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px;"></div>
-              <div style="display:flex;gap:8px;">
-                <input class="form-input" id="agentNewDomainInput" placeholder="Add domain for this agent (e.g. fellowproducts.com)" />
-                <button class="pill-btn dark" style="height:34px;font-size:12px;flex-shrink:0;" onclick="addCurrentAgentDomain()">+ Add</button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- =========================================================
-       OVERLAY 2: GENERAL WORKSPACE IDENTITY & SETTINGS OVERLAY
-       (Opened from the bottom-left "Identity & Settings" button)
-       ========================================================= -->
   <div class="overlay-backdrop" id="generalOverlayBackdrop" onclick="handleBackdropClick(event, 'generalOverlayBackdrop')">
-    <div class="settings-modal" onclick="event.stopPropagation()">
-      <aside class="modal-sidebar">
-        <div class="modal-side-title">General Settings</div>
-        <button class="modal-nav-btn active" data-gpane="vault" onclick="switchGeneralTab('vault', this)">
-          <span class="modal-nav-ico" style="color: var(--cue-gold);"><svg class="ui-icon" data-icon="card" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 10h20M6 16h4"/></svg></span>
-          <span>Master PayPal Vault</span>
-        </button>
-        <button class="modal-nav-btn" data-gpane="apps" onclick="switchGeneralTab('apps', this)">
-          <span class="modal-nav-ico" style="color: var(--green);"><svg class="ui-icon" data-icon="puzzle" viewBox="0 0 24 24"><path d="M8 4h3a2 2 0 1 1 4 0h3v5a2 2 0 1 0 0 4v7h-5a2 2 0 1 1-4 0H4v-6a2 2 0 1 0 0-4V4h4Z"/></svg></span>
-          <span>Global Apps &amp; APIs</span>
-        </button>
-        <button class="modal-nav-btn" data-gpane="device" onclick="switchGeneralTab('device', this)">
-          <span class="modal-nav-ico" style="color: var(--cue-blue);"><svg class="ui-icon" data-icon="phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></span>
-          <span>Phone Key &amp; ADB</span>
-        </button>
-        <button class="modal-nav-btn" data-gpane="receipts" onclick="switchGeneralTab('receipts', this)">
-          <span class="modal-nav-ico" style="color: var(--amber);"><svg class="ui-icon" data-icon="receipt" viewBox="0 0 24 24"><path d="M4 2v20l4-2 4 2 4-2 4 2V2l-4 2-4-2-4 2-4-2Z"/><path d="M8 9h8M8 13h8"/></svg></span>
-          <span>Receipts &amp; Refunds</span>
-        </button>
-        <button class="modal-nav-btn" data-gpane="sentinel" onclick="switchGeneralTab('sentinel', this)">
-          <span class="modal-nav-ico" style="color: var(--cue-red);"><svg class="ui-icon" data-icon="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></svg></span>
-          <span>Master Sentinel</span>
-        </button>
-        <button class="modal-nav-btn" data-gpane="platform" onclick="switchGeneralTab('platform', this)">
-          <span class="modal-nav-ico" style="color: var(--purple);"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span>
-          <span>Build &amp; Integrations</span>
-        </button>
-      </aside>
-
+    <div class="settings-modal app-settings-modal" role="dialog" aria-modal="true" aria-labelledby="appSettingsTitle" tabindex="-1" onclick="event.stopPropagation()">
       <div class="modal-content">
         <div class="modal-header">
-          <div class="modal-header-title" id="generalModalHeaderTitle">Master PayPal Vault &amp; Payment Cards</div>
-          <button class="modal-close" onclick="closeGeneralOverlay()" title="Close (Esc)" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+          <div class="modal-header-title" id="appSettingsTitle">Settings</div>
+          <button class="modal-close" type="button" onclick="closeGeneralOverlay()" title="Close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
         </div>
-
-        <div class="modal-body">
-          <!-- General Tab 1: Master PayPal Vault & Add Card -->
-          <div class="modal-pane active" id="gpane-vault">
-            <div class="d-card">
-              <div class="d-card-lbl"><span>PayPal Vault v3 - onboarding preview</span><span style="color:var(--amber);">UI preview - no PayPal connection</span></div>
-              <div class="d-card-sub">Cards stored here can be assigned individually to any teammate agent. Raw PANs never touch agent memory.</div>
-              <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="pill-btn dark" onclick="beginVaultConsent()">Start sandbox consent - preview</button></div>
-            </div>
-
-            <div class="card-grid" id="masterCardsGrid"></div>
-
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Add example payment-card label</span><span style="color:var(--amber);">No PayPal connection</span></div>
-              <div style="display:grid;grid-template-columns:1.3fr 1fr 0.8fr 0.9fr;gap:8px;margin-top:8px;">
-                <input class="form-input" id="newCardBrand" placeholder="Label (e.g. Amex Gold)" />
-                <input class="form-input" id="newCardLast4" placeholder="Last 4 (e.g. 3001)" maxlength="4" />
-                <input class="form-input" id="newCardExp" placeholder="MM/YY (08/29)" />
-                <input class="form-input" id="newCardLimit" placeholder="Cap USD (250)" type="number" />
-              </div>
-              <div style="margin-top:10px;display:flex;justify-content:flex-end;">
-                <button class="pill-btn light" style="height:32px;font-size:12px;" onclick="addMasterPaymentCard()">Add preview card label</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- General Tab 2: Global Workspace Apps -->
-          <div class="modal-pane" id="gpane-apps">
-            <div class="d-card" style="padding:11px 14px;">
-              <div class="d-card-sub" style="margin:0;">Preview app labels only - no service connections:</div>
-            </div>
-            <div class="app-grid" id="masterAppsGrid"></div>
-          </div>
-
-          <!-- General Tab 3: Phone Key & Wireless ADB -->
-          <div class="modal-pane" id="gpane-device">
-            <div class="d-card" style="display:flex;gap:14px;align-items:center;">
-              <div style="width:76px;height:76px;background:#fff;border-radius:10px;padding:6px;flex-shrink:0;display:grid;grid-template-columns:repeat(5,1fr);gap:2px;">
-                <span style="background:#111;"></span><span style="background:#111;"></span><span style="background:#111;"></span><span></span><span style="background:#111;"></span>
-                <span style="background:#111;"></span><span></span><span style="background:#111;"></span><span style="background:#111;"></span><span></span>
-                <span style="background:#111;"></span><span style="background:#111;"></span><span></span><span style="background:#111;"></span><span style="background:#111;"></span>
-                <span></span><span style="background:#111;"></span><span style="background:#111;"></span><span></span><span style="background:#111;"></span>
-                <span style="background:#111;"></span><span></span><span style="background:#111;"></span><span style="background:#111;"></span><span style="background:#111;"></span>
-              </div>
-              <div>
-                <div class="d-card-lbl"><span>Desktop transaction approval - planned</span><span style="color:var(--amber);">Not connected</span></div>
-                <div class="d-card-val">Desktop WebAuthn - planned (not registered)</div>
-                <div class="d-card-sub">A future approval must bind to the exact mandate and trusted evidence. No passkey or signed transaction exists in this preview.</div>
-              </div>
-            </div>
-
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Deferred mobile / ADB surface</span><span id="adbConnBadge" style="color:var(--amber);">Preview only - no device connected</span></div>
-              <div style="display:grid;grid-template-columns:1.3fr 1fr auto;gap:8px;margin-top:8px;">
-                <input class="form-input" id="adbIpInput" value="192.168.1.44:39121" />
-                <input class="form-input" id="adbCodeInput" placeholder="6-Digit Code (482910)" />
-                <button class="pill-btn light" style="height:34px;font-size:12px;" type="button" disabled>ADB pairing unavailable</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- General Tab 4: Flight-Box Receipts & Refunds -->
-          <div class="modal-pane" id="gpane-receipts">
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Example receipt view - no real run</span><span id="receiptStatusBadge" style="color:var(--cue-gold);">SAMPLE - NO HOLD</span></div>
-              <div class="d-card-val">Example amount - $78.50 USD - not transacted</div>
-              <div style="margin-top:8px;font-family:var(--mono);font-size:11px;color:var(--text-sec);line-height:1.6;">
-                Example IDs only - no order or authorization exists<br/>
-                Example placeholder Web hash - not evidence<br/>
-                Example placeholder ADB hash - not evidence<br/>
-                No mandate signature - desktop WebAuthn is planned, not connected<br/>
-                No receipt, seller evidence, capture, or refund has been created
-              </div>
-              <div style="margin-top:12px;display:flex;gap:8px;">
-                <button class="pill-btn light" style="height:30px;font-size:11.5px;" onclick="refundOrder('partial')">Preview Partial Refund ($20.00)</button>
-                <button class="pill-btn dark" style="height:30px;font-size:11.5px;" onclick="refundOrder('full')">Preview Full Refund ($78.50)</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- General Tab 5: Master Sentinel Policy -->
-          <div class="modal-pane" id="gpane-sentinel">
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Master Workspace Per-Run Ceiling</span><span id="masterRunCapDisplay" style="color:var(--green);">$250 - preview</span></div>
-              <input id="masterRunCapSlider" type="range" min="25" max="1000" step="5" value="250" style="width:100%;accent-color:var(--cue-gold);" oninput="updateMasterPolicy('run',this.value)" />
-              <div class="d-card-sub">Displayed limits are examples only; no agent runtime or policy enforcement is connected.</div>
-            </div>
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Workspace Daily Ceiling</span><span id="masterDailyCapDisplay" style="color:var(--green);">$1,000 - preview</span></div>
-              <input id="masterDailyCapSlider" type="range" min="100" max="10000" step="50" value="1000" style="width:100%;accent-color:var(--cue-blue);" oninput="updateMasterPolicy('daily',this.value)" />
-            </div>
-            <div class="d-card">
-              <div class="d-card-lbl"><span>Global Blocked Payees</span><span style="color:var(--cue-red);">Fail-closed policy - preview</span></div>
-              <div id="masterBlockedPayees" class="d-card-val" style="font-family:var(--mono);font-size:12px;color:#ff8080;">attacker@evil.com, drained-wallet@offshore.io</div>
-              <div style="display:flex;gap:8px;margin-top:8px"><input id="newBlockedPayee" class="form-input" placeholder="Add blocked email or payee"/><button class="pill-btn dark" onclick="addBlockedPayee()">Add</button></div>
-              <div class="d-card-sub">Sentinel checks are covered by unit tests, but this interface is not wired to a live purchase or authorization run.</div>
-            </div>
-          </div>
-          <div class="modal-pane" id="gpane-platform">
-            <div class="d-card"><div class="d-card-lbl"><span>Integration &amp; delivery map</span><span style="color:var(--amber);">UI coverage - not connected</span></div><div class="d-card-sub">These surfaces are represented so the product plan is visible. Credentials, deployments, sponsor APIs and runtime connections are not configured in this prototype.</div></div>
-            <div class="app-grid">
-              <div class="app-tile"><div class="d-card-lbl">AG Studio - wallet &amp; fleet dashboard</div><div class="d-card-sub">Run KPIs, agent fleet, receipt drawers, theme and agent-framework query.</div><div class="studio-kpis"><span>Agents <b>5</b></span><span>Runs <b>1 demo</b></span><span>Pending holds <b>1 preview</b></span></div><span class="platform-status">Planned integration</span></div>
-              <div class="app-tile"><div class="d-card-lbl">APIMatic - PayPal API client</div><div class="d-card-sub">Generated client and endpoint docs for setup-token, payment-token, Orders AUTHORIZE, capture, void and refund; request IDs and schemas validated.</div><span class="platform-status">Planned integration</span></div>
-              <div class="app-tile"><div class="d-card-lbl">Render - hosting &amp; workflow</div><div class="d-card-sub">Health checks, cold-start warm-up, uptime monitor and receipt-hash workflow.</div><div class="studio-kpis"><span>Local UI <b>Healthy</b></span><span>Public deploy <b>Not set</b></span></div><span class="platform-status">Local preview only</span></div>
-              <div class="app-tile"><div class="d-card-lbl">Kues Bridge - diagnostics</div><div class="d-card-sub">Bridge doctor, pairing health, reconnect and event replay status.</div><button class="pill-btn dark" onclick="showToast('Bridge diagnostics are a preview; the runtime bridge is not connected.')">Run doctor - preview</button></div>
-              <div class="app-tile"><div class="d-card-lbl">Desktop wrapper</div><div class="d-card-sub">Tauri v2 local-mode wrapper; browser remains the primary judge surface.</div><span class="platform-status">Not built</span></div>
-              <div class="app-tile"><div class="d-card-lbl">Judge readiness</div><div class="d-card-sub">60-second guided tour, virtual keyfob, zero-account happy path and live/replay honesty.</div><button class="pill-btn light" onclick="closeGeneralOverlay();startJudgeTour()">Preview Judge Tour</button></div>
-            </div>
-          </div>
-
-
+        <div class="modal-body app-settings-empty" role="status">
+          <p>Settings are not connected to this preview.</p>
+          <button class="pill-btn dark" type="button" onclick="closeGeneralOverlay()">Close</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- =========================================================
-       OVERLAY 3: NEW AGENT SETUP FORM OVERLAY
-       (Opened directly by clicking the '+' New Agent button!)
-       ========================================================= -->
+  <!-- New Agent availability information -->
   <div class="overlay-backdrop" id="newAgentOverlayBackdrop" onclick="handleBackdropClick(event, 'newAgentOverlayBackdrop')">
     <div class="new-agent-modal" role="dialog" aria-modal="true" aria-labelledby="newAgentDialogTitle" tabindex="-1" onclick="event.stopPropagation()">
       <div class="modal-header">
-        <div class="modal-header-title" id="newAgentDialogTitle">Set Up New Teammate Agent - Preview</div>
-        <button class="modal-close" onclick="closeNewAgentModal()" title="Close (Esc)" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        <div class="modal-header-title" id="newAgentDialogTitle">Add New Agent</div>
+        <button class="modal-close" onclick="closeNewAgentModal()" title="Close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       </div>
-
-      <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
-        <!-- Live Preview Row -->
-        <div class="d-card" style="display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div class="dot-avatar" id="setupPreviewDot" style="width:44px;height:44px;background:#32d583;">
-              <div class="dot-eyes"><span class="dot-eye"></span><span class="dot-eye"></span></div>
-            </div>
-            <div>
-              <div class="d-card-val" id="setupPreviewName">Scout</div>
-              <div class="d-card-sub" id="setupPreviewSub" style="margin:0;">@scout.cue - scout@kues.example</div>
-            </div>
-          </div>
-          <!-- Swatch Picker -->
-          <div style="display:flex;gap:7px;" id="setupColorSwatches">
-            <span class="color-swatch selected" style="background:#32d583;" onclick="pickSetupColor('#32d583', 'spark', this)"></span>
-            <span class="color-swatch" style="background:#f5b942;" onclick="pickSetupColor('#f5b942', 'spark', this)"></span>
-            <span class="color-swatch" style="background:#4c8dff;" onclick="pickSetupColor('#4c8dff', 'shield', this)"></span>
-            <span class="color-swatch" style="background:#b57cff;" onclick="pickSetupColor('#b57cff', 'clock', this)"></span>
-            <span class="color-swatch" style="background:#ff5b5b;" onclick="pickSetupColor('#ff5b5b', 'star', this)"></span>
-          </div>
-
-        </div>
-
-        <div class="d-card shape-picker-wrap" style="padding:10px 14px;">
-          <div class="d-card-lbl">Choose an avatar icon</div>
-          <div class="shape-choice-grid" role="group" aria-label="Choose the new agent avatar icon">
-            <button type="button" class="shape-choice selected" data-avatar="bulb" aria-label="Lightbulb" aria-pressed="true" onclick="pickSetupAvatar('bulb', this)"><span class="avatar-choice-art" data-avatar-kind="bulb"></span><small>Bulb</small></button>
-            <button type="button" class="shape-choice" data-avatar="laptop" aria-label="Laptop" aria-pressed="false" onclick="pickSetupAvatar('laptop', this)"><span class="avatar-choice-art" data-avatar-kind="laptop"></span><small>Laptop</small></button>
-            <button type="button" class="shape-choice" data-avatar="shield" aria-label="Shield" aria-pressed="false" onclick="pickSetupAvatar('shield', this)"><span class="avatar-choice-art" data-avatar-kind="shield"></span><small>Shield</small></button>
-            <button type="button" class="shape-choice" data-avatar="cart" aria-label="Shopping cart" aria-pressed="false" onclick="pickSetupAvatar('cart', this)"><span class="avatar-choice-art" data-avatar-kind="cart"></span><small>Cart</small></button>
-            <button type="button" class="shape-choice" data-avatar="car" aria-label="Car" aria-pressed="false" onclick="pickSetupAvatar('car', this)"><span class="avatar-choice-art" data-avatar-kind="car"></span><small>Car</small></button>
-            <button type="button" class="shape-choice" data-avatar="parcel" aria-label="Parcel" aria-pressed="false" onclick="pickSetupAvatar('parcel', this)"><span class="avatar-choice-art" data-avatar-kind="parcel"></span><small>Parcel</small></button>
-            <button type="button" class="shape-choice" data-avatar="magnifier" aria-label="Magnifier" aria-pressed="false" onclick="pickSetupAvatar('magnifier', this)"><span class="avatar-choice-art" data-avatar-kind="magnifier"></span><small>Search</small></button>
-            <button type="button" class="shape-choice" data-avatar="tag" aria-label="Price tag" aria-pressed="false" onclick="pickSetupAvatar('tag', this)"><span class="avatar-choice-art" data-avatar-kind="tag"></span><small>Tag</small></button>
-            <button type="button" class="shape-choice" data-avatar="wallet" aria-label="Wallet" aria-pressed="false" onclick="pickSetupAvatar('wallet', this)"><span class="avatar-choice-art" data-avatar-kind="wallet"></span><small>Wallet</small></button>
-            <button type="button" class="shape-choice" data-avatar="van" aria-label="Delivery van" aria-pressed="false" onclick="pickSetupAvatar('van', this)"><span class="avatar-choice-art" data-avatar-kind="van"></span><small>Van</small></button>
-          </div>
-        </div>
-
-        <!-- Name & Role -->
-        <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:10px;">
-          <div>
-            <div class="d-card-lbl">Agent Name</div>
-            <input class="form-input" id="setupAgentName" placeholder="e.g. Scout" value="Scout" oninput="updateSetupPreview()" />
-          </div>
-          <div>
-            <div class="d-card-lbl">Specialty / Role</div>
-            <input class="form-input" id="setupAgentRole" placeholder="e.g. Rare Sneaker & Grail Negotiator" value="Rare Sneaker & Grail Negotiator" />
-          </div>
-        </div>
-
-        <details class="advanced-setup">
-          <summary>Advanced setup <span>Card, spend envelope, apps, goal &amp; safety</span></summary>
-          <div class="advanced-setup-body">
-        <!-- Assigned Card & Spend Cap -->
-        <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px;">
-          <div>
-            <div class="d-card-lbl">Assign Payment Card from Vault</div>
-            <select class="form-input" id="setupAgentCardSelect"></select>
-          </div>
-          <div>
-            <div class="d-card-lbl">Agent Spend Cap (USD)</div>
-            <input class="form-input" id="setupAgentCap" type="number" value="120" />
-          </div>
-          <div>
-            <div class="d-card-lbl">Daily Spend Cap (USD)</div>
-            <input class="form-input" id="setupAgentDailyCap" type="number" value="300" />
-          </div>
-        </div>
-
-        <!-- Particular Apps to Connect to This New Agent -->
-        <div class="d-card">
-          <div class="d-card-lbl"><span>Connect Particular Apps &amp; Surfaces to This Agent</span><span>Select any</span></div>
-          <div id="setupAppsCheckGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px;"></div>
-        </div>
-
-        <!-- Initial Goal -->
-        <div>
-          <div class="d-card-lbl">Initial Proactive Goal / Instruction</div>
-          <input class="form-input" id="setupAgentGoal" placeholder="e.g. Watch Grailed & WhatsApp sneaker sellers for New Balance 992 under $120" value="Watch boutique web stores & WhatsApp sellers for limited drops under $120" />
-        </div>
-        <div>
-          <div class="d-card-lbl">Merchant allowlist - comma-separated domains</div>
-          <input class="form-input" id="setupAgentDomains" value="paypal.com, channel3.com" placeholder="example.com, shop.example" />
-        </div>
-        <div>
-          <div class="d-card-lbl">Visible memory preference pills</div>
-          <input class="form-input" id="setupAgentMemory" value="No refurbished" placeholder="e.g. No refurbished, express shipping" />
-        </div>
-          </div>
-        </details>
-
-        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px;">
-          <button class="pill-btn dark" onclick="closeNewAgentModal()">Cancel</button>
-          <button class="pill-btn light" type="button" disabled>Additional agent creation unavailable</button>
+      <div class="modal-body">
+        <p id="newAgentUnavailableMessage">Adding another agent is not available yet.</p>
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button class="pill-btn dark" type="button" onclick="closeNewAgentModal()">Close</button>
         </div>
       </div>
     </div>
@@ -2309,832 +1645,75 @@
 
 
 <script>
-  // =========================================================
-  // MASTER WORKSPACE STATE (Cards & Global Apps)
-  // =========================================================
-  const masterCards = [
-    { id: 'card_visa_4242', brand: 'Visa Platinum', last4: '4242', exp: '09/28', limit: 150 },
-    { id: 'card_mc_8819', brand: 'Mastercard Virtual', last4: '8819', exp: '11/27', limit: 250 }
-  ];
-
-  const masterAppsCatalog = [
-    { id: 'paypal', name: 'PayPal Sandbox - preview, not connected', cat: 'Settlement preview', ico: 'card', color: 'rgba(76,141,255,0.16)', selected: false },
-    { id: 'channel3', name: 'Channel3 - preview, not connected', cat: 'Product search preview', ico: 'bag', color: 'rgba(245,185,66,0.16)', selected: false },
-    { id: 'kernel', name: 'KERNEL - preview, not connected', cat: 'Conditional future integration', ico: 'desktop', color: 'rgba(50,213,131,0.16)', selected: false },
-    { id: 'whatsapp', name: 'WhatsApp - preview, not connected', cat: 'Deferred mobile integration', ico: 'chat', color: 'rgba(50,213,131,0.2)', selected: false },
-    { id: 'gmail', name: 'Inbox - preview, not connected', cat: 'Illustrative only', ico: 'receipt', color: 'rgba(255,91,91,0.16)', selected: false },
-    { id: 'instagram', name: 'Instagram Shops - preview, not connected', cat: 'DM Boutique Quotes', ico: 'bag', color: 'rgba(245,166,35,0.16)', selected: false }
-  ];
-
-  // =========================================================
-  // PER-AGENT PARTICULAR STATE
-  // Each agent has its own icon glyph, color, card, budget, apps, goal, and domains!
-  // =========================================================
-  const agents = {
-    crew: {
-      id: 'crew',
-      name: 'Shopping Crew',
-      handle: '@crew.cue',
-      sub: 'Nova, Atlas & Aegis',
-      color: '#f5b942',
-      glyph: 'spark',
-      email: 'crew@kues.example',
-      phone: 'Phone / WhatsApp preview - not connected',
-      cardId: 'card_visa_4242',
-      dailyBudget: 250,
-      budget: 85,
-      apps: ['paypal', 'channel3', 'kernel', 'whatsapp'],
-      goal: 'Illustrative goal: compare sample retail and studio quote values. No data source is connected.',
-      memoryPills: ['Cap at $90','No refurbished'],
-      domains: ['kanso-studio.jp', 'channel3.com', 'paypal.com']
-    },
-    nova: {
-      id: 'nova',
-      name: 'Nova',
-      handle: '@nova.cue',
-      sub: 'Web & Channel3 Scout',
-      color: '#f5b942',
-      glyph: 'bag',
-      email: 'nova@kues.example',
-      phone: 'Cloud browser preview - not connected',
-      cardId: 'card_visa_4242',
-      dailyBudget: 300,
-      budget: 100,
-      apps: ['channel3', 'kernel'],
-      goal: 'Illustrative goal: compare sample product details. No catalog or merchant session is connected.',
-      memoryPills: ['No refurbished'],
-      domains: ['channel3.com', 'kanso-studio.jp', 'Amazon.com']
-    },
-    atlas: {
-      id: 'atlas',
-      name: 'Atlas',
-      handle: '@atlas.cue',
-      sub: 'Seller conversation preview',
-      color: '#32d583',
-      glyph: 'chat',
-      email: 'atlas@kues.example',
-      phone: 'Mobile bridge preview - not connected',
-      cardId: 'card_mc_8819',
-      dailyBudget: 250,
-      budget: 90,
-      apps: ['whatsapp', 'instagram'],
-      goal: 'Illustrative goal: compare sample seller quotes. No seller messages will be sent.',
-      memoryPills: ['Express shipping'],
-      domains: ['wa.me', 'kanso-studio.jp']
-    },
-    aegis: {
-      id: 'aegis',
-      name: 'Aegis',
-      handle: '@aegis.cue',
-      sub: 'PayPal Vault & Passkey Gate',
-      color: '#4c8dff',
-      glyph: 'shield',
-      email: 'aegis@kues.example',
-      phone: 'WebAuthn preview - not connected',
-      cardId: 'card_visa_4242',
-      dailyBudget: 400,
-      budget: 150,
-      apps: ['paypal', 'gmail'],
-      goal: 'Illustrative goal: show payment and passkey concepts. No PayPal or passkey connection is active.',
-      memoryPills: ['Ask before capture'],
-      domains: ['paypal.com', 'kanso-studio.jp']
-    },
-    watcher: {
-      id: 'watcher',
-      name: 'Price Watcher',
-      handle: '@watcher.cue',
-      sub: 'Price-watch setup preview - inactive',
-      color: '#b57cff',
-      glyph: 'clock',
-      email: 'watcher@kues.example',
-      phone: 'Scheduled alerts preview - inactive',
-      cardId: 'card_mc_8819',
-      dailyBudget: 600,
-      budget: 290,
-      apps: ['channel3', 'kernel', 'paypal'],
-      goal: 'Illustrative goal: display a sample price target. No product polling or alerts are running.',
-      memoryPills: ['Alert only; never auto-capture'],
-      domains: ['sony.com', 'channel3.com', 'bestbuy.com']
-    }
+  const textById = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = String(value ?? '');
   };
 
-  let currentAgentId = 'crew';
-  let setupChosenColor = '#32d583';
-  let setupChosenGlyph = 'spark';
-  let setupChosenAvatar = 'bulb';
-
-  function getCardById(cardId) {
-    return masterCards.find(c => c.id === cardId) || masterCards[0];
-  }
-
-  // =========================================================
-  // SELECT TEAMMATE & UPDATE PARTICULAR TOP-RIGHT AGENT BUTTON
-  // =========================================================
-  function selectTeammate(id, el) {
-    currentAgentId = id;
-    document.querySelectorAll('.agent-row').forEach(r => r.classList.remove('active'));
-    if (el) el.classList.add('active');
-
-    const ag = agents[id];
-    if (!ag) return;
-
-    const dot = el ? el.querySelector('.dot-avatar') : null;
-
-    document.getElementById('hdrName').textContent = ag.name;
-    document.getElementById('hdrSub').textContent = ag.sub;
-    const avatarKind = avatarKindFor(ag);
-    setAvatar(document.getElementById('hdrAvatar'), ag, avatarKind);
-    setAvatar(document.getElementById('callDotAvatar'), ag, avatarKind);
-    document.documentElement.style.setProperty('--agent-glow', ag.color);
-    document.getElementById('callAgentName').textContent = ag.name;
-    document.getElementById('chatInput').placeholder = `Message ${ag.name}...`;
-
-    // Switch the actual thread, not just the header; each agent keeps its own history.
-    const stream = document.getElementById('streamInner');
-    if (window.agentConversationCache) {
-      window.agentConversationCache[window.previousAgentId || 'crew'] = stream.innerHTML;
-      if (!window.agentConversationCache[id]) window.agentConversationCache[id] = buildAgentConversation(ag);
-      stream.innerHTML = window.agentConversationCache[id];
-    }
-    window.previousAgentId = id;
-    stream.querySelectorAll('.dot-avatar').forEach(a => { if (!a.querySelector('.agent-avatar-art')) setAvatar(a, ag, avatarKind); });
-    // Update the top-right Agent-Particular Button so its icon, color & app count match THIS agent
-    syncHeaderAgentButton();
-    syncHoldCardWithAgent();
-    renderMemoryPills();
-    document.getElementById('chatStream').scrollTop = 0;
-  }
-
-  function syncHeaderAgentButton() {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-    const glyphEl = document.getElementById('agentParticularGlyph');
-    const labelEl = document.getElementById('agentParticularLabel');
-    glyphEl.style.background = ag.color;
-    glyphEl.innerHTML = iconSvg(ag.glyph || 'spark', 14);
-    labelEl.textContent = `${ag.name} - ${ag.apps.length} preview apps`;
-  }
-
-  function syncHoldCardWithAgent() {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-    const card = getCardById(ag.cardId);
-    const holdCardEl = document.getElementById('holdCardDisplay');
-    const holdLimitEl = document.getElementById('holdLimitDisplay');
-    if (holdCardEl && card) {
-      holdCardEl.innerHTML = `${iconSvg('star',13)} ${card.brand.split(' ')[0]} ending ${card.last4}`;
-    }
-    if (holdLimitEl) {
-      holdLimitEl.textContent = `$${Number(ag.budget).toFixed(2)} cap`;
-    }
-    const dailyEl=document.getElementById('holdDailyLimit');
-    if(dailyEl) dailyEl.textContent=`$${Number(ag.dailyBudget||250).toFixed(2)} / day`;
-  }
-
-  function filterTeammates(q) {
-    const term = q.trim().toLowerCase();
-    document.querySelectorAll('#agentList .agent-row').forEach(row => {
-      const name = row.querySelector('.agent-name')?.textContent.toLowerCase() || '';
-      const prev = row.querySelector('.agent-preview')?.textContent.toLowerCase() || '';
-      row.style.display = (!term || name.includes(term) || prev.includes(term)) ? '' : 'none';
-    });
-  }
-
-  // =========================================================
-  // OVERLAY 1: PARTICULAR AGENT SETTINGS OVERLAY
-  // =========================================================
-  function openAgentOverlay(tabKey) {
-    renderAgentParticularModal();
-    document.getElementById('agentOverlayBackdrop').classList.add('open');
-    if (tabKey) {
-      const btn = document.querySelector(`[data-apane="${tabKey}"]`);
-      if (btn) switchAgentTab(tabKey, btn);
-    }
-  }
-
-  function closeAgentOverlay() {
-    document.getElementById('agentOverlayBackdrop').classList.remove('open');
-  }
-
-  function switchAgentTab(key, btn) {
-    document.querySelectorAll('#agentOverlayBackdrop .modal-nav-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    document.querySelectorAll('#agentOverlayBackdrop .modal-pane').forEach(p => p.classList.remove('active'));
-    const pane = document.getElementById('apane-' + key);
-    if (pane) pane.classList.add('active');
-
-    const ag = agents[currentAgentId];
-    const titles = {
-      profile: `${ag.name} - Particular Agent Identity`,
-      card: `${ag.name} - Assigned Payment Card & Spend Cap`,
-      apps: `${ag.name} - Preview App Selections (not connected)`,
-      skills: `${ag.name} - Proactive Goals & SKILL.md`,
-      policy: `${ag.name} - Scoped Merchant Allowlist`
-    };
-    document.getElementById('agentModalHeaderTitle').textContent = titles[key] || ag.name;
-  }
-
-  function renderAgentParticularModal() {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-
-    // Sidebar mini identity
-    setAvatar(document.getElementById('agentModalMiniDot'), ag, avatarKindFor(ag));
-    document.getElementById('agentModalSideName').textContent = ag.name;
-    document.getElementById('agentModalSideHandle').textContent = ag.handle;
-
-    // Tab 1: Profile
-    setAvatar(document.getElementById('agentProfileBigDot'), ag, avatarKindFor(ag));
-    document.getElementById('agentProfileName').textContent = `${ag.name} (${ag.handle})`;
-    document.getElementById('agentProfileRole').textContent = ag.sub;
-    document.getElementById('agentProfileIdBadge').textContent = `agt_${ag.id}_2026`;
-    document.getElementById('agentProfileEmail').textContent = ag.email;
-    document.getElementById('agentProfilePhone').textContent = ag.phone;
-
-    // Tab 2: Card & Cap for THIS agent
-    document.getElementById('agentCardOwnerName').textContent = ag.name;
-    document.getElementById('agentSpendVal').textContent = `$${Number(ag.budget).toFixed(2)}`;
-    document.getElementById('agentSpendSlider').value = ag.budget;
-    const dailyCap = Number(ag.dailyBudget || 250);
-    document.getElementById('agentDailySpendSlider').value = dailyCap;
-    document.getElementById('agentDailySpendVal').textContent = `$${dailyCap.toFixed(2)} / day`;
-
-    const cardGrid = document.getElementById('agentCardSelectorGrid');
-    cardGrid.innerHTML = masterCards.map(c => {
-      const isSel = c.id === ag.cardId;
-      return `
-        <div class="pay-card-item ${isSel ? 'selected' : ''}" onclick="assignCardToCurrentAgent('${c.id}')">
-          <div class="pay-card-brand">
-            <span>${c.brand}</span>
-            <span style="color:${isSel ? 'var(--cue-gold)' : 'var(--text-dim)'};">${isSel ? '<svg class="ui-icon" data-icon="star" viewBox="0 0 24 24"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg> Assigned to ' + ag.name : 'Click to assign'}</span>
-          </div>
-          <div class="pay-card-num">Example card ending ${c.last4}</div>
-          <div class="pay-card-foot">
-            <span>Example expiry ${c.exp}</span>
-            <span>Vault Max $${c.limit}</span>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Tab 3: Apps connected to THIS agent
-    document.getElementById('agentAppsOwnerName').textContent = ag.name;
-    const appsGrid = document.getElementById('agentAppsGrid');
-    appsGrid.innerHTML = masterAppsCatalog.map(app => {
-      const hasApp = ag.apps.includes(app.id);
-      return `
-        <div class="app-tile">
-          <div class="app-tile-top">
-            <div style="display:flex;gap:10px;align-items:center;">
-              <div class="app-ico" style="background:${app.color};">${iconSvg(app.ico,18)}</div>
-              <div>
-                <div style="font-size:13px;font-weight:600;color:#fff;">${app.name}</div>
-                <div style="font-size:11px;color:var(--text-dim);">${app.cat}</div>
-              </div>
-            </div>
-            <button class="app-toggle-btn ${hasApp ? 'selected' : ''}" onclick="toggleAgentParticularApp('${app.id}')">
-              ${hasApp ? 'Selected - preview' : 'Select for preview'}
-            </button>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Tab 4: Goals & SKILL.md for THIS agent
-    document.getElementById('agentGoalText').textContent = ag.goal;
-    document.getElementById('agentSkillPre').textContent =
-`name: ${ag.id}_particular_skill
-agent: "${ag.name} (${ag.handle})"
-assigned_card: "${getCardById(ag.cardId).brand} ending ${getCardById(ag.cardId).last4}"
-max_order_usd: ${Number(ag.budget).toFixed(2)}
-daily_cap_usd: ${Number(ag.dailyBudget || 250).toFixed(2)}
-connected_surfaces: [${ag.apps.join(', ')}]
-require_passkey_webauthn: true`;
-
-    // Tab 5: Domains for THIS agent
-    const domWrap = document.getElementById('agentDomainTags');
-    domWrap.innerHTML = ag.domains.map(d =>
-      `<span style="font-size:11.5px;font-family:var(--mono);padding:4px 9px;border-radius:6px;background:rgba(50,213,131,0.12);color:var(--green);border:1px solid rgba(50,213,131,0.3);">${escapeHtml(d)}</span>`
-    ).join('');
-  }
-
-  function assignCardToCurrentAgent(cardId) {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-    ag.cardId = cardId;
-    renderAgentParticularModal();
-    syncHoldCardWithAgent();
-    savePreviewAgents();
-  }
-
-  function updateCurrentAgentBudget(val) {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-    ag.budget = Number(val);
-    document.getElementById('agentSpendVal').textContent = `$${Number(val).toFixed(2)}`;
-    syncHoldCardWithAgent();
-    savePreviewAgents();
-  }
-
-  function updateCurrentAgentDailyBudget(val) {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-    ag.dailyBudget = Number(val);
-    document.getElementById('agentDailySpendVal').textContent = `$${Number(val).toFixed(2)} / day`;
-    savePreviewAgents();
-  }
-
-  function toggleAgentParticularApp(appId) {
-    const ag = agents[currentAgentId];
-    if (!ag) return;
-    const idx = ag.apps.indexOf(appId);
-    if (idx >= 0) {
-      ag.apps.splice(idx, 1);
-    } else {
-      ag.apps.push(appId);
-    }
-    renderAgentParticularModal();
-    syncHeaderAgentButton();
-    savePreviewAgents();
-  }
-
-  function saveCurrentAgentGoal() {
-    const inp = document.getElementById('agentCustomGoalInput');
-    const val = inp.value.trim();
-    if (!val) return;
-    agents[currentAgentId].goal = val.slice(0,240);
-    inp.value = '';
-    renderAgentParticularModal();
-    savePreviewAgents();
-  }
-
-  function addCurrentAgentDomain() {
-    const inp = document.getElementById('agentNewDomainInput');
-    const val = inp.value.trim().toLowerCase();
-    if (!val) return;
-    if (!agents[currentAgentId].domains.includes(val)) {
-      agents[currentAgentId].domains.push(val);
-    }
-    inp.value = '';
-    renderAgentParticularModal();
-    savePreviewAgents();
-  }
-
-  // =========================================================
-  // OVERLAY 2: GENERAL WORKSPACE IDENTITY & SETTINGS OVERLAY
-  // =========================================================
-  function openGeneralOverlay(tabKey) {
-    renderGeneralModal();
-    document.getElementById('generalOverlayBackdrop').classList.add('open');
-    if (tabKey) {
-      const btn = document.querySelector(`[data-gpane="${tabKey}"]`);
-      if (btn) switchGeneralTab(tabKey, btn);
-    }
-  }
-
-  function closeGeneralOverlay() {
-    document.getElementById('generalOverlayBackdrop').classList.remove('open');
-  }
-
-  function switchGeneralTab(key, btn) {
-    document.querySelectorAll('#generalOverlayBackdrop .modal-nav-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
-    document.querySelectorAll('#generalOverlayBackdrop .modal-pane').forEach(p => p.classList.remove('active'));
-    const pane = document.getElementById('gpane-' + key);
-    if (pane) pane.classList.add('active');
-
-    const titles = {
-      vault: 'Payment card labels - preview only',
-      apps: 'Global app selections - not connected',
-      device: 'Desktop approval planned - mobile/ADB deferred',
-      receipts: 'Sample receipt fields - no transactions',
-      sentinel: 'Sentinel policy preview',
-      platform: 'Build, Hosting & Sponsor Integrations'
-    };
-    document.getElementById('generalModalHeaderTitle').textContent = titles[key] || 'General Settings';
-  }
-
-  function renderGeneralModal() {
-    const grid = document.getElementById('masterCardsGrid');
-    grid.innerHTML = masterCards.map(c => `
-      <div class="pay-card-item selected">
-        <div class="pay-card-brand">
-          <span>${c.brand}</span>
-          <span style="color:var(--green);">Sample card label</span>
-        </div>
-        <div class="pay-card-num">Example card ending ${c.last4}</div>
-        <div class="pay-card-foot">
-          <span>Example expiry ${c.exp}</span>
-          <span>Example cap $${c.limit}</span>
-        </div>
-      </div>
-    `).join('');
-
-    const appsGrid = document.getElementById('masterAppsGrid');
-    appsGrid.innerHTML = masterAppsCatalog.map((app, i) => `
-      <div class="app-tile">
-        <div class="app-tile-top">
-          <div style="display:flex;gap:10px;align-items:center;">
-            <div class="app-ico" style="background:${app.color};">${iconSvg(app.ico,18)}</div>
-            <div>
-              <div style="font-size:13px;font-weight:600;color:#fff;">${app.name}</div>
-              <div style="font-size:11px;color:var(--text-dim);">${app.cat}</div>
-            </div>
-          </div>
-          <button class="app-toggle-btn ${app.selected ? 'selected' : ''}" onclick="toggleMasterApp(${i})">
-            ${app.selected ? 'Selected - preview' : 'Select for preview'}
-          </button>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  function addMasterPaymentCard() {
-    const brand = document.getElementById('newCardBrand').value.trim() || 'Amex Gold';
-    const last4 = (document.getElementById('newCardLast4').value.trim() || '3001').slice(-4);
-    const exp = document.getElementById('newCardExp').value.trim() || '08/29';
-    const limit = Number(document.getElementById('newCardLimit').value) || 250;
-
-    const newId = 'card_' + Date.now();
-    masterCards.push({ id: newId, brand, last4, exp, limit });
-    agents[currentAgentId].cardId = newId;
-    renderGeneralModal();
-    syncHoldCardWithAgent();
-
-    document.getElementById('newCardBrand').value = '';
-    document.getElementById('newCardLast4').value = '';
-    document.getElementById('newCardExp').value = '';
-    document.getElementById('newCardLimit').value = '';
-  }
-
-  function toggleMasterApp(idx) {
-    masterAppsCatalog[idx].selected = !masterAppsCatalog[idx].selected;
-    renderGeneralModal();
-  }
-
-  // =========================================================
-  // OVERLAY 3: NEW AGENT SETUP FORM MODAL (Triggered by '+')
-  // =========================================================
-  let newAgentReturnFocus = null;
-  function openNewAgentModal() {
-    newAgentReturnFocus = document.activeElement;
-    // Populate card selector from local preview card examples
-    const sel = document.getElementById('setupAgentCardSelect');
-    sel.innerHTML = masterCards.map(c =>
-      `<option value="${c.id}">${c.brand} ending ${c.last4} (Max $${c.limit})</option>`
-    ).join('');
-
-    // Populate apps check grid
-    const checkGrid = document.getElementById('setupAppsCheckGrid');
-    checkGrid.innerHTML = masterAppsCatalog.map(app => `
-      <label style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#121215;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;">
-        <input type="checkbox" class="setup-app-chk" value="${app.id}" ${app.selected ? 'checked' : ''} style="accent-color:var(--green);" />
-        <span>${iconSvg(app.ico,14)} ${app.name}</span>
-      </label>
-    `).join('');
-
-    updateSetupPreview();
-    const backdrop = document.getElementById('newAgentOverlayBackdrop');
+  let lastFocusedElement = null;
+  let openOverlayId = null;
+  function openOverlay(id) {
+    const backdrop = document.getElementById(id);
+    if (!backdrop) return;
+    if (openOverlayId && openOverlayId !== id) closeOverlay(openOverlayId, false);
+    lastFocusedElement = document.activeElement;
     backdrop.classList.add('open');
-    requestAnimationFrame(() => document.getElementById('setupAgentName')?.focus());
+    openOverlayId = id;
+    backdrop.querySelector('[role="dialog"]')?.focus();
+  }
+  function closeOverlay(id, restoreFocus = true) {
+    const backdrop = document.getElementById(id);
+    if (!backdrop) return;
+    backdrop.classList.remove('open');
+    if (openOverlayId === id) openOverlayId = null;
+    if (restoreFocus && lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
+  }
+  function openGeneralOverlay() { openOverlay('generalOverlayBackdrop'); }
+  function closeGeneralOverlay() { closeOverlay('generalOverlayBackdrop'); }
+  function openNewAgentModal() { openOverlay('newAgentOverlayBackdrop'); }
+  function closeNewAgentModal() { closeOverlay('newAgentOverlayBackdrop'); }
+  function handleBackdropClick(event, id) {
+    if (event.target === event.currentTarget) closeOverlay(id);
   }
 
-  function closeNewAgentModal() {
-    const backdrop = document.getElementById('newAgentOverlayBackdrop');
-    const wasOpen = backdrop?.classList.contains('open');
-    backdrop?.classList.remove('open');
-    if (wasOpen && newAgentReturnFocus?.isConnected) newAgentReturnFocus.focus();
-  }
-
-  function pickSetupColor(color, glyph, el) {
-    setupChosenColor = color;
-    setupChosenGlyph = glyph;
-    document.querySelectorAll('#setupColorSwatches .color-swatch').forEach(s => s.classList.remove('selected'));
-    if (el) el.classList.add('selected');
-    setAvatar(document.getElementById('setupPreviewDot'), {color,avatar:setupChosenAvatar}, setupChosenAvatar);
-  }
-
-  function pickSetupAvatar(avatar, btn) {
-    setupChosenAvatar = avatar;
-    document.querySelectorAll('.shape-choice').forEach(choice => {
-      const selected = choice === btn;
-      choice.classList.toggle('selected', selected);
-      choice.setAttribute('aria-pressed', String(selected));
+  function filterTeammates(query) {
+    const term = String(query || '').trim().toLocaleLowerCase();
+    document.querySelectorAll('#agentList .saved-agent-list-row').forEach((row) => {
+      const name = row.querySelector('.agent-name')?.textContent.toLocaleLowerCase() || '';
+      const role = row.querySelector('.agent-preview')?.textContent.toLocaleLowerCase() || '';
+      row.style.display = !term || name.includes(term) || role.includes(term) ? '' : 'none';
     });
-    setAvatar(document.getElementById('setupPreviewDot'), {color: setupChosenColor, avatar}, avatar);
   }
 
-  function updateSetupPreview() {
-    const rawName = document.getElementById('setupAgentName').value.trim() || 'Scout';
-    const slug = rawName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'scout';
-    document.getElementById('setupPreviewName').textContent = rawName;
-    document.getElementById('setupPreviewSub').textContent = `@${slug}.kues - ${slug}@kues.example`;
-  }
-
-  function submitNewAgentSetup() {
-    const name = (document.getElementById('setupAgentName').value.trim() || 'Scout').slice(0,30);
-    const role = (document.getElementById('setupAgentRole').value.trim() || 'Commerce scout').slice(0,60);
-    const cardId = document.getElementById('setupAgentCardSelect').value || masterCards[0].id;
-    const budget = Math.min(500, Math.max(20, Number(document.getElementById('setupAgentCap').value) || 120));
-    const dailyBudget = Math.min(2000, Math.max(100, Number(document.getElementById('setupAgentDailyCap').value) || 300));
-    const allowedDomains = (document.getElementById('setupAgentDomains').value || 'paypal.com, channel3.com').split(',').map(x => x.trim().toLowerCase()).filter(x => /^[a-z0-9.-]{1,253}$/.test(x)).slice(0,20);
-    const memoryPills = (document.getElementById('setupAgentMemory').value || '').split(',').map(x => x.trim().slice(0,80)).filter(Boolean).slice(0,20);
-    const goal = (document.getElementById('setupAgentGoal').value.trim() || 'Monitor preview offers under cap').slice(0,240);
-    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + Math.floor(10 + Math.random() * 89);
-    const cleanHandle = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'agent';
-
-    const chosenApps = Array.from(document.querySelectorAll('.setup-app-chk:checked')).map(c => c.value);
-
-    agents[slug] = {
-      id: slug,
-      name,
-      handle: `@${cleanHandle}.cue`,
-      sub: role,
-      color: setupChosenColor,
-      glyph: setupChosenGlyph,
-      avatar: setupChosenAvatar,
-      email: `${cleanHandle}@kues.example`,
-      phone: 'Mobile approval preview - not connected',
-      cardId,
-      budget,
-      dailyBudget,
-      apps: chosenApps,
-      goal,
-      memoryPills,
-      domains: allowedDomains.length ? allowedDomains : ['paypal.com', 'channel3.com']
-    };
-
-    // Add row to left sidebar
-    const list = document.getElementById('agentList');
-    const row = document.createElement('div');
-    row.className = 'agent-row';
-    row.setAttribute('data-agent-id', slug);
-    row.onclick = function() { selectTeammate(slug, row); };
-    row.innerHTML = `
-      <div class="dot-avatar" style="background: ${setupChosenColor};"></div>
-      <div class="agent-meta">
-        <div class="agent-top">
-          <span class="agent-name">${escapeHtml(name)}</span>
-          <span class="agent-time">Preview</span>
-        </div>
-        <div class="agent-preview">
-          <span class="unread-dot"></span>
-          <span>${escapeHtml(role)}</span>
-        </div>
-      </div>
-    `;
-    list.prepend(row);
-    setAvatar(row.querySelector('.dot-avatar'), agents[slug], setupChosenAvatar);
-    closeNewAgentModal();
-    selectTeammate(slug, row);
-    savePreviewAgents();
-
-    appendBubble(
-      name,
-      setupChosenColor,
-      `Hi! I'm <strong>${escapeHtml(name)}</strong> (<code>@${cleanHandle}.cue</code>). This preview has <strong>${agents[slug].apps.length} app selections (not connected)</strong> and assigned to <strong>${getCardById(cardId).brand} ---- ${getCardById(cardId).last4}</strong> with a <strong>$${budget.toFixed(2)}</strong> per-order limit and <strong>$${dailyBudget.toFixed(2)}</strong> daily envelope. Click my badge in the top-right anytime to tune my particular settings.`
-    );
-  }
-
-  // =========================================================
-  // SHARED UI INTERACTIONS (Backdrop, Call, Takeover, Passkey, Chat)
-  // =========================================================
-  function handleBackdropClick(e, id) {
-    if (e.target.id !== id) return;
-    if (id === 'newAgentOverlayBackdrop') closeNewAgentModal();
-    else document.getElementById(id).classList.remove('open');
-  }
-
-  document.addEventListener('keydown', (e) => {
-    const backdrop = document.getElementById('newAgentOverlayBackdrop');
-    if (backdrop?.classList.contains('open') && e.key === 'Tab') {
-      const focusable = [...backdrop.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')]
-        .filter((el) => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden');
-      if (focusable.length) {
-        const first = focusable[0], last = focusable.at(-1);
-        if (e.shiftKey && (document.activeElement === first || !backdrop.contains(document.activeElement))) {
-          e.preventDefault(); last.focus();
-        } else if (!e.shiftKey && (document.activeElement === last || !backdrop.contains(document.activeElement))) {
-          e.preventDefault(); first.focus();
-        }
-      }
+  function applyKeusTheme(theme, save = false) {
+    const selected = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.dataset.theme = selected;
+    document.documentElement.style.colorScheme = selected;
+    const next = selected === 'dark' ? 'light' : 'dark';
+    const label = `Switch to ${next} theme`;
+    const button = document.getElementById('themeToggle');
+    if (button) {
+      button.setAttribute('aria-label', label);
+      button.setAttribute('title', label);
+      button.setAttribute('aria-pressed', String(selected === 'dark'));
     }
-    if (e.key === 'Escape') {
-      closeAgentOverlay();
-      closeGeneralOverlay();
-      closeNewAgentModal();
-      closePlusPopover();
-    }
-  });
-
-  function togglePlusPopover(e) {
-    e.stopPropagation();
-    const pop = document.getElementById('plusPopover');
-    const btn = document.getElementById('plusBtn');
-    const isOpen = pop.classList.toggle('open');
-    btn.classList.toggle('active', isOpen);
-  }
-  function closePlusPopover() {
-    document.getElementById('plusPopover')?.classList.remove('open');
-    document.getElementById('plusBtn')?.classList.remove('active');
-  }
-  document.addEventListener('click', (e) => {
-    const pop = document.getElementById('plusPopover');
-    const btn = document.getElementById('plusBtn');
-    if (pop && pop.classList.contains('open') && !pop.contains(e.target) && e.target !== btn) {
-      closePlusPopover();
-    }
-  });
-
-  let callActive = false;
-  let callSeconds = 14;
-  let callInterval = null;
-  function toggleCall() {
-    callActive = !callActive;
-    const el = document.getElementById('callOverlay');
-    el.classList.toggle('open', callActive);
-    if (callActive) {
-      callInterval = setInterval(() => {
-        callSeconds++;
-        const m = String(Math.floor(callSeconds / 60)).padStart(2, '0');
-        const s = String(callSeconds % 60).padStart(2, '0');
-        document.getElementById('callTimer').textContent = `${m}:${s} - Voice-call preview - not connected`;
-      }, 1000);
-    } else {
-      clearInterval(callInterval);
+    textById('themeLabel', label);
+    const themeColor = document.getElementById('themeColor');
+    if (themeColor) themeColor.setAttribute('content', selected === 'dark' ? '#0d0e11' : '#f3f6f1');
+    if (save) {
+      try { localStorage.setItem('keusTheme', selected); } catch {}
     }
   }
 
-  let userControlling = true;
-  function toggleTakeOver() {
-    userControlling = !userControlling;
-    const badge = document.getElementById('compControlBadge');
-    const btn = document.getElementById('takeOverBtn');
-    const sub = document.getElementById('compSubText');
-    if (userControlling) {
-      badge.textContent = "Preview only";
-      badge.classList.remove('agent-mode');
-      btn.textContent = "Take over";
-      sub.textContent = "Interactive control enabled - click inside window to steer";
-    } else {
-      badge.textContent = "Agent working";
-      badge.classList.add('agent-mode');
-      btn.textContent = "Take over";
-      sub.textContent = "Nova & Atlas are driving the browser and WhatsApp bridge";
-    }
-  }
-  function resumeAgent() {
-    userControlling = false;
-    const badge = document.getElementById('compControlBadge');
-    const sub = document.getElementById('compSubText');
-    badge.textContent = "Agent in control";
-    badge.classList.add('agent-mode');
-    sub.textContent = "Handed back to Shopping Crew - monitoring order status";
-  }
-  function scrollToComputer() {
-    const target = document.getElementById('computerCardAnchor') || document.querySelector('.grok-computer-card'); if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'preview-toast';
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
+    document.body.append(toast);
+    window.setTimeout(() => toast.remove(), 4200);
   }
 
-  function approveWithPasskey(isVirtual = false) {
-    const badge = document.getElementById('holdStateBadge');
-    const btn = document.getElementById('approveBtn');
-    const passkeyVal = document.getElementById('passkeyCellVal');
-    badge.textContent = isVirtual ? 'APPROVED - KEYFOB PREVIEW' : 'APPROVED - PASSKEY PREVIEW';
-    badge.classList.add('settled');
-    passkeyVal.textContent = isVirtual ? 'Virtual keyfob - demo' : 'Passkey UI - not connected';
-    passkeyVal.style.color = 'var(--green)';
-    btn.textContent = isVirtual ? 'Keyfob preview approved' : 'Passkey preview approved';
-    btn.disabled = true;
-    document.getElementById('voidBtn').style.display = 'none';
-    appendBubble('Aegis', '#4c8dff', isVirtual ? 'Judge virtual keyfob preview accepted. No WebAuthn assertion or PayPal capture was made.' : 'Passkey approval UI preview completed. Real WebAuthn verification and PayPal capture are not connected.');
-  }
-
-  function voidHold() {
-    const badge = document.getElementById('holdStateBadge');
-    const btn = document.getElementById('approveBtn');
-    badge.textContent = 'VOIDED - PREVIEW';
-    badge.style.color = '#ff8080';
-    btn.disabled = true;
-    document.getElementById('voidBtn').disabled = true;
-    appendBubble('Aegis', '#4c8dff', 'Void preview completed. No live PayPal authorization existed and no money moved.');
-  }
-
-  function simulateInjection() {
-    const pill = document.getElementById('sentinelStatus');
-    pill.textContent = 'Blocked $450 Injection';
-    pill.style.color = 'var(--amber)';
-    appendBubble('Aegis - Sentinel', '#ff5b5b', 'Sentinel UI preview: a hidden instruction attempted to route <strong>$450.00</strong> to <code>attacker@evil.com</code>. Core policy logic is tested; this screen is not connected to a live run.');
-  }
-
-  function pairWirelessAdb() {
-    const ip = document.getElementById('adbIpInput').value.trim() || '192.168.1.44:39121';
-    document.getElementById('adbConnBadge').textContent = `Pairing preview - ${ip} - not connected`;
-  }
-
-  function refundOrder(type) {
-    const amt = type === 'partial' ? '$20.00' : '$78.50';
-    document.getElementById('receiptStatusBadge').textContent = `REFUND PREVIEW (${amt})`;
-    document.getElementById('receiptStatusBadge').style.color = 'var(--green)';
-    closeGeneralOverlay();
-    appendBubble('Aegis', '#4c8dff', `Refund preview for <strong>${amt}</strong> recorded. No PayPal refund request was sent.`);
-  }
-
-  function handleQuoteFile(input) {
-    const file = input.files && input.files[0];
-    if (!file) return;
-    const u = document.createElement('div'); u.className='user-msg-row';
-    const bubble=document.createElement('div'); bubble.className='user-bubble';
-    bubble.textContent=`Attached locally: ${file.name} - ${(file.size/1024).toFixed(0)} KB`;
-    u.appendChild(bubble); document.getElementById('streamInner').appendChild(u);
-    appendBubble(agents[currentAgentId].name, agents[currentAgentId].color, 'Attachment preview added to this thread. File upload, OCR/vision and evidence hashing are not connected yet.');
-    input.value='';
-  }
-
-  function attachQuoteInChat() {
-    const stream = document.getElementById('streamInner');
-    const u = document.createElement('div');
-    u.className = 'user-msg-row';
-    u.innerHTML = `<div class="user-bubble"><svg class="ui-icon" data-icon="clip" viewBox="0 0 24 24"><path d="m8 12.5 7.8-7.8a4 4 0 0 1 5.7 5.7l-9.9 9.9a6 6 0 0 1-8.5-8.5l9.2-9.2"/></svg> <strong>kanso_whatsapp_invoice_7850.png</strong> - Verify seller quote &amp; stage hold under my agent's card.</div>`;
-    stream.appendChild(u);
-    appendBubble('Atlas', '#32d583', 'Parsed attached quote (`$78.50 USD` from Kanso Ceramic Studio). Matches this agent\'s card cap and merchant allowlist.');
-  }
-
-  function appendBubble(sender, color, htmlText) {
-    const stream = document.getElementById('streamInner');
-    const row = document.createElement('div');
-    row.className = 'agent-msg-row';
-    row.innerHTML = `
-      <div class="dot-avatar" style="background: ${safeAvatarColor(color)}; width: 32px; height: 32px; margin-top: 2px;">
-        <div class="dot-eyes"><span class="dot-eye" style="height:7px;"></span><span class="dot-eye" style="height:7px;"></span></div>
-      </div>
-      <div class="agent-msg-body">
-        <div class="msg-sender-line">
-          <span class="msg-sender">${escapeHtml(sender)}</span>
-          <span class="msg-badge">just now</span>
-        </div>
-        <div class="msg-text">${htmlText}</div>
-      </div>
-    `;
-    stream.appendChild(row);
-    const avatarAgent = Object.values(agents).find(a => a.name === sender || sender.startsWith(a.name)) || Object.values(agents).find(a => a.color === color) || agents[currentAgentId];
-    setAvatar(row.querySelector('.dot-avatar'), avatarAgent, avatarKindFor(avatarAgent));
-    const scroller = document.getElementById('chatStream');
-    scroller.scrollTop = scroller.scrollHeight;
-  }
-
-  function sendChat() {
-    const input = document.getElementById('chatInput');
-    const text = input.value.trim();
-    if (!text) return;
-
-    const stream = document.getElementById('streamInner');
-    const u = document.createElement('div');
-    u.className = 'user-msg-row';
-    u.innerHTML = `<div class="user-bubble">${escapeHtml(text)}</div>`;
-    stream.appendChild(u);
-    input.value = '';
-
-    const ag = agents[currentAgentId];
-    const card = getCardById(ag.cardId);
-    const activeMemories = (ag.memoryPills || []).filter(x => !(ag.disabledMemoryPills || []).includes(x));
-    const selectedMode = document.querySelector('.mode-pill.active')?.dataset.mode || 'autonomous';
-    setTimeout(() => {
-      appendBubble(
-        ag.name,
-        ag.color,
-        `${selectedMode === 'steer' ? 'Steering preview only' : selectedMode === 'takeover' ? 'Preview only; no runtime is available' : 'Example response, not generated'} on <strong>"${escapeHtml(text)}"</strong> using selected preview app labels (not connected) (<code>${escapeHtml(ag.apps.join(', '))}</code>) and assigned card (<strong>${card.brand} ---- ${card.last4}</strong>, cap <strong>$${ag.budget.toFixed(2)}</strong>).${activeMemories.length ? ` I will honor your visible preferences: <strong>${activeMemories.join(' - ')}</strong>.` : ''}`
-      );
-    }, 240);
-  }
-
-  function escapeHtml(s) {
-    return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  }
-
-  const iconPaths = {
-    spark:'<path d="M12 2.8 14.5 9.5 21.2 12l-6.7 2.5L12 21.2l-2.5-6.7L2.8 12l6.7-2.5L12 2.8Z"/><path d="M19 2v4M17 4h4M4 17v3M2.5 18.5h3"/>',
-    bag:'<path d="M5 8.5h14l1 12H4l1-12Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/><path d="M9 13h.01M15 13h.01"/>',
-    chat:'<path d="M20.5 11.5a8.5 8.5 0 0 1-12.6 7.4L3 21l1.8-5.2a8.5 8.5 0 1 1 15.7-4.3Z"/><path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01"/>',
-    shield:'<path d="M12 21.2s7.2-3.5 7.2-9.7V5.8L12 2.8 4.8 5.8v5.7c0 6.2 7.2 9.7 7.2 9.7Z"/><path d="m8.8 12.1 2.1 2.1 4.5-4.6"/>',
-    desktop:'<rect x="3" y="3.5" width="18" height="13" rx="2.2"/><path d="M8 21h8M12 16.5V21M6.5 7h11"/>',
-    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.4 2"/><path d="M5.5 4.8 4 3.5"/>',
-    star:'<path d="m12 3.2 2.6 5.3 5.9.9-4.3 4.2 1 5.9-5.2-2.8-5.2 2.8 1-5.9-4.3-4.2 5.9-.9L12 3.2Z"/>',
-    card:'<rect x="2.5" y="4.5" width="19" height="15" rx="2.8"/><path d="M3 9.5h18M6.5 14.5h4"/><path d="M17.3 15.2h.01"/>',
-    puzzle:'<path d="M8.5 3.5h2.1a2.1 2.1 0 1 1 4.2 0h2.7v4.2a2.1 2.1 0 1 0 0 4.2v8.6h-4.2a2.1 2.1 0 1 1-4.2 0H3.5v-6.3a2.1 2.1 0 1 0 0-4.2V3.5h5Z"/>',
-    clip:'<path d="m8.4 12.8 7.7-7.7a4.1 4.1 0 0 1 5.8 5.8l-9.6 9.6a6.2 6.2 0 0 1-8.8-8.8l9.1-9.1"/><path d="m7.1 14.1 8.4-8.4"/>',
-    phone:'<rect x="6" y="2.5" width="12" height="19" rx="2.4"/><path d="M10 5h4M11 18.5h2"/>',
-    receipt:'<path d="M5 2.8 8.5 4.5 12 2.8l3.5 1.7L19 2.8v18.4l-3.5-1.7-3.5 1.7-3.5-1.7L5 21.2V2.8Z"/><path d="M8.5 9h7M8.5 13h7M8.5 16.5h4"/>',
-    close:'<path d="m6 6 12 12M18 6 6 18"/>',
-    mail:'<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/>',
-    wallet:'<path d="M4 6.5h15a2 2 0 0 1 2 2V19H5a2 2 0 0 1-2-2V6.5a3 3 0 0 1 3-3h12"/><path d="M15 12h6v4h-6a2 2 0 0 1 0-4Z"/><path d="M16 14h.01"/>',
-    arrowRight:'<path d=\"M5 12h14m-7-7 7 7-7 7\"/>',
-    arrowLeft:'<path d=\"M19 12H5m7 7-7-7 7-7\"/>',
-    shieldCheck:'<path d="M12 21s7-3.4 7-9.3V6l-7-3-7 3v5.7C5 17.6 12 21 12 21Z"/><path d="m8.8 12.1 2 2 4.4-4.4"/>'
-  };
-  function iconSvg(name,size=16) { return `<svg class="ui-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[name] || iconPaths.spark}</svg>`; }
-  document.querySelectorAll('.ui-icon[data-icon]').forEach(svg => { svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('fill','none'); svg.setAttribute('stroke','currentColor'); svg.setAttribute('stroke-width','1.8'); svg.setAttribute('stroke-linecap','round'); svg.setAttribute('stroke-linejoin','round'); svg.innerHTML=iconPaths[svg.dataset.icon] || iconPaths.spark; });
-  const avatarDefaults = {crew:'cart', nova:'bulb', atlas:'laptop', aegis:'shield', watcher:'magnifier'};
-  const avatarColors = {bulb:'#f5b942', laptop:'#32d583', shield:'#4c8dff', cart:'#f39b91', car:'#b57cff', parcel:'#e7a94b', magnifier:'#88d7c2', tag:'#f5b942', wallet:'#b57cff', van:'#4c8dff'};
   function safeAvatarColor(color) { return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#32d583'; }
   function objectAvatarSvg(kind, color) {
     const shapes={
@@ -3143,29 +1722,29 @@ require_passkey_webauthn: true`;
       shield: `<path d="M32 5 53 13v15.5c0 13-8 22.2-21 29-13-6.8-21-16-21-29V13L32 5Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/><path d="M32 10.5 47 16v12c0 9.2-5.2 16.4-15 22-9.8-5.6-15-12.8-15-22V16l15-5.5Z" fill="#fff" opacity=".16"/><path d="M22 18c2.5-2 5.5-3.2 8.5-3.5" fill="none" stroke="#111113" stroke-opacity=".48" stroke-width="2.2" stroke-linecap="round"/><g><ellipse class="avatar-eye eye-a" cx="26" cy="27" rx="1.9" ry="2.9" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="38" cy="27" rx="1.9" ry="2.9" fill="#111113"/></g><path d="M28 34c1.2 1.5 2.6 2.2 4 2.2s2.8-.7 4-2.2" fill="none" stroke="#111113" stroke-width="2.4" stroke-linecap="round"/><circle cx="21.5" cy="33" r="1.7" fill="#ef927f"/><circle cx="42.5" cy="33" r="1.7" fill="#ef927f"/>`,
       cart: `<path d="M7 10h8l4.5 27c.4 2.2 2 3.7 4.3 3.7h21.4c2 0 3.7-1.3 4.2-3.2L54 19H17" fill="none" stroke="#111113" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 19h35l-5 18H22L19 19Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/><g><ellipse class="avatar-eye eye-a" cx="29" cy="27" rx="1.6" ry="2.5" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="41" cy="27" rx="1.6" ry="2.5" fill="#111113"/></g><path d="M30 32c1 1.3 2.1 1.8 3 1.8s2-.5 3-1.8" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="25" cy="31" r="1.4" fill="#ef927f"/><circle cx="45" cy="31" r="1.4" fill="#ef927f"/><circle cx="25" cy="49" r="4.2" fill="#f3f3f5" stroke="#111113" stroke-width="3"/><circle cx="45" cy="49" r="4.2" fill="#f3f3f5" stroke="#111113" stroke-width="3"/>`,
       car: `<g class="avatar-art">
-<path d="M7 34c.5-1 1.5-1.8 3-2.3l5.2-1.8 4.8-9.2c1.3-2.5 3.5-3.8 6.3-3.8h15c2.6 0 4.7 1.1 6.1 3.4l5.6 8.7 5.1 1.6c2.3.7 3.9 2.5 3.9 5v5.2c0 2.2-1.8 4-4 4h-2.5c-.6-4.8-3.8-7.5-8-7.5s-7.4 2.7-8 7.5H27c-.6-4.8-3.8-7.5-8-7.5s-7.4 2.7-8 7.5H9c-2.2 0-4-1.8-4-4v-5.2c0-.6.4-1.2 1-1.6Z" fill="#b57cff" stroke="#111113" stroke-width="3" stroke-linejoin="round"/>
+<path d="M7 34c.5-1 1.5-1.8 3-2.3l5.2-1.8 4.8-9.2c1.3-2.5 3.5-3.8 6.3-3.8h15c2.6 0 4.7 1.1 6.1 3.4l5.6 8.7 5.1 1.6c2.3.7 3.9 2.5 3.9 5v5.2c0 2.2-1.8 4-4 4h-2.5c-.6-4.8-3.8-7.5-8-7.5s-7.4 2.7-8 7.5H27c-.6-4.8-3.8-7.5-8-7.5s-7.4 2.7-8 7.5H9c-2.2 0-4-1.8-4-4v-5.2c0-.6.4-1.2 1-1.6Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/>
 <path d="m19 29 4-7.6c.7-1.3 1.9-2 3.4-2H31v9.8H19Z" fill="#fff" opacity=".3" stroke="#111113" stroke-width="2.2" stroke-linejoin="round"/><path d="M34 19.4h7.1c1.5 0 2.7.7 3.5 2l4.8 7.8H34v-9.8Z" fill="#fff" opacity=".34" stroke="#111113" stroke-width="2.2" stroke-linejoin="round"/>
 <g><ellipse class="avatar-eye eye-a" cx="37.5" cy="24.5" rx="1.55" ry="2.3" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="44.5" cy="24.5" rx="1.55" ry="2.3" fill="#111113"/></g><path d="M38 29c.8 1 1.8 1.5 2.8 1.5s2-.5 2.8-1.5" fill="none" stroke="#111113" stroke-width="1.9" stroke-linecap="round"/><circle cx="35" cy="29" r="1.1" fill="#ef927f"/><circle cx="47.5" cy="29" r="1.1" fill="#ef927f"/>
-<path d="M7 34h5" stroke="#f5b942" stroke-width="2.6" stroke-linecap="round"/><path d="M55 34h3" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="19" cy="43" r="6.1" fill="#f3f3f5"/><circle cx="19" cy="43" r="2.8" fill="#b57cff"/><circle cx="48" cy="43" r="6.1" fill="#f3f3f5"/><circle cx="48" cy="43" r="2.8" fill="#b57cff"/>
+<path d="M7 34h5" stroke="#f5b942" stroke-width="2.6" stroke-linecap="round"/><path d="M55 34h3" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="19" cy="43" r="6.1" fill="#f3f3f5"/><circle cx="19" cy="43" r="2.8" fill="{c}"/><circle cx="48" cy="43" r="6.1" fill="#f3f3f5"/><circle cx="48" cy="43" r="2.8" fill="{c}"/>
 </g>`,
       parcel: `<path d="m9 19 23-11 23 11v28L32 58 9 47V19Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/><path d="m9.5 19.5 22.5 11 22.5-11M32 30.5V57" fill="none" stroke="#111113" stroke-width="2.5" stroke-linejoin="round"/><path d="m21 13 22 11v8" fill="none" stroke="#111113" stroke-opacity=".5" stroke-width="2.5" stroke-linejoin="round"/><g><ellipse class="avatar-eye eye-a" cx="25" cy="38" rx="1.9" ry="2.8" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="39" cy="38" rx="1.9" ry="2.8" fill="#111113"/></g><path d="M27 44c1.3 1.5 2.8 2.2 5 2.2s3.7-.7 5-2.2" fill="none" stroke="#111113" stroke-width="2.4" stroke-linecap="round"/><circle cx="20.5" cy="43" r="1.6" fill="#ef927f"/><circle cx="43.5" cy="43" r="1.6" fill="#ef927f"/>`,
       magnifier: `<path d="m42 42 19 19" fill="none" stroke="#111113" stroke-width="9" stroke-linecap="round"/><path d="m42 42 19 19" fill="none" stroke="#111113" stroke-width="5" stroke-linecap="round"/><circle cx="28" cy="28" r="20" fill="{c}" stroke="#111113" stroke-width="3"/><circle cx="28" cy="28" r="15.2" fill="#fff" opacity=".22"/><path d="M17 18c3-4 7-6 11-6" fill="none" stroke="#111113" stroke-opacity=".65" stroke-width="2.3" stroke-linecap="round"/><g><ellipse class="avatar-eye eye-a" cx="23" cy="27" rx="1.8" ry="2.8" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="34" cy="27" rx="1.8" ry="2.8" fill="#111113"/></g><path d="M24 33c1 1.4 2.3 2 3.8 2s2.8-.6 3.8-2" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="18.5" cy="32" r="1.5" fill="#ef927f"/><circle cx="38" cy="32" r="1.5" fill="#ef927f"/>`,
       tag: `<path d="M9 17c0-2.8 2.2-5 5-5h21l20 20-22 22L9 30V17Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/><circle cx="17.5" cy="19.5" r="2.8" fill="#f3f3f5" stroke="#111113" stroke-width="2"/><path d="M24 17c2.5-2.2 5.8-3.5 9-3.5" fill="none" stroke="#111113" stroke-opacity=".5" stroke-width="2.2" stroke-linecap="round"/><g><ellipse class="avatar-eye eye-a" cx="30" cy="31" rx="1.8" ry="2.7" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="41" cy="31" rx="1.8" ry="2.7" fill="#111113"/></g><path d="M31 37c1 1.3 2.1 1.9 3.4 1.9s2.4-.6 3.4-1.9" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="25" cy="36" r="1.5" fill="#ef927f"/><circle cx="46" cy="36" r="1.5" fill="#ef927f"/>`,
       wallet: `<g class="avatar-art">
 <path d="M13 17V12c0-2.2 1.8-4 4-4h20l7 8H13Z" fill="#d4b7ff" stroke="#111113" stroke-width="2.5" stroke-linejoin="round"/><path d="M19 11h12" stroke="#111113" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
-<rect x="7" y="17" width="50" height="36" rx="8" fill="#b57cff" stroke="#111113" stroke-width="3"/>
+<rect x="7" y="17" width="50" height="36" rx="8" fill="{c}" stroke="#111113" stroke-width="3"/>
 <path d="M10 26h39c3.3 0 6 2.7 6 6v13c0 3.3-2.7 6-6 6H15c-2.8 0-5-2.2-5-5V26Z" fill="#fff" opacity=".13"/>
 <path d="M10 26h39c3.3 0 6 2.7 6 6v2H42c-3.3 0-6 2.7-6 6v2c0 3.3 2.7 6 6 6h13" fill="none" stroke="#111113" stroke-width="2.7" stroke-linejoin="round"/>
 <g><ellipse class="avatar-eye eye-a" cx="21" cy="36" rx="1.8" ry="2.7" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="31" cy="36" rx="1.8" ry="2.7" fill="#111113"/></g>
 <path d="M22 42c1 1.3 2.2 1.9 3.5 1.9s2.5-.6 3.5-1.9" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="17" cy="41" r="1.4" fill="#ef927f"/><circle cx="35" cy="41" r="1.4" fill="#ef927f"/>
-<rect x="46" y="37" width="8" height="7" rx="3.2" fill="#f3f3f5"/><circle cx="50" cy="40.5" r="1.15" fill="#b57cff"/>
+<rect x="46" y="37" width="8" height="7" rx="3.2" fill="#f3f3f5"/><circle cx="50" cy="40.5" r="1.15" fill="{c}"/>
 </g>`,
       van: `<g class="avatar-art">
-<path d="M8 13h27c2.2 0 4 1.8 4 4v4h7.5c2.1 0 4 1.1 5 2.9l5.5 9.2V43c0 2.2-1.8 4-4 4h-2.5c-.5-4.8-3.8-7.5-8-7.5S35 42.2 34.5 47h-11c-.5-4.8-3.8-7.5-8-7.5S8 42.2 7.5 47H6V15c0-1.1.9-2 2-2Z" fill="#4c8dff" stroke="#111113" stroke-width="3" stroke-linejoin="round"/>
+<path d="M8 13h27c2.2 0 4 1.8 4 4v4h7.5c2.1 0 4 1.1 5 2.9l5.5 9.2V43c0 2.2-1.8 4-4 4h-2.5c-.5-4.8-3.8-7.5-8-7.5S35 42.2 34.5 47h-11c-.5-4.8-3.8-7.5-8-7.5S8 42.2 7.5 47H6V15c0-1.1.9-2 2-2Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/>
 <path d="M12 18h22v17H12z" fill="#fff" opacity=".2"/><path d="m23 19.5 7 3.5v7L23 33.5l-7-3.5v-7L23 19.5Z" fill="none" stroke="#111113" stroke-width="1.8" stroke-linejoin="round"/><path d="m16.5 23 6.5 3.2 6.5-3.2M23 26.2v7.3" fill="none" stroke="#111113" stroke-width="1.4" stroke-linejoin="round"/>
 <path d="M39 24h7.2c1 0 1.8.5 2.4 1.4l4.2 7.1H39V24Z" fill="#fff" opacity=".28" stroke="#111113" stroke-width="2.2" stroke-linejoin="round"/>
 <g><ellipse class="avatar-eye eye-a" cx="43" cy="29" rx="1.45" ry="2.2" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="50" cy="29" rx="1.45" ry="2.2" fill="#111113"/></g><path d="M43 34c.7.9 1.5 1.3 2.3 1.3s1.6-.4 2.3-1.3" fill="none" stroke="#111113" stroke-width="1.8" stroke-linecap="round"/><circle cx="40" cy="34" r="1.1" fill="#ef927f"/><circle cx="53" cy="34" r="1.1" fill="#ef927f"/>
-<path d="M55 37h2" stroke="#f5b942" stroke-width="2.5" stroke-linecap="round"/><circle cx="15.5" cy="47" r="5.5" fill="#f3f3f5"/><circle cx="15.5" cy="47" r="2.6" fill="#4c8dff"/><circle cx="42.5" cy="47" r="5.5" fill="#f3f3f5"/><circle cx="42.5" cy="47" r="2.6" fill="#4c8dff"/>
+<path d="M55 37h2" stroke="#f5b942" stroke-width="2.5" stroke-linecap="round"/><circle cx="15.5" cy="47" r="5.5" fill="#f3f3f5"/><circle cx="15.5" cy="47" r="2.6" fill="{c}"/><circle cx="42.5" cy="47" r="5.5" fill="#f3f3f5"/><circle cx="42.5" cy="47" r="2.6" fill="{c}"/>
 </g>`,
     };
     const labels={bulb:'Lightbulb', laptop:'Laptop', shield:'Shield', cart:'Shopping cart', car:'Car', parcel:'Parcel', magnifier:'Magnifier', tag:'Price tag', wallet:'Wallet', van:'Delivery van'};
@@ -3174,348 +1753,205 @@ require_passkey_webauthn: true`;
     const c=safeAvatarColor(color);
     return `<svg class="agent-avatar-art" viewBox="${views[key]}" role="img" aria-label="${labels[key]} avatar">${shapes[key].replaceAll('{c}',c)}</svg>`;
   }
-  function avatarKindFor(ag) { return ag.avatar || avatarDefaults[ag.id] || 'bulb'; }
-  function setAvatar(el, ag, avatarKind) {
-    if (!el) return;
-    const color=safeAvatarColor(ag.color);
-    const kind=avatarKind || avatarKindFor(ag);
-    el.style.background='transparent';
-    el.style.border='0';
-    el.style.borderRadius='0';
-    el.style.boxShadow='none';
-    el.classList.remove('shape-sphere','shape-cloud','shape-diamond','shape-shield','shape-capsule');
-    el.classList.add('object-avatar');
-    el.innerHTML=objectAvatarSvg(kind,color);
-  }
-  function initAvatars() {
-    document.querySelectorAll('.dot-avatar').forEach(el => {
-      const row=el.closest('.agent-row');
-      const id=row?.dataset.agentId || (el.id==='callDotAvatar' ? 'crew' : 'crew');
-      const ag=el.id==='setupPreviewDot' ? {id:'new-agent',color:setupChosenColor,avatar:setupChosenAvatar} : (agents[id]||agents.crew);
-      setAvatar(el,ag,avatarKindFor(ag));
-    });
-    document.querySelectorAll('[data-avatar-kind]').forEach(el=>{
-      const colors={bulb:'#f5b942', laptop:'#32d583', shield:'#4c8dff', cart:'#f39b91', car:'#b57cff', parcel:'#e7a94b', magnifier:'#88d7c2', tag:'#f5b942', wallet:'#b57cff', van:'#4c8dff'};
-      el.innerHTML=objectAvatarSvg(el.dataset.avatarKind,colors[el.dataset.avatarKind]);
-    });
-    document.querySelectorAll('[data-crew-avatar]').forEach(el=>{
-      const colors={bulb:'#f5b942',laptop:'#32d583',shield:'#4c8dff'};
-      const icon=objectAvatarSvg(el.dataset.crewAvatar,colors[el.dataset.crewAvatar]);
-      // Group-cluster marks use black object outlines on a single ivory circle background.
-      el.innerHTML=icon.replaceAll('stroke="#f3f3f5"','stroke="#111113"').replaceAll('stroke="#fff"','stroke="#111113"');
-    });
-  }
-  function buildAgentConversation(ag) {
-    const snippets = {
-      nova: ['This is a product-research preview using sample data; no catalog is connected.','Illustrative sample only: 14 ceramic-set results with example prices. No Channel3 or merchant search was made.'],
-      atlas: ['This interface is showing a sample seller-conversation flow. No phone or seller is connected.','Example seller transcript: a matte-black bundle and $78.50 quote are shown as sample data. No seller was contacted.'],
-      aegis: ['This sample illustrates the payment boundary; no transaction is active.','Illustrative approval screen only. There is no authorization, card connection, or registered passkey.'],
-      watcher: ['This price-watch configuration is illustrative and inactive.','Example Sony price target: $290. No product polling or notification is running.']
-    };
-    const [lead, detail] = snippets[ag.id] || [`Example profile, not active: ${escapeHtml(ag.sub)}.`,`Illustrative goal: ${escapeHtml(ag.goal)}. I have ${ag.apps.length} selected preview surfaces (not connected), with a sample $${Number(ag.budget).toFixed(2)} per-order cap.`];
-    return `<div class="agent-msg-row"><div class="dot-avatar" style="background:${ag.color};width:32px;height:32px;margin-top:2px;"></div><div class="agent-msg-body"><div class="msg-sender-line"><span class="msg-sender">${escapeHtml(ag.name)}</span><span class="msg-badge">${escapeHtml(ag.sub)}</span></div><div class="msg-text">${lead}</div></div></div><div class="agent-msg-row" id="computerCardAnchor"><div class="dot-avatar" style="background:${ag.color};width:32px;height:32px;margin-top:2px;"></div><div class="agent-msg-body"><div class="msg-sender-line"><span class="msg-sender">${escapeHtml(ag.name)}</span><span class="msg-badge">Computer preview - ${ag.apps.length} app selections</span></div><div class="msg-text">${detail}</div><div class="grok-computer-card"><div class="comp-top"><div class="comp-title"><span>Computer</span></div><span class="comp-status-pill" id="compControlBadge">Preview only</span></div><div class="comp-sub" id="compSubText">${escapeHtml(ag.goal)}</div><div class="comp-wallpaper" style="min-height:112px;display:flex;align-items:center;justify-content:center"><div style="text-align:center;color:#e9e9ef"><div style="font-size:11px;color:#9a9aa2;letter-spacing:.12em;text-transform:uppercase">Example surfaces</div><div style="margin-top:10px;font-size:13px">${escapeHtml(ag.apps.join(' - '))}</div><div style="margin-top:8px;color:#9a9aa2;font-size:11px">${escapeHtml(ag.phone)}</div></div></div><div class="comp-footer"><div class="comp-btn-group"><button class="pill-btn light" id="takeOverBtn" type="button" disabled>Take over unavailable</button><button class="pill-btn dark" type="button" disabled>Runtime unavailable</button></div><span class="computer-focus-note">Prototype - demo data</span></div>${runDetailsMarkup(ag)}</div></div></div>`;
-  }
-  const masterPolicyState={runCap:250,dailyCap:1000,blockedPayees:['attacker@evil.com','drained-wallet@offshore.io']};
-  function updateMasterPolicy(kind,value){
-    const n=Number(value); if(kind==='run'){masterPolicyState.runCap=n;document.getElementById('masterRunCapDisplay').textContent=`$${n.toFixed(0)} - preview`;}
-    else{masterPolicyState.dailyCap=n;document.getElementById('masterDailyCapDisplay').textContent=`$${n.toFixed(0)} - preview`;}
-  }
-  function addBlockedPayee(){const input=document.getElementById('newBlockedPayee'),v=input.value.trim();if(!v)return;if(!masterPolicyState.blockedPayees.includes(v))masterPolicyState.blockedPayees.push(v);document.getElementById('masterBlockedPayees').textContent=masterPolicyState.blockedPayees.join(', ');input.value='';}
-  function beginVaultConsent(){showToast('PayPal sandbox consent flow preview started. No PayPal redirect, token or vault credential is created.');}
-  function runDetailsMarkup(ag) {
-    const group = ag.id === 'crew' || ag.id === 'nova' || ag.id === 'atlas';
-    const web = group ? 'Illustrative sample prices: $92.00, $78.50, and $84.20. No product or merchant lookup was performed.' : `Preview goal: ${escapeHtml(ag.goal)}. Example allowlist labels only: ${escapeHtml((ag.domains || []).join(', '))}. No merchant was queried.`;
-    return `<details class="run-details"><summary>Run surfaces, activity &amp; proof <span>Expand</span></summary><div class="run-detail-shell"><div class="run-surface-tabs" role="tablist"><button class="run-surface-tab active" onclick="switchRunSurface('web',this)">Web</button><button class="run-surface-tab" onclick="switchRunSurface('phone',this)">Phone / ADB - deferred preview</button><button class="run-surface-tab" onclick="switchRunSurface('timeline',this)">Timeline &amp; steer</button><button class="run-surface-tab" onclick="switchRunSurface('proof',this)">Mandate &amp; receipt</button></div><section class="run-surface-panel active" data-surface="web"><div class="run-preview-label">KERNEL browser - sample preview - not a live merchant session</div><div class="sample-product"><span>${web}</span><strong>Compare</strong><small>Check landed price, allowed domain, fee creep and spend envelope before hold.</small></div></section><section class="run-surface-panel" data-surface="phone"><div class="run-preview-label">Android viewport - ADB / simulator - demo transcript</div><div class="phone-preview-line"><b>Surface</b><span>${escapeHtml(ag.phone)}</span></div><div class="phone-preview-line"><b>Seller promise</b><span>Quote and UI-tree evidence attach to the run record.</span></div><button class="pill-btn dark" onclick="openGeneralOverlay('device')">Deferred mobile/ADB preview settings</button></section><section class="run-surface-panel" data-surface="timeline"><div class="run-preview-label">Example workflow - no run was executed</div><ol class="run-timeline-list"><li><b>PLANNING - example</b><span>No agent runtime is connected</span></li><li><b>NEGOTIATING - not performed</b><span>No products or sellers were contacted</span></li><li><b>HELD - not performed</b><span>No PayPal authorization was made</span></li><li><b>APPROVED - not performed</b><span>Desktop WebAuthn is planned, not connected</span></li><li><b>CAPTURED - not performed</b><span>No receipt, capture, or refund exists</span></li></ol><div class="steer-row"><input class="form-input steer-input" placeholder="Steering unavailable in this preview" disabled/><button class="pill-btn light" type="button" disabled>Steering unavailable</button></div><div class="steer-feedback">UI preview only; no active orchestrator connected.</div><button class="pill-btn dark" type="button" disabled>Sentinel test unavailable</button></section><section class="run-surface-panel" data-surface="proof"><div class="run-preview-label">Mandate, proof and receipt - illustrative values</div><div class="proof-grid"><span>Amount / payee</span><b>Example only - no policy run</b><span>Evidence</span><b>None - sample schema only</b><span>Signature</span><b>None - desktop WebAuthn planned</b><span>Receipt</span><b>None - sample schema only</b><span>Skill</span><b>Local skill preview - checksum only</b></div><button class="pill-btn dark" onclick="openGeneralOverlay('receipts')">Flight-Box receipt &amp; refund</button><button class="pill-btn dark" onclick="openAgentOverlay('skills')">Export this agent's SKILL.md</button></section></div></details>`;
-  }
-  function switchRunSurface(key, btn) {
-    const shell = btn.closest('.run-detail-shell');
-    shell.querySelectorAll('.run-surface-tab').forEach(b => b.classList.remove('active'));
-    shell.querySelectorAll('.run-surface-panel').forEach(p => p.classList.toggle('active', p.dataset.surface === key));
-    btn.classList.add('active');
-  }
-  function pushSteerEvent(btn) {
-    const shell = btn.closest('.run-detail-shell');
-    const input = shell.querySelector('.steer-input');
-    const feedback = shell.querySelector('.steer-feedback');
-    const cue = input.value.trim();
-    if (!cue) { feedback.textContent = 'Add a short steering instruction first.'; return; }
-    feedback.textContent = `STEER PREVIEW queued: "${cue}". Runtime orchestration is not connected yet.`;
-    const list = shell.querySelector('.run-timeline-list');
-    if (list) { const li=document.createElement('li'); li.innerHTML='<b>STEER - PREVIEW</b><span></span>'; li.querySelector('span').textContent=cue; list.appendChild(li); }
-    input.value='';
-  }
-  function startJudgeTour() {
-    const stream=document.getElementById('streamInner');
-    const card=document.createElement('div'); card.className='judge-tour-card';
-    card.innerHTML='<div class="d-card-lbl"><span>60-second Judge Tour</span><span class="tour-state">Step 1 of 5 - Preview</span></div><ol><li>State a shopping goal</li><li>View example web and deferred-mobile screens</li><li>View Sentinel and steering interface preview</li><li>Review sample authorization / mandate fields</li><li>View desktop WebAuthn plan; no approval or capture</li></ol><div class="d-card-sub">Guided interface tour with sample data. No account, phone, live API or money movement is used here.</div><div style="display:flex;gap:8px;margin-top:10px"><button class="pill-btn light" onclick="advanceJudgeTour(this)">Next tour step</button><button class="pill-btn dark" onclick="virtualKeyfobPreview(this)">Virtual keyfob - demo</button></div><div class="steer-feedback tour-result" aria-live="polite">Demo mode - no real approval or capture.</div>';
-    stream.appendChild(card); document.getElementById('chatStream').scrollTop=document.getElementById('chatStream').scrollHeight;
-  }
-  function advanceJudgeTour(btn) {
-    const card=btn.closest('.judge-tour-card'), state=card.querySelector('.tour-state');
-    let step=Number(state.dataset.step || 1)+1; if(step>5) step=1; state.dataset.step=step; state.textContent=`Step ${step} of 5 - Preview`;
-    const labels=['Prompt entered - sample products are ready','Web + phone comparison preview','Sentinel and steering controls preview','Authorization / mandate details preview','Receipt and refund options preview'];
-    card.querySelector('.tour-result').textContent=labels[step-1]+' - no live service is called.';
-  }
-  function virtualKeyfobPreview(btn) { btn.closest('.judge-tour-card').querySelector('.tour-result').textContent='Virtual keyfob accepted for tour preview only. No WebAuthn assertion or PayPal capture was made.'; }
-  function downloadCurrentSkill() {
-    const ag=agents[currentAgentId]; const text=document.getElementById('agentSkillPre').textContent;
-    const blob=new Blob([`# ${ag.name} - Safe SKILL
 
-${text}
-`],{type:'text/markdown'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${ag.id}-SKILL.md`; a.click(); URL.revokeObjectURL(a.href);
-  }
-  function showToast(message) { const el=document.createElement('div'); el.className='steer-feedback'; el.textContent=message; document.getElementById('streamInner').appendChild(el); }
+  const localReviewFixture = {
+    user: { id: 'usr_review_fixture', email: 'reviewer@example.test', displayName: 'Review Account' },
+    workspace: { id: 'ws_review_fixture', name: 'Review Workspace', status: 'active', role: 'owner' },
+    onboarding: {
+      status: 'completed',
+      completedAt: '2026-10-27T00:00:00.000Z',
+      profile: { agent: { name: 'Route Scout', role: 'Read-only assistant', avatar: 'bulb', color: '#32d583' } },
+      agent: {
+        id: 'onb_review_fixture', name: 'Route Scout', role: 'Read-only assistant', avatar: 'bulb', status: 'paused',
+        settings: { color: '#32d583' },
+      },
+    },
+  };
 
-  window.agentConversationCache = { crew: document.getElementById('streamInner').innerHTML };
-  window.previousAgentId = 'crew';
-  function renderMemoryPills() {
-    const ag=agents[currentAgentId], host=document.getElementById('memoryPills');
-    if (!host || !ag) return;
-    host.innerHTML='<span>Example preferences</span>';
-    (ag.memoryPills || []).forEach((label,index)=>{
-      const b=document.createElement('button'); b.className='memory-pill'; b.textContent=label; b.dataset.memoryIndex=index;
-      if ((ag.disabledMemoryPills || []).includes(label)) b.classList.add('off');
-      b.onclick=()=>toggleMemory(b); host.appendChild(b);
-    });
-    if (!(ag.memoryPills || []).length) { const empty=document.createElement('span'); empty.textContent='No saved preferences'; empty.className='computer-focus-note'; host.appendChild(empty); }
+  function isLocalReviewHost() {
+    const hostname = location.hostname.toLocaleLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.e2b.app');
   }
-  function toggleMemory(btn) {
-    const ag=agents[currentAgentId]; if(!ag) return;
-    const label=btn.textContent; ag.disabledMemoryPills=ag.disabledMemoryPills||[];
-    if(ag.disabledMemoryPills.includes(label)) ag.disabledMemoryPills=ag.disabledMemoryPills.filter(x=>x!==label); else ag.disabledMemoryPills.push(label);
-    btn.classList.toggle('off'); savePreviewAgents();
-  }
-  function setRunMode(btn) {
-    document.querySelectorAll('.mode-pill').forEach(x=>x.classList.remove('active'));
-    btn.classList.add('active');
-    const mode=btn.dataset.mode;
-    if (mode==='takeover') { userControlling=true; }
-    if (mode==='autonomous') { userControlling=false; }
-    const sub=document.getElementById('compSubText');
-    if (sub) sub.textContent = mode==='steer' ? 'Steer mode - send a message to redirect the next step' : mode==='takeover' ? 'No computer runtime is connected' : 'Autonomous mode - agent proceeds within its spend and merchant limits';
-  }
-  document.getElementById('chatInput').addEventListener('input', e => document.body.classList.toggle('typing-mode', e.target.value.length > 0));
-  document.getElementById('chatInput').addEventListener('blur', () => document.body.classList.remove('typing-mode'));
-  initAvatars();
-  renderMemoryPills();
 
-  const PREVIEW_AGENT_STORAGE_KEY = 'kuesPreviewAgentsV1';
-  const BUILT_IN_AGENT_IDS = new Set(['crew','nova','atlas','aegis','watcher']);
-  const SAFE_PREVIEW_AVATARS = new Set(['bulb','laptop','shield','cart','car','parcel','magnifier','tag','wallet','van']);
-  function savePreviewAgents() {
-    const entries = Object.values(agents).filter(agent => !BUILT_IN_AGENT_IDS.has(agent.id)).slice(-20).map(agent => ({
-      id: agent.id, name: agent.name, sub: agent.sub, color: agent.color, avatar: agent.avatar,
-      budget: agent.budget, dailyBudget: agent.dailyBudget, apps: agent.apps, goal: agent.goal,
-      domains: agent.domains, memoryPills: agent.memoryPills, cardId: agent.cardId,
-      approvalPath: agent.approvalPath || 'preview-only'
-    }));
-    try { localStorage.setItem(PREVIEW_AGENT_STORAGE_KEY, JSON.stringify(entries)); } catch {}
+  function renderLocalReviewFixture() {
+    renderAuthenticatedWorkspace(localReviewFixture);
+    document.documentElement.dataset.reviewFixture = 'true';
+    const badge = document.getElementById('sampleReviewBadge');
+    if (badge) badge.hidden = false;
+    textById('accountMenuLabel', 'Sample review account');
+    textById('accountMenuWorkspace', 'Review Workspace - Sample data');
+    const row = document.getElementById('savedAgentRow');
+    if (row) row.setAttribute('aria-label', 'Sample review agent profile, status Paused, display only');
   }
-  function addPreviewAgentRow(agent) {
-    const list = document.getElementById('agentList');
-    const existing = [...list.querySelectorAll('.agent-row')].find(row => row.dataset.agentId === agent.id);
-    if (existing) return existing;
-    const row = document.createElement('div'); row.className='agent-row'; row.dataset.agentId=agent.id;
-    const avatar=document.createElement('div'); avatar.className='dot-avatar'; avatar.style.background=agent.color;
-    const meta=document.createElement('div'); meta.className='agent-meta';
-    const top=document.createElement('div'); top.className='agent-top';
-    const name=document.createElement('span'); name.className='agent-name'; name.textContent=agent.name;
-    const time=document.createElement('span'); time.className='agent-time'; time.textContent='preview'; top.append(name,time);
-    const sub=document.createElement('div'); sub.className='agent-preview'; sub.textContent=agent.sub;
-    meta.append(top,sub); row.append(avatar,meta); row.onclick=()=>selectTeammate(agent.id,row);
-    list.prepend(row); setAvatar(avatar,agent,agent.avatar); return row;
-  }
-  function restorePreviewAgents() {
-    try {
-      const stored=JSON.parse(localStorage.getItem(PREVIEW_AGENT_STORAGE_KEY)||'[]');
-      if (!Array.isArray(stored)) return;
-      stored.slice(0,20).forEach(item=>{
-        if (!item || typeof item!=='object' || !/^[a-z0-9_-]{1,64}$/i.test(item.id||'') || agents[item.id]
-            || typeof item.name!=='string' || !item.name.trim() || item.name.length>30
-            || typeof item.sub!=='string' || item.sub.length>60) return;
-        const color=safeAvatarColor(item.color), avatar=SAFE_PREVIEW_AVATARS.has(item.avatar)?item.avatar:'bulb';
-        const budget=Number.isFinite(item.budget)&&item.budget>0&&item.budget<=5000?item.budget:85;
-        const dailyBudget=Number.isFinite(item.dailyBudget)&&item.dailyBudget>0&&item.dailyBudget<=20000?item.dailyBudget:250;
-        const apps=Array.isArray(item.apps)?item.apps.filter(id=>masterAppsCatalog.some(app=>app.id===id)).slice(0,masterAppsCatalog.length):[];
-        const domains=Array.isArray(item.domains)?item.domains.filter(d=>typeof d==='string'&&/^[a-z0-9.-]{1,253}$/i.test(d)).slice(0,20):[];
-        const memoryPills=Array.isArray(item.memoryPills)?item.memoryPills.filter(v=>typeof v==='string'&&v.length<=80).slice(0,20):[];
-        const agent={id:item.id,name:item.name.trim(),handle:`@${item.id}.kues`,sub:item.sub,color,avatar,glyph:'spark',email:`${item.id}@kues.example`,phone:'Preview only - no authenticator connected',cardId:masterCards.some(c=>c.id===item.cardId)?item.cardId:masterCards[0].id,budget,dailyBudget,apps,goal:typeof item.goal==='string'?item.goal.slice(0,240):'Preview goal',domains,memoryPills,approvalPath:item.approvalPath||'preview-only'};
-        agents[agent.id]=agent; addPreviewAgentRow(agent);
-      });
-    } catch {}
-  }
-  function applyPendingOnboardingSetup() {
-    let raw=null; try { raw=sessionStorage.getItem('cueclawInitialSetup'); } catch {}
-    if(!raw){try{raw=localStorage.getItem('cueclawOnboardingProfileV1')}catch{}}
-    if(raw){
-      try {
-        const setup=JSON.parse(raw); try{sessionStorage.removeItem('cueclawInitialSetup')}catch{}
-        const cleanName=String(setup.name||'Scout').trim().slice(0,30)||'Scout';
-        const base=cleanName.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,24)||'scout';
-        let id=/^preview_[a-z0-9_-]{1,40}$/i.test(setup.previewId||'')?setup.previewId:`preview_${base}`;
-        if(BUILT_IN_AGENT_IDS.has(id))id=`preview_${base}`;
-        if(!agents[id]){
-          const role=String(setup.role||'Web & commerce scout').trim().slice(0,60)||'Web & commerce scout';
-          const color=safeAvatarColor(setup.color), avatar=SAFE_PREVIEW_AVATARS.has(setup.avatar)?setup.avatar:'bulb';
-          const budget=Number.isFinite(setup.orderCap)&&setup.orderCap>=20&&setup.orderCap<=500?setup.orderCap:85;
-          const dailyBudget=Number.isFinite(setup.dailyCap)&&setup.dailyCap>=100&&setup.dailyCap<=2000?setup.dailyCap:250;
-          const agent={id,name:cleanName,handle:`@${id}.kues`,sub:role,color,glyph:'spark',avatar,email:`${id}@kues.example`,phone:'Desktop WebAuthn planned - not connected',approvalPath:setup.approvalPath==='desktop'?'desktop':'preview-only',cardId:masterCards[0].id,budget,dailyBudget,apps:Array.isArray(setup.apps)?setup.apps.filter(x=>masterAppsCatalog.some(app=>app.id===x)):[],goal:'Explore the workspace preview and set a first goal',domains:[],memoryPills:Array.isArray(setup.memoryPills)?setup.memoryPills.filter(v=>typeof v==='string'&&v.length<=80):[]};
-          agents[id]=agent; savePreviewAgents();
-          masterPolicyState.runCap=agent.budget; masterPolicyState.dailyCap=agent.dailyBudget;
-          document.getElementById('masterRunCapSlider').value=agent.budget; document.getElementById('masterDailyCapSlider').value=agent.dailyBudget;
-          document.getElementById('masterRunCapDisplay').textContent=`$${agent.budget.toFixed(0)} - preview`; document.getElementById('masterDailyCapDisplay').textContent=`$${agent.dailyBudget.toFixed(0)} - preview`;
-          const row=addPreviewAgentRow(agent); selectTeammate(id,row);
-        } else if (!BUILT_IN_AGENT_IDS.has(id)) {
-          const row=[...document.querySelectorAll('#agentList .agent-row')].find(item=>item.dataset.agentId===id);
-          if(row) selectTeammate(id,row);
-        }
-      } catch(e) { console.warn('Could not apply onboarding preview',e); }
-    }
-    let pending='';try{pending=sessionStorage.getItem('cueclawPendingSettings');sessionStorage.removeItem('cueclawPendingSettings')}catch{}
-    const routeSetting=new URLSearchParams(location.search).get('settings')||pending;
-    if(routeSetting==='device')openGeneralOverlay('device');
-  }
-  initAvatars();
-  renderMemoryPills();
 
-  const loadingNumberFormat = new Intl.NumberFormat('en-US');
-  const textById = (id, value) => { const node=document.getElementById(id); if(node) node.textContent=String(value ?? ''); };
-  const getProfileAgent = data => data?.onboarding?.profile?.agent || {};
-  function allowanceLabel(access) {
-    if (access?.allowed !== true) return access?.state === 'usage_not_configured' ? 'Not configured' : 'Unavailable';
-    const limit=Number(access.tokenLimit);
-    return Number.isSafeInteger(limit) && limit >= 0 ? `${loadingNumberFormat.format(limit)} tokens/day` : 'Active';
+  function setWorkspaceUnavailable() {
+    const row = document.getElementById('savedAgentRow');
+    if (row) row.hidden = true;
+    const badge = document.getElementById('sampleReviewBadge');
+    if (badge) badge.hidden = true;
+    textById('accountName', 'Account unavailable');
+    textById('accountEmail', 'Could not load account details');
+    textById('accountMenuLabel', 'Account status unavailable');
+    textById('accountMenuEmail', 'Could not load account details');
+    textById('accountMenuWorkspace', 'Workspace unavailable');
+    textById('hdrName', 'Workspace');
+    textById('hdrSub', 'Workspace data unavailable');
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) { chatInput.disabled = true; chatInput.placeholder = 'Workspace data unavailable'; }
+    const chatSendButton = document.getElementById('chatSendButton');
+    if (chatSendButton) chatSendButton.disabled = true;
+    textById('chatPreviewNote', 'Workspace data could not be loaded; messaging is unavailable.');
   }
+
   function renderAuthenticatedWorkspace(data) {
-    const user=data?.user||{}, workspace=data?.workspace||{}, onboarding=data?.onboarding||{}, access=data?.usageAccess||{};
-    if(!user.id){location.replace('/login?auth_error=session');return;}
-    const email=String(user.email||'').trim()||'Keus account';
-    const displayName=String(user.displayName||'').trim()||email;
-    const workspaceName=String(workspace.name||'Keus workspace');
-    const profileAgent=getProfileAgent(data);
-    const agent=onboarding.agent||{};
-    const settings=agent.settings||{};
-    const completed=onboarding.status==='completed';
-    const payment=onboarding.profile?.payment||{};
-    const paymentState=payment.connected===true?'PayPal connected':(payment.choice?'PayPal not connected':(completed?'Payment not connected':'Payment setup not started'));
-    const name=String(agent.name||profileAgent.name||'');
-    const role=String(agent.role||profileAgent.role||'');
-    const avatar=String(agent.avatar||profileAgent.avatar||'bulb');
-    const color=String(profileAgent.color||settings.color||'#32d583');
-    const tokenAllowance=allowanceLabel(access);
-    textById('workspaceName',workspaceName);
-    textById('workspaceEmail',email);
-    textById('accountName',displayName);
-    textById('accountEmail',email);
-    textById('accountMenuEmail',email);
-    textById('accountMenuWorkspace',`${workspaceName} - ${workspace.role==='owner'?'Owner':(workspace.role||'Member')}`);
-    textById('savedSetupName',completed?(name||'Saved setup'):'No setup saved');
-    textById('savedSetupRole',completed?(role||'Role not provided'):'Complete workspace setup to add a profile');
-    textById('savedPaymentState',paymentState);
-    textById('savedSetupState',completed?'Saved profile, not running':'Setup not started');
-    textById('allowanceShort',tokenAllowance);
-    const initials=(displayName.trim().charAt(0)||'K').toLocaleUpperCase();
-    textById('accountAvatar',initials);
-    const avatarHost=document.getElementById('savedAgentAvatar');
-    if(avatarHost) avatarHost.innerHTML=objectAvatarSvg(avatar, safeAvatarColor(color));
-    const setupButton=document.getElementById('newAgentButton');
-    const setupLabel=document.getElementById('newAgentButtonLabel');
-    if(setupButton){setupButton.dataset.destination=completed?'/app':'/onboarding';setupButton.title=completed?'Open your account dashboard':'Complete your workspace setup';}
-    if(setupLabel) setupLabel.textContent=completed?'Workspace':'Set up';
-    const setupState=completed?'Saved setup profile':'No agent setup saved';
-    const banner=document.querySelector('.preview-status-banner');
-    if(banner){
-      const strong=banner.querySelector('strong'); if(strong) strong.textContent='Authenticated workspace preview';
-      const copy=banner.querySelector('span'); if(copy) copy.textContent=`${workspaceName} and this signed-in account are connected. Example threads, app selections, computer panels, and payment details are illustrative; no agent runs, messages, token usage, or payments occur.`;
+    const user = data?.user || {};
+    const workspace = data?.workspace || {};
+    const onboarding = data?.onboarding || {};
+    if (!user.id) {
+      location.replace('/login?auth_error=session');
+      return;
     }
-    document.body.dataset.setupState=setupState;
+    delete document.documentElement.dataset.reviewFixture;
+    const reviewBadge = document.getElementById('sampleReviewBadge');
+    if (reviewBadge) reviewBadge.hidden = true;
+    textById('accountMenuLabel', 'Signed in as');
+
+    const email = String(user.email || '').trim();
+    const displayName = String(user.displayName || '').trim() || email || 'Keus account';
+    const workspaceName = String(workspace.name || '').trim() || 'Workspace';
+    const profileAgent = onboarding.profile?.agent || {};
+    const agent = onboarding.agent || profileAgent;
+    const name = String(agent.name || '').trim();
+    const role = String(agent.role || '').trim();
+    const avatarKind = String(agent.avatar || profileAgent.avatar || 'bulb');
+    const avatarColor = String(agent.settings?.color || agent.color || profileAgent.color || '#32d583');
+    const hasSavedAgent = Boolean(onboarding.status === 'completed' && agent.id && name);
+    const rawStatus = String(agent.status || '').trim().toLowerCase();
+    const statusLabel = ({ active: 'Active', paused: 'Paused', archived: 'Archived' })[rawStatus] || 'Status unavailable';
+
+    const row = document.getElementById('savedAgentRow');
+    if (row) {
+      row.hidden = !hasSavedAgent;
+      row.style.display = '';
+      row.classList.toggle('active', hasSavedAgent);
+      row.setAttribute('aria-label', `Saved agent profile, active chat, status ${statusLabel}, display only`);
+    }
+    textById('savedAgentName', name || 'Saved agent');
+    textById('savedAgentStatus', statusLabel);
+    textById('savedAgentRole', role || 'Role not set');
+
+    const avatarSvg = hasSavedAgent ? objectAvatarSvg(avatarKind, avatarColor) : '';
+    const savedAvatar = document.getElementById('savedAgentAvatar');
+    const headerAvatar = document.getElementById('hdrAvatar');
+    if (savedAvatar) savedAvatar.innerHTML = avatarSvg;
+    if (headerAvatar) headerAvatar.innerHTML = avatarSvg;
+    textById('hdrName', hasSavedAgent ? name : workspaceName);
+    textById('hdrSub', hasSavedAgent ? statusLabel : 'No saved agent');
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+      const placeholder = hasSavedAgent ? `Message ${name}...` : 'Messaging unavailable in this preview';
+      chatInput.disabled = !hasSavedAgent;
+      chatInput.placeholder = placeholder;
+      chatInput.setAttribute('aria-label', placeholder);
+    }
+    const chatSendButton = document.getElementById('chatSendButton');
+    if (chatSendButton) chatSendButton.disabled = true;
+    textById('chatPreviewNote', hasSavedAgent ? 'Messaging is not connected in this preview.' : 'Save an agent to use the message composer.');
+
+    textById('accountName', displayName);
+    textById('accountEmail', email || 'Email unavailable');
+    textById('accountMenuEmail', email || 'Email unavailable');
+    const rawWorkspaceRole = String(workspace.role || '').trim();
+    const roleLabel = rawWorkspaceRole ? rawWorkspaceRole.charAt(0).toLocaleUpperCase() + rawWorkspaceRole.slice(1) : '';
+    textById('accountMenuWorkspace', `${workspaceName}${roleLabel ? ` - ${roleLabel}` : ''}`);
+    textById('accountAvatar', displayName.trim().charAt(0).toLocaleUpperCase() || 'K');
+    filterTeammates(document.getElementById('agentSearchInput')?.value || '');
   }
-  async function loadAuthenticatedWorkspace(){
-    try{
-      const response=await fetch('/api/workspace/bootstrap',{credentials:'same-origin',headers:{Accept:'application/json'}});
-      let data={};try{data=await response.json()}catch{}
-      if(response.status===401){location.replace('/login?auth_error=session');return;}
-      if(!response.ok) throw new Error(data.error||'workspace_load_failed');
+
+  async function loadAuthenticatedWorkspace() {
+    try {
+      const response = await fetch('/api/workspace/bootstrap', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      if (!response.ok) {
+        if (isLocalReviewHost() && response.status === 503 && data.error === 'auth_storage_not_configured') {
+          renderLocalReviewFixture();
+          return;
+        }
+        throw new Error(data.error || 'workspace_load_failed');
+      }
       renderAuthenticatedWorkspace(data);
-    }catch{
-      textById('workspaceName','Workspace unavailable');
-      textById('workspaceEmail','Could not load account details');
-      textById('accountName','Account unavailable');
-      textById('accountEmail','Could not load account details');
-      textById('accountMenuEmail','Could not load account details');
-      textById('accountMenuWorkspace','Workspace unavailable');
-      textById('savedSetupName','Setup unavailable');
-      textById('savedSetupRole','Retry after checking your connection');
-      textById('savedPaymentState','Payment setup unavailable');
-      textById('savedSetupState','Unavailable');
-      textById('allowanceShort','Unavailable');
-      const strong=document.querySelector('.preview-status-banner strong');
-      const copy=document.querySelector('.preview-status-banner span');
-      if(strong) strong.textContent='Workspace data unavailable';
-      if(copy) copy.textContent='The account and workspace could not be loaded. No demo actions are connected to real services.';
+    } catch {
+      setWorkspaceUnavailable();
     }
   }
 
-  function goToWorkspaceSetup(){
-    const target=document.getElementById('newAgentButton')?.dataset.destination||'/onboarding';
-    location.assign(target);
+  const accountMenuButton = document.getElementById('accountMenuToggle');
+  const accountMenuPanel = document.getElementById('accountMenu');
+  function setAccountMenuOpen(open) {
+    if (!accountMenuButton || !accountMenuPanel) return;
+    accountMenuPanel.hidden = !open;
+    accountMenuButton.setAttribute('aria-expanded', String(open));
   }
-  const accountMenuButton=document.getElementById('accountMenuToggle');
-  const accountMenuPanel=document.getElementById('accountMenu');
-  function setAccountMenuOpen(open){if(!accountMenuButton||!accountMenuPanel)return;accountMenuPanel.hidden=!open;accountMenuButton.setAttribute('aria-expanded',String(open));}
-  accountMenuButton?.addEventListener('click',()=>setAccountMenuOpen(accountMenuPanel.hidden));
-  document.addEventListener('click',event=>{if(accountMenuPanel&&!accountMenuPanel.hidden&&!accountMenuPanel.contains(event.target)&&!accountMenuButton.contains(event.target))setAccountMenuOpen(false);});
-  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&accountMenuPanel&&!accountMenuPanel.hidden){setAccountMenuOpen(false);accountMenuButton.focus();}});
-
-  const themeButton=document.getElementById('themeToggle');
-  const themeLabel=document.getElementById('themeLabel');
-  const themeColor=document.getElementById('themeColor');
-  function applyKeusTheme(theme,save=false){
-    const selected=theme==='dark'?'dark':'light';
-    document.documentElement.dataset.theme=selected;
-    document.documentElement.style.colorScheme=selected;
-    const next=selected==='dark'?'light':'dark';
-    const label=`Switch to ${next} theme`;
-    if(themeButton){themeButton.setAttribute('aria-label',label);themeButton.setAttribute('title',label);themeButton.setAttribute('aria-pressed',String(selected==='dark'));}
-    if(themeLabel) themeLabel.textContent=label;
-    if(themeColor) themeColor.setAttribute('content',selected==='dark'?'#0d0e11':'#f3f6f1');
-    if(save){try{localStorage.setItem('keusTheme',selected)}catch{}}
-  }
-  applyKeusTheme(document.documentElement.dataset.theme||'dark');
-  themeButton?.addEventListener('click',()=>applyKeusTheme(document.documentElement.dataset.theme==='dark'?'light':'dark',true));
-  window.addEventListener('storage',event=>{if(event.key==='keusTheme'&&(event.newValue==='light'||event.newValue==='dark'))applyKeusTheme(event.newValue);});
-  document.getElementById('signOutButton')?.addEventListener('click',async event=>{
-    const button=event.currentTarget;button.disabled=true;
-    const label=button.querySelector('span');if(label)label.textContent='Signing out';
-    try{const response=await fetch('/api/auth/logout',{method:'POST',credentials:'same-origin'});if(!response.ok)throw new Error('logout_failed');location.assign('/');}
-    catch{button.disabled=false;if(label)label.textContent='Sign out';showToast('Sign out failed. Please try again.');}
+  accountMenuButton?.addEventListener('click', () => setAccountMenuOpen(accountMenuPanel.hidden));
+  document.addEventListener('click', (event) => {
+    if (accountMenuPanel && !accountMenuPanel.hidden &&
+        !accountMenuPanel.contains(event.target) && !accountMenuButton.contains(event.target)) {
+      setAccountMenuOpen(false);
+    }
   });
 
-  // Guard every action that could otherwise imply a real agent, message, device, or payment run.
-  const previewNotice=message=>showToast(message);
-  window.sendChat=()=>previewNotice('Messaging is unavailable. No message was sent and no reply was generated.');
-  window.handleQuoteFile=()=>previewNotice('Attachments are not processed in this preview.');
-  window.attachQuoteInChat=()=>previewNotice('Attachments are not processed in this preview.');
-  window.toggleCall=()=>previewNotice('Voice calls are not connected in this preview.');
-  window.toggleTakeOver=()=>previewNotice('No computer session is connected.');
-  window.resumeAgent=()=>previewNotice('No agent runtime is connected.');
-  window.setRunMode=()=>previewNotice('Agent run modes are display-only in this preview.');
-  window.approveWithPasskey=()=>previewNotice('No approval was made. PayPal and passkeys are not connected.');
-  window.voidHold=()=>previewNotice('No payment hold exists in this preview.');
-  window.refundOrder=()=>previewNotice('No payment or refund request was made.');
-  window.beginVaultConsent=()=>previewNotice('No PayPal consent flow was started.');
-  window.simulateInjection=()=>previewNotice('Sentinel is not connected to a live agent run.');
-  window.openNewAgentModal=()=>previewNotice('Additional agents are not available here. Use the saved workspace setup.');
-  window.submitNewAgentSetup=()=>previewNotice('This form is a design preview. No agent was created or launched.');
-  window.savePreviewAgents=()=>{};
-  document.querySelectorAll('.settings-modal,.new-agent-modal').forEach(modal=>{
-    const body=modal.querySelector('.modal-body')||modal.querySelector('.new-agent-body')||modal;
-    const notice=document.createElement('div');notice.className='modal-preview-notice';
-    notice.innerHTML='<strong>Preview settings only.</strong> Values and selections on this screen are not saved to your Keus workspace and do not connect services.';
-    body.prepend(notice);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (openOverlayId) {
+      const id = openOverlayId;
+      closeOverlay(id);
+      return;
+    }
+    if (accountMenuPanel && !accountMenuPanel.hidden) {
+      setAccountMenuOpen(false);
+      accountMenuButton?.focus();
+    }
   });
+
+  applyKeusTheme(document.documentElement.dataset.theme || 'dark');
+  try {
+    const storedTheme = localStorage.getItem('keusTheme');
+    if (storedTheme === 'light' || storedTheme === 'dark') applyKeusTheme(storedTheme);
+  } catch {}
+  document.getElementById('themeToggle')?.addEventListener('click', () => {
+    applyKeusTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true);
+  });
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'keusTheme' && (event.newValue === 'light' || event.newValue === 'dark')) {
+      applyKeusTheme(event.newValue);
+    }
+  });
+
+  document.getElementById('signOutButton')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    const label = button.querySelector('span');
+    if (label) label.textContent = 'Signing out';
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      if (!response.ok) throw new Error('logout_failed');
+      location.assign('/');
+    } catch {
+      button.disabled = false;
+      if (label) label.textContent = 'Sign out';
+      showToast('Sign out failed. Please try again.');
+    }
+  });
+
   loadAuthenticatedWorkspace();
-
 </script>
 </body>
 </html>
