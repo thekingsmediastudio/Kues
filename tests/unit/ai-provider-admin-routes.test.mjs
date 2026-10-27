@@ -108,13 +108,49 @@ test('AI provider creation route is same-origin, WorkOS-session and admin-allowl
       });
       assert.notEqual(stored.rows[0].api_key_ciphertext, testApiKey);
 
-      const methodNotAllowed = await fetch(endpoint, { headers: { Cookie: 'kues_session=admin-session' } });
-      assert.equal(methodNotAllowed.status, 405);
-      assert.equal(methodNotAllowed.headers.get('allow'), 'POST, OPTIONS');
+      const listedResponse = await fetch(endpoint, { headers: { Cookie: 'kues_session=admin-session' } });
+      assert.equal(listedResponse.status, 200);
+      const listed = await listedResponse.json();
+      assert.equal(listed.providers.length, 1);
+      assert.equal(Object.hasOwn(listed.providers[0], 'apiKey'), false);
+      assert.equal(JSON.stringify(listed).includes(testApiKey), false);
 
-      const runtimeDisabled = await aiProviderService.getProviderForRuntime({ providerKey: 'route-test-provider' })
-        .then(() => null, (error) => error);
-      assert.equal(runtimeDisabled.code, 'ai_provider_not_found');
+      const providerId = responseBody.provider.id;
+      const replacementKey = 'local_replacement_route_key_not_real';
+      const updatedResponse = await fetch(`${endpoint}/${encodeURIComponent(providerId)}`, {
+        method: 'PUT',
+        headers: { Cookie: 'kues_session=admin-session', Origin: origin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: 'Route Test Provider Updated',
+          apiProtocol: 'openai_chat',
+          baseUrl: 'https://api.provider.com/v1',
+          modelId: 'test-model-updated',
+          apiKey: replacementKey,
+          enabled: true,
+          isPrimary: true,
+        }),
+      });
+      assert.equal(updatedResponse.status, 200);
+      const updatedBody = await updatedResponse.json();
+      assert.equal(updatedBody.provider.displayName, 'Route Test Provider Updated');
+      assert.equal(updatedBody.provider.isPrimary, true);
+      assert.equal(JSON.stringify(updatedBody).includes(replacementKey), false);
+      assert.equal((await aiProviderService.getProviderForRuntime({ providerKey: 'route-test-provider' })).apiKey, replacementKey);
+
+      const methodNotAllowed = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { Cookie: 'kues_session=admin-session' },
+      });
+      assert.equal(methodNotAllowed.status, 405);
+      assert.equal(methodNotAllowed.headers.get('allow'), 'GET, POST, OPTIONS');
+
+      const deletedResponse = await fetch(`${endpoint}/${encodeURIComponent(providerId)}`, {
+        method: 'DELETE',
+        headers: { Cookie: 'kues_session=admin-session', Origin: origin },
+      });
+      assert.equal(deletedResponse.status, 200);
+      assert.deepEqual(await deletedResponse.json(), { deleted: true });
+      assert.deepEqual((await aiProviderService.listProviders()), []);
     });
   } finally {
     await db.close();

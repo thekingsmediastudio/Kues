@@ -24,6 +24,7 @@ const loginHtmlPath = path.join(publicDir, 'login.html');
 const authVerifyHtmlPath = path.join(publicDir, 'auth-verify.html');
 const pocketHtmlPath = path.join(publicDir, 'pocket.html');
 const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
+const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
   ['/keus-icon.svg', ['keus-icon.svg', 'image/svg+xml']],
@@ -447,19 +448,25 @@ async function handleAiProviderAdminRequest(req, res, url, { config, authService
     sendJson(res, 503, { error: 'ai_provider_admin_not_configured' });
     return true;
   }
-  if (url.pathname !== '/api/admin/ai-providers') {
+  const collectionPath = '/api/admin/ai-providers';
+  const providerMatch = url.pathname.match(/^\/api\/admin\/ai-providers\/([0-9a-f-]{36})$/i);
+  if (url.pathname !== collectionPath && !providerMatch) {
     sendJson(res, 404, { error: 'ai_provider_admin_route_not_found' });
     return true;
   }
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST, OPTIONS');
+  const readOnly = req.method === 'GET' && url.pathname === collectionPath;
+  const writeMethod = ['POST', 'PUT', 'DELETE'].includes(req.method);
+  if (!readOnly && !writeMethod) {
+    res.setHeader('Allow', providerMatch ? 'PUT, DELETE, OPTIONS' : 'GET, POST, OPTIONS');
     sendJson(res, 405, { error: 'method_not_allowed' });
     return true;
   }
-  const origin = requestOrigin(req);
-  if (!origin.present || !origin.valid || !origin.sameOrigin) {
-    sendJson(res, 403, { error: 'same_origin_required' });
-    return true;
+  if (writeMethod) {
+    const origin = requestOrigin(req);
+    if (!origin.present || !origin.valid || !origin.sameOrigin) {
+      sendJson(res, 403, { error: 'same_origin_required' });
+      return true;
+    }
   }
   if (!authService) {
     sendJson(res, 503, { error: 'auth_storage_not_configured' });
@@ -483,9 +490,28 @@ async function handleAiProviderAdminRequest(req, res, url, { config, authService
   }
 
   try {
-    const input = await readJsonBody(req, 16 * 1024);
-    const provider = await aiProviderService.createProvider({ input });
-    sendJson(res, 201, { provider });
+    if (req.method === 'GET') {
+      sendJson(res, 200, { providers: await aiProviderService.listProviders() });
+      return true;
+    }
+    if (req.method === 'POST' && url.pathname === collectionPath) {
+      const input = await readJsonBody(req, 16 * 1024);
+      const provider = await aiProviderService.createProvider({ input });
+      sendJson(res, 201, { provider });
+      return true;
+    }
+    if (req.method === 'PUT' && providerMatch) {
+      const input = await readJsonBody(req, 16 * 1024);
+      const provider = await aiProviderService.updateProvider({ providerId: providerMatch[1], input });
+      sendJson(res, 200, { provider });
+      return true;
+    }
+    if (req.method === 'DELETE' && providerMatch) {
+      const result = await aiProviderService.deleteProvider({ providerId: providerMatch[1] });
+      sendJson(res, 200, result);
+      return true;
+    }
+    sendJson(res, 404, { error: 'ai_provider_admin_route_not_found' });
   } catch (error) {
     if (error instanceof AiProviderError || error instanceof RequestError) {
       sendJson(res, error.status, { error: error.code });
@@ -1146,6 +1172,63 @@ export function createServer({
         } catch {
           res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
           res.end('API Hub page unavailable');
+        }
+        return;
+      }
+
+      if (url.pathname === '/admin/ai-providers') {
+        if (!activeConfig.aiProvidersEnabled || !aiProviderService) {
+          res.writeHead(404, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Robots-Tag': 'noindex, nofollow',
+          });
+          res.end('AI provider administration is not configured');
+          return;
+        }
+        if (!authService) {
+          sendJson(res, 503, { error: 'auth_storage_not_configured' });
+          return;
+        }
+        let adminUser = null;
+        try {
+          const token = cookieValue(req, sessionCookieName(activeConfig));
+          adminUser = token ? await authService.getSession({ token }) : null;
+        } catch {
+          adminUser = null;
+        }
+        if (!adminUser) {
+          redirect(res, '/login?auth_error=session');
+          return;
+        }
+        const allowedAdmins = Array.isArray(activeConfig.aiProviderAdminEmails)
+          ? activeConfig.aiProviderAdminEmails : [];
+        if (!allowedAdmins.includes(String(adminUser.email || '').trim().normalize('NFKC').toLowerCase())) {
+          res.writeHead(403, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'X-Robots-Tag': 'noindex, nofollow',
+          });
+          res.end('AI provider administrator access required');
+          return;
+        }
+        try {
+          const html = readHtml(aiProviderAdminHtmlPath);
+          res.writeHead(200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'no-store',
+            'Pragma': 'no-cache',
+            'X-Robots-Tag': 'noindex, nofollow',
+            'X-Frame-Options': 'DENY',
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+          });
+          res.end(req.method === 'HEAD' ? undefined : html);
+        } catch {
+          res.writeHead(500, {
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-store',
+          });
+          res.end('AI provider admin page unavailable');
         }
         return;
       }

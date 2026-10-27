@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex,nofollow">
+<title>AI Provider Admin | Keus</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0e0e;--panel:#121717;--panel-soft:#171e1b;--line:rgba(231,241,234,.09);--text:#f2f5f1;--muted:#9aa59d;--muted-2:#77847b;--green:#32d583;--green-soft:rgba(50,213,131,.10);--red:#ff9b91;font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}html,body{min-width:320px;min-height:100%;margin:0}body{background:radial-gradient(ellipse at 80% -10%,rgba(50,213,131,.065),transparent 36%),var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}a{color:inherit;text-decoration:none}button,input,select{font:inherit}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid rgba(50,213,131,.8);outline-offset:2px}.topbar{height:70px;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,5vw,64px);border-bottom:1px solid var(--line);background:rgba(11,14,14,.86)}.brand{display:inline-flex;align-items:center}.brand svg{display:block;width:112px;height:25px}.top-actions{display:flex;align-items:center;gap:17px}.admin-label{color:#91a096;font-size:12px}.back-link{display:inline-flex;align-items:center;gap:7px;color:#d1dcd3;font-size:12px;font-weight:600}.back-link:hover{color:#fff}.back-link svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.page{width:min(1120px,calc(100% - 40px));margin:0 auto;padding:48px 0 72px}.page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:25px}.eyebrow{margin-bottom:6px;color:#77cf99;font-size:11px;font-weight:750;letter-spacing:.12em;text-transform:uppercase}.page-heading h1{margin:0;color:#f3f6f2;font-size:clamp(30px,4vw,39px);font-weight:620;letter-spacing:-.045em;line-height:1.15}.page-heading p{max-width:690px;margin:9px 0 0;color:var(--muted);font-size:14px}.primary-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:41px;padding:0 15px;border:1px solid rgba(50,213,131,.55);border-radius:9px;background:var(--green);color:#082014;font-size:13px;font-weight:760;cursor:pointer;white-space:nowrap;transition:filter .15s,transform .15s}.primary-button:hover{filter:brightness(1.07);transform:translateY(-1px)}.primary-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.overview{display:flex;align-items:center;gap:0;margin-bottom:18px;padding:13px 16px;border:1px solid var(--line);border-radius:11px;background:rgba(18,23,23,.82)}.overview-item{display:flex;align-items:baseline;gap:9px;padding:0 19px;border-right:1px solid var(--line)}.overview-item:first-child{padding-left:0}.overview-item:last-child{border:0}.overview-label{color:var(--muted-2);font-size:12px}.overview-value{color:#e8eee8;font-size:14px;font-weight:680}.overview-value.primary-value{max-width:260px;overflow:hidden;color:#b5ecc7;text-overflow:ellipsis;white-space:nowrap}.panel{border:1px solid var(--line);border-radius:13px;background:linear-gradient(150deg,rgba(20,25,24,.98),rgba(16,20,19,.98));overflow:hidden}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:19px 21px;border-bottom:1px solid var(--line)}.panel-title h2{margin:0;color:#e9eee9;font-size:16px;font-weight:650;letter-spacing:-.02em}.panel-title p{margin:4px 0 0;color:var(--muted);font-size:12px}.refresh-button{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:0 10px;border:1px solid #38443d;border-radius:8px;background:#121817;color:#d5ded7;font-size:12px;font-weight:600;cursor:pointer}.refresh-button:hover{border-color:#6b8f76;background:#17211b}.refresh-button svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.provider-list{padding:3px 20px}.provider-row{display:grid;grid-template-columns:minmax(190px,1.1fr) minmax(190px,1fr) minmax(110px,.55fr) auto;align-items:center;gap:18px;padding:17px 2px;border-bottom:1px solid rgba(231,241,234,.07)}.provider-row:last-child{border-bottom:0}.provider-name{display:block;color:#edf2ee;font-size:14px;font-weight:680;overflow-wrap:anywhere}.provider-id{display:inline-block;margin-top:3px;color:#8fcaa3;font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}.provider-url{display:block;margin-top:5px;max-width:330px;overflow:hidden;color:#7f8c83;font-size:11px;text-overflow:ellipsis;white-space:nowrap}.meta-label{display:block;margin-bottom:3px;color:#76847a;font-size:10px;font-weight:650;letter-spacing:.045em;text-transform:uppercase}.meta-value{display:block;color:#cbd5cd;font-size:12px;overflow-wrap:anywhere}.status-wrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.status-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid rgba(50,213,131,.18);border-radius:99px;background:rgba(50,213,131,.07);color:#a9dfb9;font-size:11px;font-weight:620;white-space:nowrap}.status-pill:before{width:6px;height:6px;border-radius:50%;background:#55ce83;content:""}.status-pill.disabled{border-color:rgba(233,199,127,.17);background:rgba(233,199,127,.05);color:#d6c493}.status-pill.disabled:before{background:#c7a953}.status-pill.primary{border-color:rgba(50,213,131,.31);background:rgba(50,213,131,.13);color:#bdf0ca}.provider-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}.action-button{min-height:31px;padding:0 9px;border:1px solid #35433b;border-radius:7px;background:#151c18;color:#d1dbd3;font-size:11px;font-weight:620;cursor:pointer;white-space:nowrap}.action-button:hover{border-color:#66846f;background:#1a241e}.action-button.danger{border-color:rgba(255,155,145,.18);background:rgba(255,155,145,.035);color:#e8aaa3}.action-button.danger:hover{border-color:rgba(255,155,145,.5);background:rgba(255,155,145,.08)}.empty-state,.loading-state{padding:40px 20px;text-align:center}.empty-title{margin:0;color:#e2e9e3;font-size:14px;font-weight:650}.empty-copy{margin:5px 0 0;color:var(--muted);font-size:12px}.list-status{min-height:20px;padding:0 21px 13px;color:var(--muted);font-size:12px}.list-status.error{color:var(--red)}.list-status.ok{color:#9be5b0}.modal[hidden]{display:none}.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:22px;background:rgba(0,0,0,.65);backdrop-filter:blur(5px)}.dialog{width:min(100%,570px);max-height:min(92vh,780px);overflow:auto;border:1px solid #37463d;border-radius:15px;background:#111715;box-shadow:0 28px 90px rgba(0,0,0,.55)}.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:20px 22px 16px;border-bottom:1px solid var(--line)}.dialog-head h2{margin:0;color:#f0f4f0;font-size:19px;font-weight:650;letter-spacing:-.03em}.dialog-head p{margin:5px 0 0;color:var(--muted);font-size:12px}.icon-button{width:34px;height:34px;display:grid;place-items:center;flex:none;border:1px solid #38443d;border-radius:8px;background:#151c18;color:#c9d4cb;cursor:pointer}.icon-button:hover{border-color:#74857a;color:#fff}.icon-button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}.dialog-body{padding:18px 22px 22px}.security-note{display:flex;gap:10px;margin:0 0 17px;padding:11px 12px;border:1px solid rgba(50,213,131,.17);border-radius:9px;background:rgba(50,213,131,.045);color:#b6c8ba;font-size:12px;line-height:1.55}.security-note svg{width:16px;height:16px;flex:none;margin-top:1px;fill:none;stroke:#73d495;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.field-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 13px}.field{display:grid;gap:6px;margin:0 0 13px}.field label{color:#dce5de;font-size:12px;font-weight:650}.field input,.field select{width:100%;min-height:41px;padding:9px 11px;border:1px solid #36443c;border-radius:8px;background:#0b1110;color:#f2f5f2;font-size:13px}.field input::placeholder{color:#59655d}.field input:focus,.field select:focus{border-color:#6aa97b;outline:2px solid rgba(50,213,131,.14)}.field-help{color:#849187;font-size:11px;line-height:1.45}.check-row{display:flex;gap:17px;flex-wrap:wrap;margin:3px 0 16px}.check{display:flex;align-items:center;gap:8px;color:#c8d4cb;font-size:12px}.check input{width:15px;height:15px;margin:0;accent-color:var(--green)}.form-actions{display:flex;align-items:center;gap:9px;margin-top:5px}.secondary-button{min-height:39px;padding:0 13px;border:1px solid #39473e;border-radius:8px;background:#151d18;color:#d4ded6;font-size:12px;font-weight:630;cursor:pointer}.secondary-button:hover{border-color:#6b8271}.form-status{min-height:20px;margin:12px 0 0;color:var(--muted);font-size:12px}.form-status.ok{color:#9be5b0}.form-status.error{color:var(--red)}body.modal-open{overflow:hidden}@media(max-width:950px){.provider-row{grid-template-columns:minmax(150px,1.1fr) minmax(160px,1fr) auto;gap:12px}.provider-state{grid-column:2;grid-row:2}.provider-actions{grid-column:3;grid-row:1/3}}@media(max-width:720px){.page{width:min(100% - 30px,1120px);padding-top:34px}.topbar{height:62px;padding-inline:18px}.brand svg{width:101px;height:23px}.admin-label{display:none}.page-heading{align-items:flex-start;flex-direction:column;gap:15px}.page-heading p{font-size:13px}.overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px}.overview-item{display:flex;align-items:flex-start;flex-direction:column;gap:1px;padding:0 10px}.overview-item:first-child{padding-left:0}.overview-value.primary-value{max-width:100%}.provider-list{padding-inline:14px}.provider-row{grid-template-columns:minmax(0,1fr) auto;gap:11px;padding:15px 0}.provider-main{grid-column:1;grid-row:1}.provider-model{grid-column:1;grid-row:2}.provider-state{grid-column:2;grid-row:1}.provider-actions{grid-column:1/-1;grid-row:3;justify-content:flex-start;padding-top:4px}.field-grid{grid-template-columns:1fr}.dialog-head,.dialog-body{padding-left:17px;padding-right:17px}}@media(max-width:460px){.top-actions{gap:10px}.back-link{font-size:11px}.overview{gap:6px;padding:10px}.overview-item{padding:0 7px}.overview-label{font-size:10px}.overview-value{font-size:12px}.provider-state{grid-column:1/-1;grid-row:2}.provider-model{grid-row:3}.provider-actions{grid-row:4}.modal{padding:10px}.dialog{max-height:96vh}.dialog-head h2{font-size:17px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/app" aria-label="Keus home">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" role="img" aria-label="Keus logo"><g transform="translate(12 12) scale(3.4)"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.7 23.35c1.2 1.7 3.3 2.7 5.2 2.7 2 0 4.1-1 5.3-2.7.35-.48 1.05-.54 1.46-.12.36.36.35.89.08 1.32-1.45 2.25-4.1 3.45-6.84 3.45-2.74 0-5.38-1.2-6.82-3.45-.28-.43-.29-.96.08-1.32.42-.42 1.13-.36 1.49.12Z" fill="#173026"/></g><text x="174" y="110" fill="#f3f3f5" font-family="Arial, sans-serif" font-size="82" font-weight="700" letter-spacing="-3">Keus</text></svg>
+  </a>
+  <div class="top-actions"><span class="admin-label">AI provider administration</span><a class="back-link" href="/app"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17"/></svg>Back to Keus</a></div>
+</header>
+<main class="page">
+  <section class="page-heading"><div><div class="eyebrow">Application settings</div><h1>AI providers</h1><p>Manage Keus model providers, encrypted API keys, and the provider used as primary.</p></div><button id="add-provider" class="primary-button" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>Add provider</button></section>
+  <section class="overview" aria-label="Provider summary"><div class="overview-item"><span class="overview-label">Providers</span><strong id="provider-count" class="overview-value">0</strong></div><div class="overview-item"><span class="overview-label">Enabled</span><strong id="enabled-count" class="overview-value">0</strong></div><div class="overview-item"><span class="overview-label">Primary</span><strong id="primary-name" class="overview-value primary-value">None</strong></div></section>
+  <section class="panel" aria-labelledby="registry-title"><div class="panel-head"><div class="panel-title"><h2 id="registry-title">Configured providers</h2><p>Credentials are never shown in this list.</p></div><button id="refresh" class="refresh-button" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 8a6 6 0 0 0-10-3L4 7M4 4v3h3M4 12a6 6 0 0 0 10 3l2-2m0 3v-3h-3"/></svg>Refresh</button></div><div id="providers" class="provider-list"><div class="loading-state">Loading provider records...</div></div><p id="list-status" class="list-status" role="status" aria-live="polite"></p></section>
+</main>
+<div id="provider-modal" class="modal" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="form-title" aria-describedby="form-description">
+    <div class="dialog-head"><div><h2 id="form-title">Add provider</h2><p id="form-description">Save an application-wide provider configuration.</p></div><button id="close-modal" class="icon-button" type="button" aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></div>
+    <div class="dialog-body">
+      <p class="security-note"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5 4 5v4.7c0 3.6 2.5 6.6 6 7.8 3.5-1.2 6-4.2 6-7.8V5l-6-2.5Z"/><path d="m7.5 9.8 1.7 1.7 3.5-3.6"/></svg><span>The API key is encrypted by Keus before storage. It is never returned after saving.</span></p>
+      <form id="provider-form" autocomplete="off">
+        <div class="field-grid"><div class="field"><label for="provider-key">Provider ID</label><input id="provider-key" name="providerKey" required maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,63}" placeholder="groq"><span class="field-help">A stable ID, for example groq.</span></div><div class="field"><label for="display-name">Display name</label><input id="display-name" name="displayName" required maxlength="80" placeholder="Groq"></div></div>
+        <div class="field"><label for="api-protocol">API protocol</label><select id="api-protocol" name="apiProtocol" required><option value="openai_chat">OpenAI-compatible chat</option><option value="openai_responses">OpenAI Responses API</option><option value="anthropic_messages">Anthropic Messages API</option><option value="google_generative">Google Generative Language API</option></select></div>
+        <div class="field"><label for="base-url">HTTPS base URL</label><input id="base-url" name="baseUrl" type="url" required maxlength="512" placeholder="https://api.provider.com/v1"></div>
+        <div class="field"><label for="model-id">Default model ID</label><input id="model-id" name="modelId" required maxlength="160" placeholder="provider/model-id"></div>
+        <div class="field"><label id="api-key-label" for="api-key">Provider API key</label><input id="api-key" name="apiKey" type="password" required maxlength="4096" autocomplete="new-password" spellcheck="false"><span id="api-key-help" class="field-help">Use the provider key only. It will not be shown again.</span></div>
+        <div class="check-row"><label class="check"><input id="enabled" name="enabled" type="checkbox"><span>Enable provider</span></label><label class="check"><input id="is-primary" name="isPrimary" type="checkbox"><span>Make primary</span></label></div>
+        <div class="form-actions"><button id="submit" class="primary-button" type="submit">Save provider</button><button id="cancel-edit" class="secondary-button" type="button">Cancel</button></div><p id="form-status" class="form-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+</div>
+<script>
+const form=document.getElementById('provider-form');
+const providersRoot=document.getElementById('providers');
+const formStatus=document.getElementById('form-status');
+const listStatus=document.getElementById('list-status');
+const submitButton=document.getElementById('submit');
+const providerKeyInput=document.getElementById('provider-key');
+const apiKeyInput=document.getElementById('api-key');
+const enabledInput=document.getElementById('enabled');
+const primaryInput=document.getElementById('is-primary');
+const modal=document.getElementById('provider-modal');
+let editingProviderId=null;
+let providers=[];
+async function api(path,options={}){
+  const response=await fetch(path,{...options,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...(options.headers||{})}});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);
+  return data;
+}
+function setStatus(node,message,kind=''){node.className=node===listStatus?`list-status ${kind}`:`form-status ${kind}`;node.textContent=message;}
+function textNode(parent,tag,className,text){const node=document.createElement(tag);if(className)node.className=className;node.textContent=text;parent.append(node);return node;}
+function makeAction(label,className,handler){const button=document.createElement('button');button.type='button';button.className=`action-button ${className||''}`.trim();button.textContent=label;button.addEventListener('click',handler);return button;}
+function payloadFor(provider,changes={}){return{displayName:provider.displayName,apiProtocol:provider.apiProtocol,baseUrl:provider.baseUrl,modelId:provider.modelId,apiKey:'',enabled:changes.enabled??provider.enabled,isPrimary:changes.isPrimary??provider.isPrimary};}
+function renderOverview(){
+  document.getElementById('provider-count').textContent=String(providers.length);
+  document.getElementById('enabled-count').textContent=String(providers.filter(item=>item.enabled).length);
+  const primary=providers.find(item=>item.isPrimary);
+  document.getElementById('primary-name').textContent=primary?primary.displayName:'None';
+}
+function renderProviders(){
+  providersRoot.replaceChildren();
+  if(!providers.length){const empty=document.createElement('div');empty.className='empty-state';textNode(empty,'p','empty-title','No providers added yet');textNode(empty,'p','empty-copy','Add a provider to begin configuring Keus model access.');providersRoot.append(empty);renderOverview();return;}
+  for(const provider of providers){
+    const row=document.createElement('article');row.className='provider-row';
+    const main=document.createElement('div');main.className='provider-main';textNode(main,'span','provider-name',provider.displayName);textNode(main,'code','provider-id',provider.providerKey);textNode(main,'span','provider-url',provider.baseUrl);row.append(main);
+    const model=document.createElement('div');model.className='provider-model';textNode(model,'span','meta-label','Default model');textNode(model,'span','meta-value',provider.modelId);textNode(model,'span','field-help',provider.apiProtocol.replaceAll('_',' '));row.append(model);
+    const state=document.createElement('div');state.className='provider-state';const pills=document.createElement('div');pills.className='status-wrap';const enabledPill=document.createElement('span');enabledPill.className=`status-pill ${provider.enabled?'':'disabled'}`;enabledPill.textContent=provider.enabled?'Enabled':'Disabled';pills.append(enabledPill);if(provider.isPrimary){const primaryPill=document.createElement('span');primaryPill.className='status-pill primary';primaryPill.textContent='Primary';pills.append(primaryPill);}state.append(pills);row.append(state);
+    const actions=document.createElement('div');actions.className='provider-actions';actions.append(makeAction('Edit','',()=>beginEdit(provider)));actions.append(makeAction(provider.enabled?'Disable':'Enable','',()=>changeProvider(provider,{enabled:!provider.enabled,isPrimary:provider.enabled?false:provider.isPrimary})));if(!provider.isPrimary)actions.append(makeAction('Make primary','',()=>changeProvider(provider,{enabled:true,isPrimary:true})));actions.append(makeAction('Delete','danger',()=>removeProvider(provider)));row.append(actions);
+    providersRoot.append(row);
+  }
+  renderOverview();
+}
+async function refreshProviders(){
+  providersRoot.innerHTML='<div class="loading-state">Loading provider records...</div>';setStatus(listStatus,'');
+  try{const result=await api('/api/admin/ai-providers');providers=Array.isArray(result.providers)?result.providers:[];renderProviders();}
+  catch(error){providers=[];renderProviders();setStatus(listStatus,`Could not load providers: ${error.message}`,'error');}
+}
+function resetForm(){
+  editingProviderId=null;form.reset();providerKeyInput.disabled=false;providerKeyInput.required=true;apiKeyInput.required=true;
+  document.getElementById('form-title').textContent='Add provider';
+  document.getElementById('form-description').textContent='Save an application-wide provider configuration.';
+  document.getElementById('api-key-label').textContent='Provider API key';
+  document.getElementById('api-key-help').textContent='Use the provider key only. It will not be shown again.';
+  document.getElementById('submit').textContent='Save provider';setStatus(formStatus,'');
+}
+function openModal(){modal.hidden=false;document.body.classList.add('modal-open');setTimeout(()=>document.getElementById('provider-key').focus(),0);}
+function closeModal(){modal.hidden=true;document.body.classList.remove('modal-open');resetForm();}
+function beginCreate(){resetForm();openModal();}
+function beginEdit(provider){
+  editingProviderId=provider.id;providerKeyInput.value=provider.providerKey;providerKeyInput.disabled=true;providerKeyInput.required=false;
+  document.getElementById('display-name').value=provider.displayName;document.getElementById('api-protocol').value=provider.apiProtocol;document.getElementById('base-url').value=provider.baseUrl;document.getElementById('model-id').value=provider.modelId;
+  apiKeyInput.value='';apiKeyInput.required=false;enabledInput.checked=provider.enabled;primaryInput.checked=provider.isPrimary;
+  document.getElementById('form-title').textContent=`Edit ${provider.displayName}`;document.getElementById('form-description').textContent='Leave the key blank to keep the saved credential.';document.getElementById('api-key-label').textContent='Replace provider API key';document.getElementById('api-key-help').textContent='Optional. Enter a new key to rotate it. The current key is never displayed.';document.getElementById('submit').textContent='Save changes';setStatus(formStatus,'');openModal();
+}
+async function changeProvider(provider,changes){
+  const question=changes.isPrimary?'Make this the primary provider?':changes.enabled?'Enable this provider?':'Disable this provider?';if(!window.confirm(question))return;
+  try{await api(`/api/admin/ai-providers/${encodeURIComponent(provider.id)}`,{method:'PUT',body:JSON.stringify(payloadFor(provider,changes))});await refreshProviders();setStatus(listStatus,'Provider updated.','ok');}
+  catch(error){setStatus(listStatus,`Could not update provider: ${error.message}`,'error');}
+}
+async function removeProvider(provider){
+  if(!window.confirm(`Delete ${provider.displayName} (${provider.providerKey}) and its encrypted key? This cannot be undone.`))return;
+  try{await api(`/api/admin/ai-providers/${encodeURIComponent(provider.id)}`,{method:'DELETE'});if(editingProviderId===provider.id)closeModal();await refreshProviders();setStatus(listStatus,'Provider deleted.','ok');}
+  catch(error){setStatus(listStatus,`Could not delete provider: ${error.message}`,'error');}
+}
+form.addEventListener('submit',async event=>{
+  event.preventDefault();if(primaryInput.checked&&!enabledInput.checked){setStatus(formStatus,'Enable the provider before making it primary.','error');return;}
+  const payload={displayName:document.getElementById('display-name').value,apiProtocol:document.getElementById('api-protocol').value,baseUrl:document.getElementById('base-url').value,modelId:document.getElementById('model-id').value,apiKey:apiKeyInput.value,enabled:enabledInput.checked,isPrimary:primaryInput.checked};if(!editingProviderId)payload.providerKey=providerKeyInput.value;
+  submitButton.disabled=true;setStatus(formStatus,editingProviderId?'Saving changes...':'Saving provider securely...');
+  try{const url=editingProviderId?`/api/admin/ai-providers/${encodeURIComponent(editingProviderId)}`:'/api/admin/ai-providers';const result=await api(url,{method:editingProviderId?'PUT':'POST',body:JSON.stringify(payload)});apiKeyInput.value='';const saved=result.provider||{};closeModal();await refreshProviders();setStatus(listStatus,`Saved ${saved.displayName||'provider'}.`,'ok');}
+  catch(error){apiKeyInput.value='';setStatus(formStatus,`Could not save provider: ${error.message}`,'error');}
+  finally{submitButton.disabled=false;}
+});
+document.getElementById('add-provider').addEventListener('click',beginCreate);
+document.getElementById('refresh').addEventListener('click',refreshProviders);
+document.getElementById('close-modal').addEventListener('click',closeModal);
+document.getElementById('cancel-edit').addEventListener('click',closeModal);
+modal.addEventListener('click',event=>{if(event.target===modal)closeModal();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!modal.hidden)closeModal();});
+refreshProviders();
+</script>
+</body>
+</html>
