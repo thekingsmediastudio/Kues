@@ -587,7 +587,8 @@ async function handleApiHubRequest(req, res, url, { config, authService, apiHubS
 async function handleWorkspaceRequest(req, res, url, { config, authService, workspaceService }) {
   const bootstrapRoute = url.pathname === '/api/workspace/bootstrap';
   const onboardingRoute = url.pathname === '/api/onboarding/complete';
-  if (!bootstrapRoute && !onboardingRoute) return false;
+  const createAgentRoute = url.pathname === '/api/workspace/agents';
+  if (!bootstrapRoute && !onboardingRoute && !createAgentRoute) return false;
 
   const expectedMethod = bootstrapRoute ? 'GET' : 'POST';
   if (req.method !== expectedMethod) {
@@ -595,7 +596,7 @@ async function handleWorkspaceRequest(req, res, url, { config, authService, work
     sendJson(res, 405, { error: 'method_not_allowed' });
     return true;
   }
-  if (onboardingRoute) {
+  if (onboardingRoute || createAgentRoute) {
     const origin = requestOrigin(req);
     if (!origin.present || !origin.valid || !origin.sameOrigin) {
       sendJson(res, 403, { error: 'same_origin_required' });
@@ -630,8 +631,13 @@ async function handleWorkspaceRequest(req, res, url, { config, authService, work
       return true;
     }
     const input = await readJsonBody(req, 16 * 1024);
-    const bootstrap = await workspaceService.completeOnboarding({ userId: user.id, input });
-    sendJson(res, 200, { saved: true, ...bootstrap });
+    if (onboardingRoute) {
+      const bootstrap = await workspaceService.completeOnboarding({ userId: user.id, input });
+      sendJson(res, 200, { saved: true, ...bootstrap });
+      return true;
+    }
+    const bootstrap = await workspaceService.createAgent({ userId: user.id, input });
+    sendJson(res, 201, { created: true, ...bootstrap });
     return true;
   } catch (error) {
     if (error instanceof WorkspaceError || error instanceof RequestError) {
