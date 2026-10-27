@@ -2112,6 +2112,9 @@
   let savedAgentRowTemplate = null;
   let chatAvailable = false;
   let chatPending = false;
+  let chatHistoryLoading = false;
+  let chatHistoryReady = false;
+  let chatHistoryLoadVersion = 0;
   let chatNotice = '';
   let chatMessages = [];
   let renderedChatAgentId = null;
@@ -2717,17 +2720,19 @@
     const agent = findSelectedChatAgent();
     const sampleFixture = document.documentElement.dataset.reviewFixture === 'true';
     const hasAgent = Boolean(agent && agent.status !== 'archived');
-    const canChat = Boolean(chatAvailable && hasAgent && currentBootstrap?.user?.id && !sampleFixture);
+    const canChat = Boolean(chatAvailable && chatHistoryReady && hasAgent && currentBootstrap?.user?.id && !sampleFixture);
     if (input) {
-      input.disabled = !canChat || chatPending;
+      input.disabled = !canChat || chatPending || chatHistoryLoading;
       input.placeholder = !currentBootstrap?.user?.id
         ? 'Workspace data unavailable'
         : hasAgent ? `Message ${String(agent.name || 'your agent')}...` : 'Save an agent to start a chat';
       input.setAttribute('aria-label', input.placeholder);
     }
-    if (sendButton) sendButton.disabled = !canChat || chatPending || !String(input?.value || '').trim();
+    if (sendButton) sendButton.disabled = !canChat || chatPending || chatHistoryLoading || !String(input?.value || '').trim();
 
-    if (chatPending) {
+    if (chatHistoryLoading) {
+      textById('chatPreviewNote', 'Loading your saved conversation...');
+    } else if (chatPending) {
       textById('chatPreviewNote', 'Waiting for a reply...');
     } else if (chatNotice) {
       textById('chatPreviewNote', chatNotice);
@@ -2736,7 +2741,7 @@
     } else if (!hasAgent) {
       textById('chatPreviewNote', 'Save an agent to use the message composer.');
     } else if (canChat) {
-      textById('chatPreviewNote', 'Admin test chat. Messages go to the configured AI service and are not saved in Keus chat history. Avoid sensitive information.');
+      textById('chatPreviewNote', 'Admin staging test chat. Messages are encrypted and saved to this Keus workspace. Use non-sensitive test prompts only.');
     } else {
       textById('chatPreviewNote', 'Messaging is not available for this account.');
     }
@@ -2756,6 +2761,7 @@
     document.getElementById('streamInner')?.append(row);
     const stream = document.getElementById('chatStream');
     if (stream) stream.scrollTop = stream.scrollHeight;
+    return row;
   }
 
   function createAssistantChatMessage(content, { pending = false } = {}) {
@@ -2789,9 +2795,12 @@
     const agent = agentsFromBootstrap().find((entry) => String(entry.id) === String(agentId));
     if (!agent) return;
     const nextId = String(agent.id);
-    if (nextId !== renderedChatAgentId) {
+    const agentChanged = nextId !== renderedChatAgentId;
+    if (agentChanged) {
       chatMessages = [];
       chatNotice = '';
+      chatHistoryReady = false;
+      chatHistoryLoading = false;
       clearChatStream();
       renderedChatAgentId = nextId;
     }
@@ -2803,20 +2812,80 @@
     const status = ({ active: 'Active', paused: 'Paused', archived: 'Archived' })[String(agent.status || '').toLowerCase()] || 'Status unavailable';
     textById('hdrSub', status);
     syncChatComposer();
+    if (agentChanged && chatAvailable) void loadChatHistory(nextId);
   }
 
-  function chatErrorCopy(code) {
+  function chatErrorCopy(code, requestId) {
     const messages = {
       token_usage_limit_exceeded: 'This account has reached its current AI usage limit.',
       active_entitlement_required: 'An active AI usage allowance is required to continue.',
       ai_chat_rate_limited: 'Too many test messages. Wait a minute and try again.',
       ai_chat_agent_unavailable: 'That agent is not available in this workspace.',
+      ai_chat_history_unavailable: 'Your saved conversation could not be loaded or saved. Refresh and try again.',
       authentication_required: 'Sign in again to continue.',
     };
-    return messages[code] || 'I could not get a reply. Please try again.';
+    const copy = messages[code] || 'I could not get a reply. Please try again.';
+    return requestId ? `${copy} Reference: ${requestId}` : copy;
+  }
+
+  async function loadChatHistory(agentId = selectedAgentId) {
+    const requestedAgentId = String(agentId || '');
+    if (!requestedAgentId || !chatAvailable || document.documentElement.dataset.reviewFixture === 'true') {
+      chatHistoryReady = false;
+      chatHistoryLoading = false;
+      syncChatComposer();
+      return;
+    }
+    const loadVersion = ++chatHistoryLoadVersion;
+    chatHistoryLoading = true;
+    chatHistoryReady = false;
+    chatNotice = '';
+    syncChatComposer();
+    try {
+      const response = await fetch(`/api/chat/history?agentId=${encodeURIComponent(requestedAgentId)}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      if (!response.ok) {
+        const error = new Error(String(data.error || 'ai_chat_history_unavailable'));
+        error.code = String(data.error || 'ai_chat_history_unavailable');
+        error.requestId = String(data.requestId || '');
+        throw error;
+      }
+      if (loadVersion !== chatHistoryLoadVersion || requestedAgentId !== String(selectedAgentId || '')) return;
+      const messages = Array.isArray(data.messages) ? data.messages.filter((message) => (
+        message && ['user', 'assistant'].includes(message.role)
+        && typeof message.content === 'string'
+        && message.content.length <= 20_000
+      )) : [];
+      chatMessages = messages.slice(-100).map(({ role, content }) => ({ role, content }));
+      clearChatStream();
+      for (const message of chatMessages) {
+        if (message.role === 'user') appendUserChatMessage(message.content);
+        else createAssistantChatMessage(message.content);
+      }
+      chatHistoryReady = true;
+    } catch (error) {
+      if (loadVersion !== chatHistoryLoadVersion || requestedAgentId !== String(selectedAgentId || '')) return;
+      chatNotice = chatErrorCopy(error.code || 'ai_chat_history_unavailable', error.requestId);
+    } finally {
+      if (loadVersion === chatHistoryLoadVersion) {
+        chatHistoryLoading = false;
+        syncChatComposer();
+      }
+    }
   }
 
   async function loadChatAvailability() {
+    chatHistoryLoadVersion += 1;
+    chatHistoryReady = false;
+    chatHistoryLoading = false;
     if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
       chatAvailable = false;
       syncChatComposer();
@@ -2837,18 +2906,24 @@
     } catch {
       chatAvailable = false;
     }
-    syncChatComposer();
+    if (chatAvailable && selectedAgentId) {
+      await loadChatHistory(selectedAgentId);
+    } else {
+      syncChatComposer();
+    }
   }
 
   async function sendChatMessage() {
     const input = document.getElementById('chatInput');
     const content = String(input?.value || '').trim();
     const agent = findSelectedChatAgent();
-    if (!content || !chatAvailable || !agent || chatPending) return;
+    if (!content || !chatAvailable || !chatHistoryReady || chatHistoryLoading || !agent || chatPending) return;
+    const requestAgentId = String(agent.id);
+    const requestViewVersion = chatHistoryLoadVersion;
     chatNotice = '';
     chatMessages.push({ role: 'user', content });
-    while (chatMessages.length > 12) chatMessages.shift();
-    appendUserChatMessage(content);
+    while (chatMessages.length > 100) chatMessages.shift();
+    const userRow = appendUserChatMessage(content);
     if (input) input.value = '';
     chatPending = true;
     syncChatComposer();
@@ -2858,7 +2933,7 @@
         method: 'POST',
         credentials: 'same-origin',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: String(agent.id), messages: chatMessages.slice(-12) }),
+        body: JSON.stringify({ agentId: requestAgentId, message: content }),
       });
       let data = {};
       try { data = await response.json(); } catch {}
@@ -2869,21 +2944,30 @@
       if (!response.ok || typeof data.reply !== 'string' || !data.reply.trim()) {
         const error = new Error(String(data.error || 'ai_chat_unavailable'));
         error.code = String(data.error || 'ai_chat_unavailable');
+        error.requestId = String(data.requestId || '');
         throw error;
+      }
+      if (requestAgentId !== String(selectedAgentId || '') || requestViewVersion !== chatHistoryLoadVersion) {
+        if (requestAgentId === String(selectedAgentId || '') && chatAvailable) void loadChatHistory(requestAgentId);
+        return;
       }
       pendingRow?.remove();
       const reply = data.reply.trim();
       chatMessages.push({ role: 'assistant', content: reply });
-      while (chatMessages.length > 12) chatMessages.shift();
+      while (chatMessages.length > 100) chatMessages.shift();
       createAssistantChatMessage(reply);
     } catch (error) {
       pendingRow?.remove();
-      if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
-      chatNotice = chatErrorCopy(error.code);
+      userRow?.remove();
+      if (requestAgentId === String(selectedAgentId || '') && requestViewVersion === chatHistoryLoadVersion) {
+        if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
+        chatNotice = chatErrorCopy(error.code, error.requestId);
+        if (input && !input.value) input.value = content;
+      }
     } finally {
       chatPending = false;
       syncChatComposer();
-      input?.focus();
+      if (requestAgentId === String(selectedAgentId || '')) input?.focus();
     }
   }
 
@@ -2907,8 +2991,11 @@
   }
 
   function renderLocalReviewFixture() {
+    chatHistoryLoadVersion += 1;
     chatAvailable = false;
     chatPending = false;
+    chatHistoryLoading = false;
+    chatHistoryReady = false;
     chatNotice = '';
     chatMessages = [];
     renderedChatAgentId = null;
@@ -2929,8 +3016,11 @@
 
   function setWorkspaceUnavailable() {
     currentBootstrap = null;
+    chatHistoryLoadVersion += 1;
     chatAvailable = false;
     chatPending = false;
+    chatHistoryLoading = false;
+    chatHistoryReady = false;
     chatNotice = 'Workspace data could not be loaded; messaging is unavailable.';
     chatMessages = [];
     renderedChatAgentId = null;
@@ -2977,10 +3067,13 @@
     let agent = selectedAgentId ? agents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
     if (!agent) agent = agents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || agents[0] || onboarding.agent || profileAgent;
     selectedAgentId = agent?.id ? String(agent.id) : null;
-    if (selectedAgentId !== renderedChatAgentId) {
+    const chatAgentChanged = selectedAgentId !== renderedChatAgentId;
+    if (chatAgentChanged) {
       renderedChatAgentId = selectedAgentId;
       chatMessages = [];
       chatNotice = '';
+      chatHistoryReady = false;
+      chatHistoryLoading = false;
       clearChatStream();
     }
     const name = String(agent?.name || '').trim();
@@ -3012,6 +3105,7 @@
     filterTeammates(document.getElementById('agentSearchInput')?.value || '');
     renderSettingsFromBootstrap(data);
     syncChatComposer();
+    if (chatAgentChanged && chatAvailable && selectedAgentId) void loadChatHistory(selectedAgentId);
   }
 
   async function loadAuthenticatedWorkspace() {

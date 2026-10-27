@@ -357,7 +357,9 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /Checking chat availability/);
     assert.match(desktopPreview, /fetch\('\/api\/chat\/status'/);
     assert.match(desktopPreview, /fetch\('\/api\/chat'/);
-    assert.match(desktopPreview, /Messages go to the configured AI service and are not saved in Keus chat history/);
+    assert.match(desktopPreview, /fetch\(`\/api\/chat\/history\?agentId=/);
+    assert.match(desktopPreview, /encrypted and saved to this Keus workspace/);
+    assert.match(desktopPreview, /message: content/);
     assert.doesNotMatch(desktopPreview, /Groq|Qwen|GPT-OSS|model ID/i);
     assert.match(desktopPreview, /bubble\.textContent = content/);
     assert.match(desktopPreview, /text\.textContent = content/);
