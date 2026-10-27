@@ -160,7 +160,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.0');
+    assert.equal(body.version, '2.3.1');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -189,8 +189,16 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(landing, /Your AI workspace/);
     assert.match(landing, /href="\/app"/);
     assert.doesNotMatch(landing, /href="\/desktop(?:\.html)?"/);
+    assert.match(landing, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
+    assert.match(landing, /id="themeToggle"/);
+    assert.match(landing, /localStorage\.getItem\('keusTheme'\)/);
+    assert.match(landing, /--font:Inter,ui-sans-serif,system-ui/);
     const dashboard = await (await fetch(`${base}/app`)).text();
     assert.match(dashboard, /api\/workspace\/bootstrap/);
+    assert.match(dashboard, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
+    assert.match(dashboard, /id="themeToggle"/);
+    assert.match(dashboard, /localStorage\.getItem\('keusTheme'\)/);
+    assert.match(dashboard, /--font:Inter,ui-sans-serif,system-ui/);
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
     const onboarding = await (await fetch(`${base}/onboarding`)).text();
     assert.match(onboarding, /window\.location\.href='\/app'/);
