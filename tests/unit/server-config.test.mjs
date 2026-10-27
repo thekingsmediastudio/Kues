@@ -161,7 +161,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.4');
+    assert.equal(body.version, '2.3.5');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -216,7 +216,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     const dashboard = await (await fetch(`${base}/app`)).text();
     assert.match(dashboard, /api\/workspace\/bootstrap/);
     const loadingMark = dashboard.match(/<div class="loading-mark"[\s\S]*?<\/svg>/)?.[0] || '';
-    const dashboardBrandMark = dashboard.match(/<span class="brand-mark"[\s\S]*?<\/svg>/)?.[0] || '';
+    const dashboardBrandMark = dashboard.match(/<span class="dashboard-home-mark"[\s\S]*?<\/svg>/)?.[0] || '';
     for (const mark of [loadingMark, dashboardBrandMark]) {
       assert.match(mark, /fill="#32d583"/);
       assert.match(mark, /<ellipse cx="15\.2"/);
@@ -228,11 +228,15 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(dashboard, /id="themeToggle"/);
     assert.match(dashboard, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(dashboard, /--font:Inter,ui-sans-serif,system-ui/);
-    const accountStart = dashboard.indexOf('<div class="account">');
-    const accountEmail = dashboard.indexOf('id="accountEmail"', accountStart);
-    const themeToggle = dashboard.indexOf('id="themeToggle"', accountStart);
-    const accountAvatar = dashboard.indexOf('id="accountAvatar"', accountStart);
-    assert.ok(accountStart >= 0 && accountEmail < themeToggle && themeToggle < accountAvatar, 'dashboard theme toggle belongs beside the account controls');
+    assert.doesNotMatch(dashboard, /<aside\b|class="sidebar"|id="setupNav"|>Setup<\/a>/);
+    assert.match(dashboard, /class="dashboard-home" href="\/"/);
+    assert.match(dashboard, /class="home-external-icon"/);
+    assert.match(dashboard, /aria-controls="accountMenu"/);
+    const accountMenu = dashboard.indexOf('id="accountMenu"');
+    const accountEmail = dashboard.indexOf('id="accountEmail"', accountMenu);
+    const themeToggle = dashboard.indexOf('id="themeToggle"', accountMenu);
+    const signOutButton = dashboard.indexOf('id="signOutButton"', accountMenu);
+    assert.ok(accountMenu >= 0 && accountEmail < themeToggle && themeToggle < signOutButton, 'theme and sign-out actions belong inside the account dropdown');
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
     const login = await (await fetch(`${base}/login`)).text();
     assert.match(login, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
