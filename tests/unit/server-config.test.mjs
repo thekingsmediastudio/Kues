@@ -161,7 +161,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.5');
+    assert.equal(body.version, '2.3.6');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -207,8 +207,10 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.doesNotMatch(landing, /href="\/desktop(?:\.html)?"/);
     assert.match(landing, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(landing, /id="themeToggle"/);
+    assert.match(landing, /<div class="topbar-left">[\s\S]*?<a class="brand"[\s\S]*?<nav class="nav"/);
     assert.doesNotMatch(landing, /api\/auth\/session/);
-    assert.match(landing, /id="headerAccountLink" href="\/login">Sign in/);
+    assert.match(landing, /class="button button-dark" id="headerAccountLink" href="\/login">Sign in/);
+    assert.doesNotMatch(landing, /class="button button-dark" href="\/app">Open dashboard/);
     assert.match(landing, /headerAccountLink/);
     assert.match(landing, /footerAccountLink/);
     assert.match(landing, /localStorage\.getItem\('keusTheme'\)/);
