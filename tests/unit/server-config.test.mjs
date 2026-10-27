@@ -161,8 +161,8 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.7');
-    assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
+    assert.equal(body.version, '2.3.8');
+    assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'desktop-preview:/desktop-preview', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
     const allowed = await fetch(`${base}/api/health`, { headers: { Origin: 'https://preview.example' } });
@@ -180,7 +180,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
 });
 
 test('user-facing Keus pages avoid em dashes and emoji glyphs', () => {
-  const files = ['landing.html', 'dashboard.html', 'login.html', 'onboarding.html', 'pocket.html', 'api-hub.html', 'auth-verify.html'];
+  const files = ['landing.html', 'dashboard.html', 'desktop-preview.html', 'login.html', 'onboarding.html', 'pocket.html', 'api-hub.html', 'auth-verify.html'];
   const forbiddenGlyphs = [0x2713, 0x2726, 0x2315, 0x2667, 0x2197, 0x2022].map((codePoint) => String.fromCodePoint(codePoint));
   for (const file of files) {
     const html = readFileSync(new URL(`../../apps/web/public/${file}`, import.meta.url), 'utf8');
@@ -196,7 +196,7 @@ test('user-facing Keus pages avoid em dashes and emoji glyphs', () => {
 
 test('public landing and authenticated dashboard have separate page routes', async () => {
   await withServer(loadServerConfig({}), async (base) => {
-    for (const route of ['/', '/app', '/dashboard', '/onboarding', '/login', '/auth/verify']) {
+    for (const route of ['/', '/app', '/dashboard', '/desktop-preview', '/onboarding', '/login', '/auth/verify']) {
       const res = await fetch(`${base}${route}`);
       assert.equal(res.status, 200, route);
       assert.match(res.headers.get('content-type') || '', /text\/html/);
@@ -240,6 +240,13 @@ test('public landing and authenticated dashboard have separate page routes', asy
     const signOutButton = dashboard.indexOf('id="signOutButton"', accountMenu);
     assert.ok(accountMenu >= 0 && accountEmail < themeToggle && themeToggle < signOutButton, 'theme and sign-out actions belong inside the account dropdown');
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
+    const desktopPreview = await (await fetch(`${base}/desktop-preview`)).text();
+    assert.match(desktopPreview, /AUTHENTICATED DESKTOP PREVIEW/);
+    assert.match(desktopPreview, /api\/workspace\/bootstrap/);
+    assert.match(desktopPreview, /credentials:'same-origin'/);
+    assert.match(desktopPreview, /id="accountEmail"/);
+    assert.match(desktopPreview, /Agent execution is not available yet/);
+    assert.doesNotMatch(desktopPreview, /Shopping Crew|ceramic bundle|sample seller/i);
     const login = await (await fetch(`${base}/login`)).text();
     assert.match(login, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(login, /id="themeToggle"/);
@@ -304,7 +311,7 @@ test('public landing stays open while dashboard and onboarding require a valid l
     const landing = await fetch(`${base}/`);
     assert.equal(landing.status, 200);
     assert.match(await landing.text(), /Your AI workspace/);
-    for (const route of ['/app', '/dashboard', '/desktop', '/desktop.html', '/onboarding']) {
+    for (const route of ['/app', '/dashboard', '/desktop-preview', '/desktop', '/desktop.html', '/onboarding']) {
       const noStorage = await fetch(`${base}${route}`, { redirect: 'manual' });
       assert.equal(noStorage.status, 503, route);
       assert.deepEqual(await noStorage.json(), { error: 'auth_storage_not_configured' });
@@ -313,7 +320,7 @@ test('public landing stays open while dashboard and onboarding require a valid l
   const sessions = { async getSession({ token }) { return token === 'valid-session' ? { id: 'user-1' } : null; } };
   await withServer(production, async (base) => {
     assert.equal((await fetch(`${base}/`, { headers: { Cookie: '__Host-kues_session=invalid' } })).status, 200);
-    for (const route of ['/app', '/dashboard', '/desktop', '/desktop.html', '/onboarding']) {
+    for (const route of ['/app', '/dashboard', '/desktop-preview', '/desktop', '/desktop.html', '/onboarding']) {
       const response = await fetch(`${base}${route}`, { redirect: 'manual' });
       assert.equal(response.status, 302, route);
       assert.equal(response.headers.get('location'), '/login?auth_error=session');
@@ -323,7 +330,7 @@ test('public landing stays open while dashboard and onboarding require a valid l
     assert.equal(login.status, 200);
   }, sessions);
   await withServer(production, async (base) => {
-    for (const route of ['/app', '/dashboard', '/onboarding']) {
+    for (const route of ['/app', '/dashboard', '/desktop-preview', '/onboarding']) {
       const response = await fetch(`${base}${route}`, { headers: { Cookie: '__Host-kues_session=valid-session' }, redirect: 'manual' });
       assert.equal(response.status, 200);
       assert.match(await response.text(), /Keus/i);

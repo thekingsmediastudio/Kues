@@ -428,6 +428,7 @@ test('sign-in-only preview keeps the public landing available and does not expos
     assert.equal((await fetch(`${base}/api/dev/workos-setup`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${base}/onboarding`)).status, 200);
     assert.equal((await fetch(`${base}/app`)).status, 200);
+    assert.equal((await fetch(`${base}/desktop-preview`)).status, 200);
     const oldPreview = await fetch(`${base}/desktop`, { redirect: 'manual' });
     assert.equal(oldPreview.status, 302);
     assert.equal(oldPreview.headers.get('location'), '/app');
