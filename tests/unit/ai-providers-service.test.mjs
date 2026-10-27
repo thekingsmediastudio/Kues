@@ -58,6 +58,11 @@ test('AI provider keys are AES-GCM encrypted at rest and only decrypted by the s
     const runtimeProvider = await service.getProviderForRuntime({ providerKey: 'test-provider' });
     assert.equal(runtimeProvider.apiKey, testApiKey);
     assert.equal(runtimeProvider.providerKey, provider.providerKey);
+    assert.equal(await service.hasPrimaryProvider(), true);
+    const primaryProvider = await service.getPrimaryProviderForRuntime();
+    assert.equal(primaryProvider.apiKey, testApiKey);
+    assert.equal(primaryProvider.modelId, 'test-model');
+    assert.equal(primaryProvider.isPrimary, true);
 
     await db.execute({
       sql: 'UPDATE ai_providers SET api_key_tag = ? WHERE provider_key = ?',
