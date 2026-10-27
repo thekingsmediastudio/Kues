@@ -37,17 +37,17 @@ For local development, keep real values only in an untracked `.env.local` and us
 
 ## Identity, sessions, and data continuity
 
-After WorkOS verifies the user, Keus links the WorkOS subject to the local Keus user. A matching normalized, verified email reuses the existing Keus user rather than duplicating it. Keus creates its own session cookie as `HttpOnly`; password and pending verification challenge values are not stored in Keus. The short-lived pending WorkOS challenge is held in an `HttpOnly` cookie. Existing workspace, onboarding, identity-link, and account-scoped usage records remain attached to the same Keus user.
+After WorkOS verifies the user, Keus links the WorkOS subject to the local Keus user. A matching normalized, verified email reuses the existing Keus user rather than duplicating it. Keus creates its own session cookie as `HttpOnly`; passwords and one-time codes are never stored in Keus. Signup/sign-in verification challenges and the recovery email challenge use separate short-lived `HttpOnly`, `SameSite=Strict` cookies. Existing workspace, onboarding, identity-link, and account-scoped usage records remain attached to the same Keus user.
 
 Password routes enforce same-origin request checks and server-side request throttling. Verification codes and credentials are not returned to the browser in API responses. Sign-out revokes the Keus session; it does not necessarily end a separate WorkOS browser session.
 
 ## Staging verification checklist
 
-After the source release deploys, confirm `/api/health` reports the new release and `/api/auth/config` reports `emailPasswordEnabled: true`, `magicAuthEnabled: false`, with Google/GitHub disabled. Then test with an inbox controlled by the account owner:
+Staging is live on health version `2.2.3`; `/api/auth/config` reports `emailPasswordEnabled: true`, `magicAuthEnabled: false`, with Google/GitHub disabled. Then test with an inbox controlled by the account owner:
 
 1. Create a new account with email and password; receive and enter the WorkOS verification code; confirm the Keus session and onboarding route.
 2. Sign out and sign in with the same password; confirm the existing account opens `/app` and retains its workspace.
 3. For an existing account, use **Forgot password?** to open the separate form; request a code, enter it with a new private password, and confirm Keus returns to sign-in without issuing a session. Sign in with the new password and confirm the same Keus identity/workspace is retained.
 4. Confirm Magic Auth cannot sign in to Keus outside the recovery-only code flow. Do not use a shared password or create/delete accounts merely to test without the account owner’s authorization.
 
-Automated mock tests do not prove WorkOS delivery. Do not claim live signup, verification email, reset delivery, or completed staging testing until those checks have actually succeeded. Production is outside this release.
+Automated mock tests do not prove WorkOS delivery. No real verification or recovery email has been sent yet. Do not claim live signup, verification, recovery-code delivery, or completed staging email testing until those checks have actually succeeded. Production is outside this release.
