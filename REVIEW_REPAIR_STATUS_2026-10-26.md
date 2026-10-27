@@ -1,5 +1,7 @@
 # Review repair status — 2026-10-26
 
+> **Historical review record.** The passwordless WorkOS statements below describe the 2026-10-26 source state and are superseded by the 2026-10-27 email/password implementation. See `AUTH_SETUP.md` and `RENDER_DEPLOYMENT.md` for current behavior and staging status; the temporary development credential-entry page mentioned in older review checks has been removed.
+
 This note records changes and checks made to the extracted working copy after the read-only review. The Google Drive source archive remains unchanged.
 
 ## Later staging release status — 2026-10-26
