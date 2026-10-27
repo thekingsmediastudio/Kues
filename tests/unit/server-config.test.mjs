@@ -161,7 +161,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.8');
+    assert.equal(body.version, '2.3.9');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'desktop-preview:/desktop-preview', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -241,10 +241,18 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.ok(accountMenu >= 0 && accountEmail < themeToggle && themeToggle < signOutButton, 'theme and sign-out actions belong inside the account dropdown');
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
     const desktopPreview = await (await fetch(`${base}/desktop-preview`)).text();
-    assert.match(desktopPreview, /AUTHENTICATED DESKTOP PREVIEW/);
+    assert.match(desktopPreview, /Your desktop workspace/);
     assert.match(desktopPreview, /api\/workspace\/bootstrap/);
     assert.match(desktopPreview, /credentials:'same-origin'/);
     assert.match(desktopPreview, /id="accountEmail"/);
+    assert.match(desktopPreview, /class="dashboard-home" href="\/"/);
+    assert.match(desktopPreview, /aria-controls="accountMenu"/);
+    assert.doesNotMatch(desktopPreview, /<aside\b|class="sidebar"/);
+    const desktopMenu = desktopPreview.indexOf('id="accountMenu"');
+    const desktopEmail = desktopPreview.indexOf('id="accountEmail"', desktopMenu);
+    const desktopTheme = desktopPreview.indexOf('id="themeToggle"', desktopMenu);
+    const desktopSignout = desktopPreview.indexOf('id="signOutButton"', desktopMenu);
+    assert.ok(desktopMenu >= 0 && desktopEmail < desktopTheme && desktopTheme < desktopSignout, 'desktop account controls match the workspace dropdown');
     assert.match(desktopPreview, /Agent execution is not available yet/);
     assert.doesNotMatch(desktopPreview, /Shopping Crew|ceramic bundle|sample seller/i);
     const login = await (await fetch(`${base}/login`)).text();
