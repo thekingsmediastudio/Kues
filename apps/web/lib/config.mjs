@@ -59,6 +59,14 @@ function validateWorkOSRedirectUri(value, issues) {
   }
 }
 
+function isValid32ByteEncryptionKey(value) {
+  const input = String(value || '').trim();
+  if (/^[a-f0-9]{64}$/i.test(input)) return Buffer.from(input, 'hex').length === 32;
+  const keyBytes = Buffer.from(input, 'base64');
+  return keyBytes.length === 32
+    && keyBytes.toString('base64').replace(/=+$/, '') === input.replace(/=+$/, '');
+}
+
 /**
  * Reads only server-side configuration. Secrets are deliberately not returned in this object.
  * Cross-origin browser access is opt-in; same-origin desktop requests need no CORS allowlist.
@@ -85,15 +93,18 @@ export function loadServerConfig(env = process.env) {
     issues.push('API_HUB_ADMIN_EMAILS must contain comma-separated valid email addresses');
   }
   const apiHubEncryptionKey = String(env.API_HUB_ENCRYPTION_KEY || '').trim();
-  if (apiHubAdminEmails.length) {
-    const keyBytes = /^[a-f0-9]{64}$/i.test(apiHubEncryptionKey)
-      ? Buffer.from(apiHubEncryptionKey, 'hex')
-      : Buffer.from(apiHubEncryptionKey, 'base64');
-    const canonicalBase64 = keyBytes.toString('base64').replace(/=+$/, '')
-      === apiHubEncryptionKey.replace(/=+$/, '');
-    if (!apiHubEncryptionKey || keyBytes.length !== 32 || (!/^[a-f0-9]{64}$/i.test(apiHubEncryptionKey) && !canonicalBase64)) {
-      issues.push('API_HUB_ENCRYPTION_KEY must be a 32-byte base64 or 64-character hexadecimal key when the API Hub is enabled');
-    }
+  if (apiHubAdminEmails.length && !isValid32ByteEncryptionKey(apiHubEncryptionKey)) {
+    issues.push('API_HUB_ENCRYPTION_KEY must be a 32-byte base64 or 64-character hexadecimal key when the API Hub is enabled');
+  }
+
+  const aiProviderAdminEmails = [...new Set(String(env.AI_PROVIDER_ADMIN_EMAILS || '')
+    .split(',').map((email) => email.trim().normalize('NFKC').toLowerCase()).filter(Boolean))];
+  if (aiProviderAdminEmails.some((email) => email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    issues.push('AI_PROVIDER_ADMIN_EMAILS must contain comma-separated valid email addresses');
+  }
+  const aiProviderEncryptionKey = String(env.AI_PROVIDER_ENCRYPTION_KEY || '').trim();
+  if (aiProviderAdminEmails.length && !isValid32ByteEncryptionKey(aiProviderEncryptionKey)) {
+    issues.push('AI_PROVIDER_ENCRYPTION_KEY must be a 32-byte base64 or 64-character hexadecimal key when AI provider administration is enabled');
   }
 
   const databaseUrl = String(env.TURSO_DATABASE_URL || '').trim();
@@ -111,6 +122,12 @@ export function loadServerConfig(env = process.env) {
   }
   if (apiHubAdminEmails.length && !databaseUrl) {
     issues.push('TURSO_DATABASE_URL is required when the API Hub is enabled');
+  }
+  if (aiProviderAdminEmails.length && authProvider !== 'workos') {
+    issues.push('AI_PROVIDER_ADMIN_EMAILS requires AUTH_PROVIDER=workos');
+  }
+  if (aiProviderAdminEmails.length && !databaseUrl) {
+    issues.push('TURSO_DATABASE_URL is required when AI provider administration is enabled');
   }
 
   const workosApiKey = String(env.WORKOS_API_KEY || '').trim();
@@ -223,5 +240,7 @@ export function loadServerConfig(env = process.env) {
     allowedOrigins: Object.freeze(parsedOrigins.origins),
     apiHubEnabled: apiHubAdminEmails.length > 0,
     apiHubAdminEmails: Object.freeze(apiHubAdminEmails),
+    aiProvidersEnabled: aiProviderAdminEmails.length > 0,
+    aiProviderAdminEmails: Object.freeze(aiProviderAdminEmails),
   });
 }
