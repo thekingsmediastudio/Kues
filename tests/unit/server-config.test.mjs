@@ -161,7 +161,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.6');
+    assert.equal(body.version, '2.3.7');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
