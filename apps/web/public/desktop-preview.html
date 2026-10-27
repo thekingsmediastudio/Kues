@@ -905,7 +905,7 @@
   .new-agent-modal {
     width: 650px;
     max-width: 94vw;
-    max-height: 88vh;
+    max-height: 94vh;
     background: #17171a;
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 22px;
@@ -1262,7 +1262,7 @@
   .cueclaw-brand { display:flex;align-items:center;gap:6px;min-width:0; }
   .cueclaw-brand-mark { width:24px;height:24px;display:block;flex:none; }
   .cueclaw-brand-mark svg { width:100%;height:100%;display:block;filter:drop-shadow(0 2px 5px rgba(50,213,131,.13)); }
-  .cueclaw-brand-name { color:#e9e9ec;font:800 11px var(--font);letter-spacing:-.025em;white-space:nowrap; }
+  .cueclaw-brand-name { color:#fff;font:800 14px var(--font);letter-spacing:-.025em;white-space:nowrap; }
   :root[data-theme="light"] .cueclaw-brand-name { color:#111113; }
 
   .mac-dots { gap:7px; opacity:.82; }
@@ -1505,32 +1505,33 @@
   .app-settings-modal{width:min(480px,94vw);height:auto;min-height:250px;max-height:88vh}
   .app-settings-empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:18px}
   .app-settings-empty p{margin:0;color:var(--text-sec);font-size:13px;line-height:1.6}
-  .new-agent-form{display:flex;flex-direction:column;gap:13px}
+  .new-agent-form{display:flex;flex-direction:column;gap:9px}
+  .new-agent-modal .modal-body{padding:14px 18px}
   .new-agent-form-intro{margin:0;color:var(--text-sec);font-size:11px;line-height:1.5}
-  .new-agent-preview-card{--preview-color:#32d583;display:flex;flex-direction:column;gap:11px;padding:13px 15px 11px;border:1px solid rgba(255,255,255,.11);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+  .new-agent-preview-card{--preview-color:#32d583;display:flex;flex-direction:column;gap:8px;padding:10px 13px 8px;border:1px solid rgba(255,255,255,.11);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
   .new-agent-preview-topline,.new-agent-preview-identity,.new-agent-color-footer{display:flex;align-items:center}
   .new-agent-preview-topline{justify-content:space-between;color:var(--text-dim);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
   .new-agent-preview-paused{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid rgba(245,185,66,.2);border-radius:999px;background:rgba(245,185,66,.08);color:#e7c77e;font-size:9px;letter-spacing:.04em;text-transform:none}
   .new-agent-preview-paused svg{width:12px;height:12px}
   .new-agent-preview-identity{gap:12px;min-width:0}
-  .new-agent-preview-avatar{width:64px;height:64px;display:grid;place-items:center;flex:0 0 64px;border:1px solid color-mix(in srgb,var(--preview-color) 38%,transparent);border-radius:18px;background:color-mix(in srgb,var(--preview-color) 13%,transparent);transition:background .18s ease,border-color .18s ease}
-  .new-agent-preview-avatar .agent-avatar-art{width:54px;height:54px;display:block;overflow:visible;animation:none!important}
+  .new-agent-preview-avatar{width:56px;height:56px;display:grid;place-items:center;flex:0 0 56px;border:1px solid color-mix(in srgb,var(--preview-color) 38%,transparent);border-radius:16px;background:color-mix(in srgb,var(--preview-color) 13%,transparent);transition:background .18s ease,border-color .18s ease}
+  .new-agent-preview-avatar .agent-avatar-art{width:46px;height:46px;display:block;overflow:visible;animation:none!important}
   .new-agent-preview-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
   .new-agent-preview-copy strong{overflow:hidden;color:var(--text-main);font-size:15px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
   .new-agent-preview-copy small{overflow:hidden;color:var(--text-sec);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
-  .new-agent-color-footer{justify-content:space-between;gap:12px;padding-top:9px;border-top:1px solid rgba(255,255,255,.075)}
+  .new-agent-color-footer{justify-content:space-between;gap:12px;padding-top:7px;border-top:1px solid rgba(255,255,255,.075)}
   .new-agent-color-label,.new-agent-field-label{color:var(--text-sec);font-size:10px;font-weight:700}
   .new-agent-color-options{display:flex;align-items:center;gap:11px}
-  .new-agent-color-choice{width:21px;height:21px;padding:0;border:2px solid rgba(255,255,255,.16);border-radius:50%;background:var(--swatch-color);cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
+  .new-agent-color-choice{width:20px;height:20px;padding:0;border:2px solid rgba(255,255,255,.16);border-radius:50%;background:var(--swatch-color);cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
   .new-agent-color-choice:hover{transform:scale(1.12)}
   .new-agent-color-choice.is-selected{border-color:#fff;box-shadow:0 0 0 2px #17171a,0 0 0 3px var(--swatch-color)}
   .new-agent-color-choice:focus-visible,.new-agent-avatar-choice:focus-visible{outline:2px solid #f1d596;outline-offset:3px}
-  .new-agent-fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .new-agent-fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
   .new-agent-form label,.new-agent-avatar-picker{display:flex;flex-direction:column;gap:5px;min-width:0;color:var(--text-sec);font-size:10px;font-weight:600}
   .new-agent-form .form-input{margin:0;font-weight:400}
   .new-agent-form textarea.form-input{height:auto;min-height:60px;padding:8px 10px;resize:vertical}
   .new-agent-avatar-options{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:7px}
-  .new-agent-avatar-choice{width:100%;height:39px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.025);cursor:pointer;transition:background .14s ease,border-color .14s ease,transform .14s ease}
+  .new-agent-avatar-choice{width:100%;height:36px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.025);cursor:pointer;transition:background .14s ease,border-color .14s ease,transform .14s ease}
   .new-agent-avatar-choice:hover{transform:translateY(-1px);background:rgba(255,255,255,.07)}
   .new-agent-avatar-choice.is-selected{border-color:rgba(233,185,93,.55);background:rgba(233,185,93,.11);box-shadow:inset 0 0 0 1px rgba(233,185,93,.13)}
   .new-agent-avatar-choice .agent-avatar-art{width:32px;height:32px;display:block;overflow:visible;animation:none!important}
@@ -1540,10 +1541,29 @@
   .new-agent-approval-choice svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
   .new-agent-approval-choice:hover{background:rgba(255,255,255,.07);color:var(--text-main)}
   .new-agent-approval-choice.is-selected{border-color:rgba(233,185,93,.55);background:rgba(233,185,93,.11);color:#f1d596}
+  .new-agent-app-picker{min-width:0;margin:0;padding:0;border:0}
+  .new-agent-app-heading{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--text-sec);font-size:10px;font-weight:700}
+  .new-agent-app-count{color:var(--text-dim);font-size:9px;font-weight:500}
+  .new-agent-app-note{margin:3px 0 6px;color:var(--text-dim);font-size:9px;line-height:1.4}
+  .new-agent-app-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .new-agent-form .new-agent-app-option{position:relative;display:block;min-width:0;cursor:pointer}
+  .new-agent-app-checkbox{position:absolute;inset:0;z-index:2;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+  .new-agent-app-surface{min-height:50px;display:flex;align-items:center;gap:7px;padding:6px 7px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:rgba(255,255,255,.025);transition:background .14s ease,border-color .14s ease,box-shadow .14s ease}
+  .new-agent-app-checkbox:hover + .new-agent-app-surface{background:rgba(255,255,255,.055)}
+  .new-agent-app-checkbox:checked + .new-agent-app-surface{border-color:rgba(233,185,93,.48);background:rgba(233,185,93,.075);box-shadow:inset 0 0 0 1px rgba(233,185,93,.09)}
+  .new-agent-app-checkbox:focus-visible + .new-agent-app-surface{outline:2px solid #f1d596;outline-offset:2px}
+  .new-agent-app-icon{width:28px;height:28px;display:grid;place-items:center;flex:0 0 28px;border:1px solid rgba(255,255,255,.07);border-radius:9px;background:var(--app-color);color:var(--text-main)}
+  .new-agent-app-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+  .new-agent-app-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .new-agent-app-copy strong{overflow:hidden;color:var(--text-main);font-size:9px;font-weight:650;text-overflow:ellipsis;white-space:nowrap}
+  .new-agent-app-copy small{color:var(--text-dim);font-size:8px;font-weight:500}
+  .new-agent-app-check{width:16px;height:16px;display:none;place-items:center;flex:0 0 16px;margin-left:auto;border-radius:50%;background:#f1d596;color:#211a0e}
+  .new-agent-app-checkbox:checked + .new-agent-app-surface .new-agent-app-check{display:grid}
+  .new-agent-app-check svg{width:11px;height:11px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .new-agent-form-status{margin:0;color:var(--text-dim);font-size:10px;line-height:1.5}
   .new-agent-form-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:3px}
   .new-agent-form-actions .pill-btn{min-height:34px;padding:0 13px}
-  @media(max-width:640px){.new-agent-fields-grid{grid-template-columns:1fr}.new-agent-avatar-options{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.new-agent-avatar-choice{height:42px}.new-agent-color-choice{width:23px;height:23px}}
+  @media(max-width:640px){.new-agent-fields-grid{grid-template-columns:1fr}.new-agent-avatar-options{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.new-agent-avatar-choice{height:42px}.new-agent-color-choice{width:23px;height:23px}.new-agent-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.new-agent-app-surface{min-height:56px;padding:7px 6px}.new-agent-app-copy strong{font-size:8.5px}}
   .preview-toast{position:fixed;right:22px;bottom:22px;z-index:100;max-width:min(380px,calc(100vw - 36px));padding:11px 14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-card);color:var(--text-main);font-size:12px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.22)}
   :root[data-theme="light"] .app-settings-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
 </style>
@@ -1725,12 +1745,21 @@
             </div>
             <label for="newAgentOrderCap">Maximum per order (USD)<input class="form-input" id="newAgentOrderCap" name="orderCap" type="number" min="20" max="500" step="1" value="20" required></label>
           </div>
-          <div class="new-agent-fields-grid">
-            <label for="newAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="newAgentDailyCap" name="dailyCap" type="number" min="100" max="2000" step="25" value="100" required></label>
-            <label for="newAgentApps">Apps, optional<input class="form-input" id="newAgentApps" name="apps" type="text" maxlength="320" placeholder="Comma-separated app names"></label>
-          </div>
+          <label for="newAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="newAgentDailyCap" name="dailyCap" type="number" min="100" max="2000" step="25" value="100" required></label>
+          <fieldset class="new-agent-app-picker">
+            <legend class="new-agent-app-heading"><span>Apps</span><span class="new-agent-app-count" id="newAgentAppsCount" aria-live="polite">0 selected</span></legend>
+            <p class="new-agent-app-note">Select any preview labels to save with this agent. No integrations are connected.</p>
+            <div class="new-agent-app-grid" id="newAgentAppsOptions" role="group" aria-label="Preview app selections">
+              <label class="new-agent-app-option" style="--app-color:rgba(76,141,255,.17)"><input class="new-agent-app-checkbox" id="newAgentAppPaypal" type="checkbox" value="paypal" aria-label="PayPal Sandbox preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></span><span class="new-agent-app-copy"><strong>PayPal Sandbox</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
+              <label class="new-agent-app-option" style="--app-color:rgba(245,185,66,.17)"><input class="new-agent-app-checkbox" id="newAgentAppChannel3" type="checkbox" value="channel3" aria-label="Channel3 preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1 11H5L4 9Z"/><path d="M8 9a4 4 0 0 1 8 0"/><path d="M9 13v3m6-3v3"/></svg></span><span class="new-agent-app-copy"><strong>Channel3</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
+              <label class="new-agent-app-option" style="--app-color:rgba(50,213,131,.17)"><input class="new-agent-app-checkbox" id="newAgentAppKernel" type="checkbox" value="kernel" aria-label="KERNEL preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg></span><span class="new-agent-app-copy"><strong>KERNEL</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
+              <label class="new-agent-app-option" style="--app-color:rgba(50,213,131,.2)"><input class="new-agent-app-checkbox" id="newAgentAppWhatsapp" type="checkbox" value="whatsapp" aria-label="WhatsApp preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-11.1 6.6L4 19l.9-4.6A7.5 7.5 0 1 1 20 11.5Z"/><path d="M9 9c.4 2 1.5 3.1 3.5 4"/></svg></span><span class="new-agent-app-copy"><strong>WhatsApp</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
+              <label class="new-agent-app-option" style="--app-color:rgba(255,91,91,.17)"><input class="new-agent-app-checkbox" id="newAgentAppInbox" type="checkbox" value="gmail" aria-label="Inbox preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg></span><span class="new-agent-app-copy"><strong>Inbox</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
+              <label class="new-agent-app-option" style="--app-color:rgba(245,166,35,.17)"><input class="new-agent-app-checkbox" id="newAgentAppInstagram" type="checkbox" value="instagram" aria-label="Instagram Shops preview label"><span class="new-agent-app-surface"><span class="new-agent-app-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16l-1 10H5L4 10Z"/><path d="M7 10V7h10v3m-7 4v3m4-3v3"/></svg></span><span class="new-agent-app-copy"><strong>Instagram Shops</strong><small>Preview only</small></span><span class="new-agent-app-check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="m3.5 8.2 3 3 6-6"/></svg></span></span></label>
+            </div>
+          </fieldset>
           <label for="newAgentMemoryPills">Memory preferences, optional<textarea class="form-input" id="newAgentMemoryPills" name="memoryPills" rows="2" maxlength="1600" placeholder="One preference per line"></textarea></label>
-          <p class="new-agent-form-status" id="newAgentFormStatus" role="status" aria-live="polite">Apps and memory preferences are saved as settings; no integrations are connected here.</p>
+          <p class="new-agent-form-status" id="newAgentFormStatus" role="status" aria-live="polite">App selections and memory preferences are saved as preview settings. No integrations are connected here.</p>
           <div class="new-agent-form-actions">
             <button class="pill-btn dark" type="button" onclick="closeNewAgentModal()">Cancel</button>
             <button class="pill-btn light" id="createNewAgentButton" type="submit">Create Agent</button>
@@ -1912,6 +1941,13 @@
       renderNewAgentPreview();
     });
   });
+  function updateNewAgentAppsCount() {
+    const count = document.querySelectorAll('#newAgentAppsOptions input[type="checkbox"]:checked').length;
+    textById('newAgentAppsCount', `${count} selected`);
+  }
+  document.querySelectorAll('#newAgentAppsOptions input[type="checkbox"]').forEach((input) => {
+    input.addEventListener('change', updateNewAgentAppsCount);
+  });
   document.getElementById('newAgentName')?.addEventListener('input', renderNewAgentPreview);
   document.getElementById('newAgentRole')?.addEventListener('input', renderNewAgentPreview);
   document.getElementById('newAgentForm')?.addEventListener('reset', () => setTimeout(() => {
@@ -1919,8 +1955,10 @@
     document.getElementById('newAgentColor').value = '#32d583';
     document.getElementById('newAgentApprovalPath').value = 'desktop';
     renderNewAgentPreview();
+    updateNewAgentAppsCount();
   }, 0));
   renderNewAgentPreview();
+  updateNewAgentAppsCount();
 
   function renderSavedAgentRows(agents, activeAgent) {
     const list = document.getElementById('agentList');
@@ -2064,7 +2102,7 @@
     textById('chatPreviewNote', hasSavedAgent ? 'Messaging is not connected in this preview.' : 'Save an agent to use the message composer.');
     const createButton = document.getElementById('createNewAgentButton');
     if (createButton) createButton.disabled = false;
-    textById('newAgentFormStatus', 'Apps and memory preferences are saved as settings; no integrations are connected here.');
+    textById('newAgentFormStatus', 'App selections and memory preferences are saved as preview settings. No integrations are connected here.');
 
     textById('accountName', displayName);
     textById('accountEmail', email || 'Email unavailable');
@@ -2138,7 +2176,7 @@
       approvalPath: value('newAgentApprovalPath'),
       orderCap: Number(value('newAgentOrderCap')),
       dailyCap: Number(value('newAgentDailyCap')),
-      apps: String(value('newAgentApps')).split(',').map((entry) => entry.trim()).filter(Boolean),
+      apps: Array.from(document.querySelectorAll('#newAgentAppsOptions input[type="checkbox"]:checked'), (checkbox) => checkbox.value),
       memoryPills: String(value('newAgentMemoryPills')).split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean),
     };
     button.disabled = true;
@@ -2163,7 +2201,7 @@
       selectedAgentId = String(data.createdAgentId || '');
       renderAuthenticatedWorkspace(data);
       form.reset();
-      textById('newAgentFormStatus', 'Apps and memory preferences are saved as settings; no integrations are connected here.');
+      textById('newAgentFormStatus', 'App selections and memory preferences are saved as preview settings. No integrations are connected here.');
       closeNewAgentModal();
       showToast(`${name} was added as a paused agent.`);
     } catch {
