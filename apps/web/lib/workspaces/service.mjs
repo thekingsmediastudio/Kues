@@ -231,6 +231,22 @@ async function workspaceBootstrapInTransaction(tx, { userId, now, competition })
   const row = result.rows[0];
   if (!row) throw new WorkspaceError('workspace_access_denied', 403);
 
+  const agentsResult = await tx.execute({
+    sql: `SELECT id, name, role, avatar, status, settings_json, created_at, updated_at
+          FROM agents WHERE workspace_id = ?
+          ORDER BY created_at ASC, id ASC`,
+    args: [row.workspace_id],
+  });
+  const agents = agentsResult.rows.map((agentRow) => ({
+    id: agentRow.id,
+    name: agentRow.name,
+    role: agentRow.role,
+    avatar: agentRow.avatar,
+    status: agentRow.status,
+    settings: parseJson(agentRow.settings_json),
+    createdAt: agentRow.created_at,
+    updatedAt: agentRow.updated_at,
+  }));
   const entitlement = await findActiveUsageEntitlement(tx, {
     workspaceId: row.workspace_id,
     now: isoNow(now),
@@ -259,6 +275,7 @@ async function workspaceBootstrapInTransaction(tx, { userId, now, competition })
       } : null,
     },
     usageAccess: usageAccessView(entitlement, { now: isoNow(now), competition }),
+    agents,
   };
 }
 
@@ -347,5 +364,42 @@ export function createWorkspaceService({ db, competition = null } = {}) {
     });
   }
 
-  return Object.freeze({ getBootstrap, completeOnboarding });
+  async function createAgent({ userId, input, now = new Date().toISOString() }) {
+    const checkedAt = isoNow(now);
+    const payload = normalizeOnboardingInput(input);
+    return withWriteTransaction(db, async (tx) => {
+      const { workspace } = await ensureDefaultWorkspaceInTransaction(tx, {
+        userId,
+        now: checkedAt,
+        competition,
+      });
+      const duplicate = await tx.execute({
+        sql: 'SELECT id FROM agents WHERE workspace_id = ? AND lower(name) = lower(?) LIMIT 1',
+        args: [workspace.id, payload.name],
+      });
+      if (duplicate.rows.length) throw new WorkspaceError('agent_name_conflict', 409);
+
+      const agentId = `agt_${crypto.randomUUID().replaceAll('-', '')}`;
+      const settings = {
+        color: payload.color,
+        approvalPath: payload.approvalPath,
+        orderCap: payload.orderCap,
+        dailyCap: payload.dailyCap,
+        currency: 'USD',
+        apps: payload.apps,
+        memoryPills: payload.memoryPills,
+        previewOnly: true,
+        onboardingVersion: 1,
+      };
+      await tx.execute({
+        sql: `INSERT INTO agents(id, workspace_id, name, role, avatar, status, settings_json, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, 'paused', ?, ?, ?)`,
+        args: [agentId, workspace.id, payload.name, payload.role, payload.avatar, JSON.stringify(settings), checkedAt, checkedAt],
+      });
+      const bootstrap = await workspaceBootstrapInTransaction(tx, { userId, now: checkedAt, competition });
+      return { ...bootstrap, createdAgentId: agentId };
+    });
+  }
+
+  return Object.freeze({ getBootstrap, completeOnboarding, createAgent });
 }

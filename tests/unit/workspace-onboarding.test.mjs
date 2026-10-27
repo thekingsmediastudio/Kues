@@ -132,6 +132,70 @@ test('onboarding is persisted in the owner workspace and returned from the share
   }
 });
 
+test('additional agents are persisted in the same workspace, returned in bootstrap, and start paused', async () => {
+  const db = await createDb();
+  const now = '2026-10-26T09:00:00.000Z';
+  try {
+    const auth = createAuthService({ db, competition });
+    const login = await auth.createWorkOSSession({
+      providerSubject: 'workos_create_agent_1',
+      email: 'create-agent@example.test',
+      emailVerified: true,
+      displayName: 'Agent Owner',
+      now,
+    });
+    const workspaces = createWorkspaceService({ db, competition });
+    const original = await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now });
+    const input = {
+      ...onboardingInput,
+      name: 'Supply Scout',
+      role: 'Compare supplier options',
+      avatar: 'cart',
+      color: '#4c8dff',
+      approvalPath: 'keyfob',
+      orderCap: 150,
+      dailyCap: 500,
+      apps: ['Shopify', 'Amazon'],
+      memoryPills: ['Prefer local suppliers', 'Ask before substitutions'],
+    };
+
+    const saved = await workspaces.createAgent({ userId: login.user.id, input, now });
+    assert.match(saved.createdAgentId, /^agt_[0-9a-f]{32}$/);
+    assert.equal(saved.workspace.id, original.workspace.id);
+    assert.equal(saved.onboarding.agent.id, original.onboarding.agent.id);
+    assert.equal(saved.agents.length, 2);
+    const created = saved.agents.find((agent) => agent.id === saved.createdAgentId);
+    assert.ok(created);
+    assert.equal(created.name, input.name);
+    assert.equal(created.role, input.role);
+    assert.equal(created.avatar, input.avatar);
+    assert.equal(created.status, 'paused');
+    assert.equal(created.settings.color, input.color);
+    assert.equal(created.settings.approvalPath, input.approvalPath);
+    assert.equal(created.settings.orderCap, input.orderCap);
+    assert.equal(created.settings.dailyCap, input.dailyCap);
+    assert.deepEqual(created.settings.apps, input.apps);
+    assert.deepEqual(created.settings.memoryPills, input.memoryPills);
+    assert.equal(created.settings.previewOnly, true);
+    assert.equal(Number((await db.execute('SELECT COUNT(*) AS count FROM agents')).rows[0].count), 2);
+
+    const reloaded = await workspaces.getBootstrap({ userId: login.user.id, now });
+    assert.equal(reloaded.agents.length, 2);
+    assert.equal(reloaded.agents.find((agent) => agent.id === saved.createdAgentId).status, 'paused');
+    await assert.rejects(
+      workspaces.createAgent({ userId: login.user.id, input: { ...input, name: 'supply scout' }, now }),
+      (error) => error.code === 'agent_name_conflict' && error.status === 409,
+    );
+    await assert.rejects(
+      workspaces.createAgent({ userId: login.user.id, input: { ...input, memoryPills: [''] }, now }),
+      (error) => error.code === 'invalid_memory_pills' && error.status === 400,
+    );
+    assert.equal(Number((await db.execute('SELECT COUNT(*) AS count FROM agents')).rows[0].count), 2);
+  } finally {
+    await db.close();
+  }
+});
+
 test('onboarding API requires a session and same-origin write, and persists data for the authenticated account', async () => {
   const db = await createDb();
   const now = new Date(Date.now() - 60_000).toISOString();
@@ -196,6 +260,106 @@ test('onboarding API requires a session and same-origin write, and persists data
       const reloadedBody = await reloaded.json();
       assert.equal(reloadedBody.onboarding.profile.agent.name, onboardingInput.name);
       assert.equal(reloadedBody.onboarding.agent.status, 'paused');
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  } finally {
+    await db.close();
+  }
+});
+
+test('agent creation API is same-origin and authenticated, persists settings, and rejects duplicate names', async () => {
+  const db = await createDb();
+  const now = new Date(Date.now() - 60_000).toISOString();
+  try {
+    const authService = createAuthService({ db });
+    const workspaceService = createWorkspaceService({ db });
+    const login = await authService.createWorkOSSession({
+      providerSubject: 'workos_create_agent_api_1',
+      email: 'create-agent-api@example.test',
+      emailVerified: true,
+      displayName: 'Agent API Owner',
+      now,
+    });
+    const server = createServer({ config: loadServerConfig({}), authService, workspaceService });
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    const base = `http://127.0.0.1:${address.port}`;
+    const cookie = `kues_session=${login.sessionToken}`;
+    const headers = { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' };
+    try {
+      const anonymous = await fetch(`${base}/api/workspace/agents`, {
+        method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' },
+        body: JSON.stringify(onboardingInput),
+      });
+      assert.equal(anonymous.status, 401);
+      assert.deepEqual(await anonymous.json(), { error: 'authentication_required' });
+
+      const missingOrigin = await fetch(`${base}/api/workspace/agents`, {
+        method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify(onboardingInput),
+      });
+      assert.equal(missingOrigin.status, 403);
+      assert.deepEqual(await missingOrigin.json(), { error: 'same_origin_required' });
+
+      const foreignOrigin = await fetch(`${base}/api/workspace/agents`, {
+        method: 'POST', headers: { ...headers, Origin: 'https://attacker.example' },
+        body: JSON.stringify(onboardingInput),
+      });
+      assert.equal(foreignOrigin.status, 403);
+
+      const initial = await fetch(`${base}/api/workspace/bootstrap`, { headers: { Cookie: cookie } });
+      assert.equal(initial.status, 200);
+      const initialBody = await initial.json();
+      assert.equal(initialBody.agents.length, 0);
+
+      const input = {
+        ...onboardingInput,
+        name: 'Inventory Helper',
+        apps: ['Shopify'],
+        memoryPills: ['Ask before changing inventory'],
+        workspaceId: 'attacker-selected-workspace',
+        userId: 'attacker-selected-user',
+      };
+      const created = await fetch(`${base}/api/workspace/agents`, {
+        method: 'POST', headers,
+        body: JSON.stringify(input),
+      });
+      assert.equal(created.status, 201);
+      const createdBody = await created.json();
+      assert.equal(createdBody.created, true);
+      assert.equal(createdBody.user.id, login.user.id);
+      assert.equal(createdBody.agents.length, 1);
+      assert.equal(createdBody.createdAgentId, createdBody.agents[0].id);
+      assert.equal(createdBody.agents[0].name, input.name);
+      assert.equal(createdBody.agents[0].status, 'paused');
+      assert.deepEqual(createdBody.agents[0].settings.apps, input.apps);
+      assert.deepEqual(createdBody.agents[0].settings.memoryPills, input.memoryPills);
+      assert.equal(createdBody.agents[0].settings.previewOnly, true);
+      assert.equal(createdBody.workspace.id, initialBody.workspace.id);
+
+      const duplicate = await fetch(`${base}/api/workspace/agents`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ ...input, name: 'inventory helper' }),
+      });
+      assert.equal(duplicate.status, 409);
+      assert.deepEqual(await duplicate.json(), { error: 'agent_name_conflict' });
+
+      const invalid = await fetch(`${base}/api/workspace/agents`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ ...onboardingInput, name: 'Invalid Assistant', avatar: 'robot' }),
+      });
+      assert.equal(invalid.status, 400);
+      assert.deepEqual(await invalid.json(), { error: 'invalid_agent_avatar' });
+
+      const reloaded = await fetch(`${base}/api/workspace/bootstrap`, { headers: { Cookie: cookie } });
+      assert.equal(reloaded.status, 200);
+      const reloadedBody = await reloaded.json();
+      assert.equal(reloadedBody.agents.length, 1);
+      assert.equal(reloadedBody.agents[0].id, createdBody.createdAgentId);
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }

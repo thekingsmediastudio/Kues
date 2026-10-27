@@ -1262,7 +1262,8 @@
   .cueclaw-brand { display:flex;align-items:center;gap:6px;min-width:0; }
   .cueclaw-brand-mark { width:24px;height:24px;display:block;flex:none; }
   .cueclaw-brand-mark svg { width:100%;height:100%;display:block;filter:drop-shadow(0 2px 5px rgba(50,213,131,.13)); }
-  .cueclaw-brand-name { color:#e9e9ec;font:700 11px var(--font);letter-spacing:-.025em;white-space:nowrap; }
+  .cueclaw-brand-name { color:#e9e9ec;font:800 11px var(--font);letter-spacing:-.025em;white-space:nowrap; }
+  :root[data-theme="light"] .cueclaw-brand-name { color:#111113; }
 
   .mac-dots { gap:7px; opacity:.82; }
   .mac-dot { width:10px;height:10px;box-shadow:inset 0 1px 1px rgba(255,255,255,.28); }
@@ -1460,6 +1461,8 @@
   :root[data-theme="light"] .composer-area{background:linear-gradient(180deg,transparent,rgba(248,250,247,.95) 28%)}
 
 
+  :root{--agent-avatar-outline:#fff}
+  :root[data-theme="light"]{--agent-avatar-outline:#111113}
   .active-agent-summary{display:flex;align-items:center;gap:10px;min-width:0;max-width:100%;flex:1}
   .review-data-badge{flex:none;margin-left:10px;padding:4px 8px;border:1px solid rgba(233,185,93,.25);border-radius:999px;background:rgba(233,185,93,.08);color:var(--cue-gold);font-size:9px;font-weight:650;letter-spacing:.02em;white-space:nowrap}
   .review-data-badge[hidden]{display:none!important}
@@ -1502,6 +1505,45 @@
   .app-settings-modal{width:min(480px,94vw);height:auto;min-height:250px;max-height:88vh}
   .app-settings-empty{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:18px}
   .app-settings-empty p{margin:0;color:var(--text-sec);font-size:13px;line-height:1.6}
+  .new-agent-form{display:flex;flex-direction:column;gap:13px}
+  .new-agent-form-intro{margin:0;color:var(--text-sec);font-size:11px;line-height:1.5}
+  .new-agent-preview-card{--preview-color:#32d583;display:flex;flex-direction:column;gap:11px;padding:13px 15px 11px;border:1px solid rgba(255,255,255,.11);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+  .new-agent-preview-topline,.new-agent-preview-identity,.new-agent-color-footer{display:flex;align-items:center}
+  .new-agent-preview-topline{justify-content:space-between;color:var(--text-dim);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+  .new-agent-preview-paused{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid rgba(245,185,66,.2);border-radius:999px;background:rgba(245,185,66,.08);color:#e7c77e;font-size:9px;letter-spacing:.04em;text-transform:none}
+  .new-agent-preview-paused svg{width:12px;height:12px}
+  .new-agent-preview-identity{gap:12px;min-width:0}
+  .new-agent-preview-avatar{width:64px;height:64px;display:grid;place-items:center;flex:0 0 64px;border:1px solid color-mix(in srgb,var(--preview-color) 38%,transparent);border-radius:18px;background:color-mix(in srgb,var(--preview-color) 13%,transparent);transition:background .18s ease,border-color .18s ease}
+  .new-agent-preview-avatar .agent-avatar-art{width:54px;height:54px;display:block;overflow:visible;animation:none!important}
+  .new-agent-preview-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .new-agent-preview-copy strong{overflow:hidden;color:var(--text-main);font-size:15px;font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+  .new-agent-preview-copy small{overflow:hidden;color:var(--text-sec);font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+  .new-agent-color-footer{justify-content:space-between;gap:12px;padding-top:9px;border-top:1px solid rgba(255,255,255,.075)}
+  .new-agent-color-label,.new-agent-field-label{color:var(--text-sec);font-size:10px;font-weight:700}
+  .new-agent-color-options{display:flex;align-items:center;gap:11px}
+  .new-agent-color-choice{width:21px;height:21px;padding:0;border:2px solid rgba(255,255,255,.16);border-radius:50%;background:var(--swatch-color);cursor:pointer;transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}
+  .new-agent-color-choice:hover{transform:scale(1.12)}
+  .new-agent-color-choice.is-selected{border-color:#fff;box-shadow:0 0 0 2px #17171a,0 0 0 3px var(--swatch-color)}
+  .new-agent-color-choice:focus-visible,.new-agent-avatar-choice:focus-visible{outline:2px solid #f1d596;outline-offset:3px}
+  .new-agent-fields-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .new-agent-form label,.new-agent-avatar-picker{display:flex;flex-direction:column;gap:5px;min-width:0;color:var(--text-sec);font-size:10px;font-weight:600}
+  .new-agent-form .form-input{margin:0;font-weight:400}
+  .new-agent-form textarea.form-input{height:auto;min-height:60px;padding:8px 10px;resize:vertical}
+  .new-agent-avatar-options{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:7px}
+  .new-agent-avatar-choice{width:100%;height:39px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.025);cursor:pointer;transition:background .14s ease,border-color .14s ease,transform .14s ease}
+  .new-agent-avatar-choice:hover{transform:translateY(-1px);background:rgba(255,255,255,.07)}
+  .new-agent-avatar-choice.is-selected{border-color:rgba(233,185,93,.55);background:rgba(233,185,93,.11);box-shadow:inset 0 0 0 1px rgba(233,185,93,.13)}
+  .new-agent-avatar-choice .agent-avatar-art{width:32px;height:32px;display:block;overflow:visible;animation:none!important}
+  .new-agent-approval-picker{display:flex;flex-direction:column;gap:5px;min-width:0}
+  .new-agent-approval-options{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .new-agent-approval-choice{min-width:0;height:38px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 8px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.025);color:var(--text-sec);font:600 10px var(--font);cursor:pointer;transition:background .14s ease,border-color .14s ease,color .14s ease}
+  .new-agent-approval-choice svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+  .new-agent-approval-choice:hover{background:rgba(255,255,255,.07);color:var(--text-main)}
+  .new-agent-approval-choice.is-selected{border-color:rgba(233,185,93,.55);background:rgba(233,185,93,.11);color:#f1d596}
+  .new-agent-form-status{margin:0;color:var(--text-dim);font-size:10px;line-height:1.5}
+  .new-agent-form-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:3px}
+  .new-agent-form-actions .pill-btn{min-height:34px;padding:0 13px}
+  @media(max-width:640px){.new-agent-fields-grid{grid-template-columns:1fr}.new-agent-avatar-options{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.new-agent-avatar-choice{height:42px}.new-agent-color-choice{width:23px;height:23px}}
   .preview-toast{position:fixed;right:22px;bottom:22px;z-index:100;max-width:min(380px,calc(100vw - 36px));padding:11px 14px;border:1px solid var(--border-strong);border-radius:10px;background:var(--bg-card);color:var(--text-main);font-size:12px;line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.22)}
   :root[data-theme="light"] .app-settings-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
 </style>
@@ -1624,18 +1666,76 @@
     </div>
   </div>
 
-  <!-- New Agent availability information -->
+  <!-- New Agent setup form -->
   <div class="overlay-backdrop" id="newAgentOverlayBackdrop" onclick="handleBackdropClick(event, 'newAgentOverlayBackdrop')">
     <div class="new-agent-modal" role="dialog" aria-modal="true" aria-labelledby="newAgentDialogTitle" tabindex="-1" onclick="event.stopPropagation()">
       <div class="modal-header">
         <div class="modal-header-title" id="newAgentDialogTitle">Add New Agent</div>
-        <button class="modal-close" onclick="closeNewAgentModal()" title="Close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+        <button class="modal-close" type="button" onclick="closeNewAgentModal()" title="Close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       </div>
       <div class="modal-body">
-        <p id="newAgentUnavailableMessage">Adding another agent is not available yet.</p>
-        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-          <button class="pill-btn dark" type="button" onclick="closeNewAgentModal()">Close</button>
-        </div>
+        <form class="new-agent-form" id="newAgentForm">
+          <p class="new-agent-form-intro">New agents are saved as paused and will not run automatically.</p>
+          <section class="new-agent-preview-card" aria-label="Live agent preview">
+            <div class="new-agent-preview-topline"><span>Live preview</span><span class="new-agent-preview-paused"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5h2v9H5zm4 0h2v9H9z" fill="currentColor"/></svg>Paused</span></div>
+            <div class="new-agent-preview-identity">
+              <span class="new-agent-preview-avatar" id="newAgentPreviewAvatar" aria-hidden="true"></span>
+              <span class="new-agent-preview-copy"><strong id="newAgentPreviewName">New agent</strong><small id="newAgentPreviewRole">Choose a role to preview it here</small></span>
+            </div>
+            <div class="new-agent-color-footer">
+              <span class="new-agent-color-label">Color</span>
+              <div class="new-agent-color-options" id="newAgentColorOptions" role="group" aria-label="Choose avatar color">
+                <button class="new-agent-color-choice is-selected" type="button" data-color="#32d583" aria-label="Green" title="Green" aria-pressed="true" style="--swatch-color:#32d583"></button>
+                <button class="new-agent-color-choice" type="button" data-color="#f5b942" aria-label="Gold" title="Gold" aria-pressed="false" style="--swatch-color:#f5b942"></button>
+                <button class="new-agent-color-choice" type="button" data-color="#4c8dff" aria-label="Blue" title="Blue" aria-pressed="false" style="--swatch-color:#4c8dff"></button>
+                <button class="new-agent-color-choice" type="button" data-color="#b57cff" aria-label="Purple" title="Purple" aria-pressed="false" style="--swatch-color:#b57cff"></button>
+                <button class="new-agent-color-choice" type="button" data-color="#ff7777" aria-label="Coral" title="Coral" aria-pressed="false" style="--swatch-color:#ff7777"></button>
+              </div>
+            </div>
+          </section>
+          <div class="new-agent-fields-grid">
+            <label for="newAgentName">Agent name<input class="form-input" id="newAgentName" name="name" type="text" maxlength="30" autocomplete="off" placeholder="Name your agent" required></label>
+            <label for="newAgentRole">Role<input class="form-input" id="newAgentRole" name="role" type="text" maxlength="60" autocomplete="off" placeholder="What should it do?" required></label>
+          </div>
+          <div class="new-agent-avatar-picker">
+            <span class="new-agent-field-label" id="newAgentAvatarLabel">Avatar</span>
+            <div class="new-agent-avatar-options" id="newAgentAvatarOptions" role="group" aria-labelledby="newAgentAvatarLabel">
+              <button class="new-agent-avatar-choice is-selected" type="button" data-avatar="bulb" aria-label="Lightbulb" title="Lightbulb" aria-pressed="true"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="laptop" aria-label="Laptop" title="Laptop" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="shield" aria-label="Shield" title="Shield" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="cart" aria-label="Shopping cart" title="Shopping cart" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="car" aria-label="Car" title="Car" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="parcel" aria-label="Parcel" title="Parcel" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="magnifier" aria-label="Magnifier" title="Magnifier" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="tag" aria-label="Price tag" title="Price tag" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="wallet" aria-label="Wallet" title="Wallet" aria-pressed="false"></button>
+              <button class="new-agent-avatar-choice" type="button" data-avatar="van" aria-label="Delivery van" title="Delivery van" aria-pressed="false"></button>
+            </div>
+            <input type="hidden" id="newAgentAvatar" name="avatar" value="bulb">
+            <input type="hidden" id="newAgentColor" name="color" value="#32d583">
+          </div>
+          <div class="new-agent-fields-grid">
+            <div class="new-agent-approval-picker">
+              <span class="new-agent-field-label" id="newAgentApprovalLabel">Approval path</span>
+              <div class="new-agent-approval-options" id="newAgentApprovalOptions" role="group" aria-labelledby="newAgentApprovalLabel">
+                <button class="new-agent-approval-choice is-selected" type="button" data-approval-path="desktop" aria-pressed="true"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="3" width="15" height="10.5" rx="1.8"/><path d="M7 17h6m-3-3.5V17"/></svg><span>Desktop</span></button>
+                <button class="new-agent-approval-choice" type="button" data-approval-path="keyfob" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="5" y="2.5" width="10" height="15" rx="3"/><circle cx="10" cy="13.8" r=".8"/><path d="M8 5.5h4"/></svg><span>Keyfob</span></button>
+              </div>
+              <input type="hidden" id="newAgentApprovalPath" name="approvalPath" value="desktop">
+            </div>
+            <label for="newAgentOrderCap">Maximum per order (USD)<input class="form-input" id="newAgentOrderCap" name="orderCap" type="number" min="20" max="500" step="1" value="20" required></label>
+          </div>
+          <div class="new-agent-fields-grid">
+            <label for="newAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="newAgentDailyCap" name="dailyCap" type="number" min="100" max="2000" step="25" value="100" required></label>
+            <label for="newAgentApps">Apps, optional<input class="form-input" id="newAgentApps" name="apps" type="text" maxlength="320" placeholder="Comma-separated app names"></label>
+          </div>
+          <label for="newAgentMemoryPills">Memory preferences, optional<textarea class="form-input" id="newAgentMemoryPills" name="memoryPills" rows="2" maxlength="1600" placeholder="One preference per line"></textarea></label>
+          <p class="new-agent-form-status" id="newAgentFormStatus" role="status" aria-live="polite">Apps and memory preferences are saved as settings; no integrations are connected here.</p>
+          <div class="new-agent-form-actions">
+            <button class="pill-btn dark" type="button" onclick="closeNewAgentModal()">Cancel</button>
+            <button class="pill-btn light" id="createNewAgentButton" type="submit">Create Agent</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -1652,6 +1752,8 @@
 
   let lastFocusedElement = null;
   let openOverlayId = null;
+  let selectedAgentId = null;
+  let savedAgentRowTemplate = null;
   function openOverlay(id) {
     const backdrop = document.getElementById(id);
     if (!backdrop) return;
@@ -1751,7 +1853,111 @@
     const views={bulb:'8 2 48 60', laptop:'3 4 58 58', shield:'5 2 54 62', cart:'2 4 60 58', car:'1 2 62 59', parcel:'3 2 58 61', magnifier:'2 2 60 60', tag:'3 3 58 58', wallet:'2 4 60 58', van:'2 2 60 60'};
     const key=Object.prototype.hasOwnProperty.call(shapes,kind) ? kind : 'bulb';
     const c=safeAvatarColor(color);
-    return `<svg class="agent-avatar-art" viewBox="${views[key]}" role="img" aria-label="${labels[key]} avatar">${shapes[key].replaceAll('{c}',c)}</svg>`;
+    const shape=shapes[key].replaceAll('{c}',c).replaceAll('stroke="#111113"','stroke="var(--agent-avatar-outline)"');
+    return `<svg class="agent-avatar-art" viewBox="${views[key]}" role="img" aria-label="${labels[key]} avatar">${shape}</svg>`;
+  }
+
+  function renderNewAgentPreview() {
+    const value = (id) => document.getElementById(id)?.value ?? '';
+    const avatar = String(value('newAgentAvatar') || 'bulb');
+    const color = safeAvatarColor(value('newAgentColor'));
+    const approvalPath = String(value('newAgentApprovalPath') || 'desktop');
+    const name = String(value('newAgentName')).trim() || 'New agent';
+    const role = String(value('newAgentRole')).trim() || 'Choose a role to preview it here';
+    textById('newAgentPreviewName', name);
+    textById('newAgentPreviewRole', role);
+    const avatarPreview = document.getElementById('newAgentPreviewAvatar');
+    if (avatarPreview) {
+      avatarPreview.innerHTML = objectAvatarSvg(avatar, color);
+      avatarPreview.style.setProperty('--preview-color', color);
+      avatarPreview.style.borderColor = `${color}66`;
+      avatarPreview.style.backgroundColor = `${color}22`;
+    }
+    document.querySelectorAll('#newAgentAvatarOptions [data-avatar]').forEach((button) => {
+      const selected = button.dataset.avatar === avatar;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+      button.innerHTML = objectAvatarSvg(button.dataset.avatar, color);
+    });
+    document.querySelectorAll('#newAgentColorOptions [data-color]').forEach((button) => {
+      const selected = button.dataset.color.toLowerCase() === color.toLowerCase();
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    document.querySelectorAll('#newAgentApprovalOptions [data-approval-path]').forEach((button) => {
+      const selected = button.dataset.approvalPath === approvalPath;
+      button.classList.toggle('is-selected', selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+  }
+
+  document.querySelectorAll('#newAgentAvatarOptions [data-avatar]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const field = document.getElementById('newAgentAvatar');
+      if (field) field.value = button.dataset.avatar || 'bulb';
+      renderNewAgentPreview();
+    });
+  });
+  document.querySelectorAll('#newAgentColorOptions [data-color]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const field = document.getElementById('newAgentColor');
+      if (field) field.value = button.dataset.color || '#32d583';
+      renderNewAgentPreview();
+    });
+  });
+  document.querySelectorAll('#newAgentApprovalOptions [data-approval-path]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const field = document.getElementById('newAgentApprovalPath');
+      if (field) field.value = button.dataset.approvalPath || 'desktop';
+      renderNewAgentPreview();
+    });
+  });
+  document.getElementById('newAgentName')?.addEventListener('input', renderNewAgentPreview);
+  document.getElementById('newAgentRole')?.addEventListener('input', renderNewAgentPreview);
+  document.getElementById('newAgentForm')?.addEventListener('reset', () => setTimeout(() => {
+    document.getElementById('newAgentAvatar').value = 'bulb';
+    document.getElementById('newAgentColor').value = '#32d583';
+    document.getElementById('newAgentApprovalPath').value = 'desktop';
+    renderNewAgentPreview();
+  }, 0));
+  renderNewAgentPreview();
+
+  function renderSavedAgentRows(agents, activeAgent) {
+    const list = document.getElementById('agentList');
+    const template = savedAgentRowTemplate || document.getElementById('savedAgentRow');
+    if (!list || !template) return;
+    if (!savedAgentRowTemplate) savedAgentRowTemplate = template.cloneNode(true);
+    const rowTemplate = savedAgentRowTemplate;
+    const rows = Array.isArray(agents) ? agents : [];
+    const activeId = activeAgent?.id ? String(activeAgent.id) : '';
+    list.replaceChildren();
+    rows.forEach((agent, index) => {
+      const row = rowTemplate.cloneNode(true);
+      const isActive = Boolean(activeId && String(agent.id) === activeId);
+      const status = ({ active: 'Active', paused: 'Paused', archived: 'Archived' })[String(agent.status || '').toLowerCase()] || 'Status unavailable';
+      const avatar = row.querySelector('.saved-agent-avatar');
+      const name = row.querySelector('.agent-name');
+      const statusNode = row.querySelector('.agent-time');
+      const role = row.querySelector('.agent-preview');
+      row.id = isActive ? 'savedAgentRow' : `savedAgentRow${index + 1}`;
+      row.hidden = false;
+      row.style.display = '';
+      row.classList.toggle('active', isActive);
+      row.setAttribute('aria-label', `Saved agent profile${isActive ? ', active chat' : ''}, status ${status}, display only`);
+      if (isActive) {
+        avatar.id = 'savedAgentAvatar';
+        name.id = 'savedAgentName';
+        statusNode.id = 'savedAgentStatus';
+        role.id = 'savedAgentRole';
+      } else {
+        [avatar, name, statusNode, role].forEach((node) => node.removeAttribute('id'));
+      }
+      name.textContent = String(agent.name || 'Saved agent');
+      statusNode.textContent = status;
+      role.textContent = String(agent.role || 'Role not set');
+      avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', agent.settings?.color || agent.color || '#32d583');
+      list.append(row);
+    });
   }
 
   const localReviewFixture = {
@@ -1781,7 +1987,10 @@
     textById('accountMenuLabel', 'Sample review account');
     textById('accountMenuWorkspace', 'Review Workspace - Sample data');
     const row = document.getElementById('savedAgentRow');
-    if (row) row.setAttribute('aria-label', 'Sample review agent profile, status Paused, display only');
+    if (row) row.setAttribute('aria-label', 'Sample review agent profile, active chat, status Paused, display only');
+    const createButton = document.getElementById('createNewAgentButton');
+    if (createButton) createButton.disabled = true;
+    textById('newAgentFormStatus', 'This sample review account is not authenticated and cannot save agents.');
   }
 
   function setWorkspaceUnavailable() {
@@ -1801,6 +2010,9 @@
     const chatSendButton = document.getElementById('chatSendButton');
     if (chatSendButton) chatSendButton.disabled = true;
     textById('chatPreviewNote', 'Workspace data could not be loaded; messaging is unavailable.');
+    const createButton = document.getElementById('createNewAgentButton');
+    if (createButton) createButton.disabled = true;
+    textById('newAgentFormStatus', 'Workspace data is unavailable; no agent can be saved.');
   }
 
   function renderAuthenticatedWorkspace(data) {
@@ -1820,30 +2032,23 @@
     const displayName = String(user.displayName || '').trim() || email || 'Keus account';
     const workspaceName = String(workspace.name || '').trim() || 'Workspace';
     const profileAgent = onboarding.profile?.agent || {};
-    const agent = onboarding.agent || profileAgent;
-    const name = String(agent.name || '').trim();
-    const role = String(agent.role || '').trim();
-    const avatarKind = String(agent.avatar || profileAgent.avatar || 'bulb');
-    const avatarColor = String(agent.settings?.color || agent.color || profileAgent.color || '#32d583');
-    const hasSavedAgent = Boolean(onboarding.status === 'completed' && agent.id && name);
-    const rawStatus = String(agent.status || '').trim().toLowerCase();
+    const agents = Array.isArray(data.agents)
+      ? data.agents.filter((entry) => entry && entry.id)
+      : (onboarding.agent?.id ? [onboarding.agent] : []);
+    let agent = selectedAgentId ? agents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
+    if (!agent) agent = agents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || agents[0] || onboarding.agent || profileAgent;
+    selectedAgentId = agent?.id ? String(agent.id) : null;
+    const name = String(agent?.name || '').trim();
+    const role = String(agent?.role || '').trim();
+    const avatarKind = String(agent?.avatar || profileAgent.avatar || 'bulb');
+    const avatarColor = String(agent?.settings?.color || agent?.color || profileAgent.color || '#32d583');
+    const hasSavedAgent = Boolean(agent?.id && name);
+    const rawStatus = String(agent?.status || '').trim().toLowerCase();
     const statusLabel = ({ active: 'Active', paused: 'Paused', archived: 'Archived' })[rawStatus] || 'Status unavailable';
 
-    const row = document.getElementById('savedAgentRow');
-    if (row) {
-      row.hidden = !hasSavedAgent;
-      row.style.display = '';
-      row.classList.toggle('active', hasSavedAgent);
-      row.setAttribute('aria-label', `Saved agent profile, active chat, status ${statusLabel}, display only`);
-    }
-    textById('savedAgentName', name || 'Saved agent');
-    textById('savedAgentStatus', statusLabel);
-    textById('savedAgentRole', role || 'Role not set');
-
+    renderSavedAgentRows(agents, hasSavedAgent ? agent : null);
     const avatarSvg = hasSavedAgent ? objectAvatarSvg(avatarKind, avatarColor) : '';
-    const savedAvatar = document.getElementById('savedAgentAvatar');
     const headerAvatar = document.getElementById('hdrAvatar');
-    if (savedAvatar) savedAvatar.innerHTML = avatarSvg;
     if (headerAvatar) headerAvatar.innerHTML = avatarSvg;
     textById('hdrName', hasSavedAgent ? name : workspaceName);
     textById('hdrSub', hasSavedAgent ? statusLabel : 'No saved agent');
@@ -1857,6 +2062,9 @@
     const chatSendButton = document.getElementById('chatSendButton');
     if (chatSendButton) chatSendButton.disabled = true;
     textById('chatPreviewNote', hasSavedAgent ? 'Messaging is not connected in this preview.' : 'Save an agent to use the message composer.');
+    const createButton = document.getElementById('createNewAgentButton');
+    if (createButton) createButton.disabled = false;
+    textById('newAgentFormStatus', 'Apps and memory preferences are saved as settings; no integrations are connected here.');
 
     textById('accountName', displayName);
     textById('accountEmail', email || 'Email unavailable');
@@ -1892,6 +2100,80 @@
       setWorkspaceUnavailable();
     }
   }
+
+  function newAgentErrorCopy(code) {
+    const messages = {
+      agent_name_conflict: 'An agent with that name already exists in this workspace.',
+      invalid_agent_name: 'Enter a valid agent name with no more than 30 characters.',
+      invalid_agent_role: 'Enter a valid role with no more than 60 characters.',
+      invalid_agent_color: 'Choose one of the available colors.',
+      invalid_agent_avatar: 'Choose one of the available avatars.',
+      invalid_approval_path: 'Choose a supported approval path.',
+      invalid_order_cap: 'Maximum per order must be between 20 and 500 USD.',
+      invalid_daily_spend_cap: 'Daily spend cap must be from 100 to 2,000 USD in increments of 25.',
+      invalid_apps: 'Use up to 20 app names, each no longer than 64 characters.',
+      invalid_memory_pills: 'Use up to 20 memory preferences, each no longer than 80 characters.',
+      authentication_required: 'Sign in to save an agent to your workspace.',
+      auth_storage_not_configured: 'Workspace storage is not configured; no agent was saved.',
+    };
+    return messages[code] || 'The agent could not be saved. Check the fields and try again.';
+  }
+
+  async function submitNewAgent(event) {
+    event.preventDefault();
+    const form = document.getElementById('newAgentForm');
+    const button = document.getElementById('createNewAgentButton');
+    if (!form || !button) return;
+    if (document.documentElement.dataset.reviewFixture === 'true') {
+      textById('newAgentFormStatus', 'This sample review account is not authenticated and cannot save agents.');
+      return;
+    }
+    const value = (id) => document.getElementById(id)?.value ?? '';
+    const name = String(value('newAgentName')).trim();
+    const payload = {
+      name,
+      role: String(value('newAgentRole')).trim(),
+      avatar: value('newAgentAvatar'),
+      color: value('newAgentColor'),
+      approvalPath: value('newAgentApprovalPath'),
+      orderCap: Number(value('newAgentOrderCap')),
+      dailyCap: Number(value('newAgentDailyCap')),
+      apps: String(value('newAgentApps')).split(',').map((entry) => entry.trim()).filter(Boolean),
+      memoryPills: String(value('newAgentMemoryPills')).split(/\r?\n/).map((entry) => entry.trim()).filter(Boolean),
+    };
+    button.disabled = true;
+    textById('newAgentFormStatus', 'Saving the new agent as paused...');
+    try {
+      const response = await fetch('/api/workspace/agents', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      if (!response.ok) {
+        textById('newAgentFormStatus', newAgentErrorCopy(data.error));
+        return;
+      }
+      selectedAgentId = String(data.createdAgentId || '');
+      renderAuthenticatedWorkspace(data);
+      form.reset();
+      textById('newAgentFormStatus', 'Apps and memory preferences are saved as settings; no integrations are connected here.');
+      closeNewAgentModal();
+      showToast(`${name} was added as a paused agent.`);
+    } catch {
+      textById('newAgentFormStatus', 'The agent could not be saved. Check your connection and try again.');
+    } finally {
+      if (button && document.documentElement.dataset.reviewFixture !== 'true') button.disabled = false;
+    }
+  }
+
+  document.getElementById('newAgentForm')?.addEventListener('submit', submitNewAgent);
 
   const accountMenuButton = document.getElementById('accountMenuToggle');
   const accountMenuPanel = document.getElementById('accountMenu');
