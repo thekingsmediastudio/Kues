@@ -417,17 +417,20 @@ test('same-origin password login works behind a preview proxy while CORS preflig
   });
 });
 
-test('sign-in-only preview routes root to login and does not expose temporary credential setup', async () => {
+test('sign-in-only preview keeps the public landing available and does not expose temporary credential setup', async () => {
   const serverConfig = loadServerConfig({ TURSO_DATABASE_URL: 'file:./local.db' });
   await withServer({ serverConfig, authService: {}, signInOnlyPreview: true }, async (base) => {
     const root = await fetch(`${base}/`, { redirect: 'manual' });
-    assert.equal(root.status, 302);
-    assert.equal(root.headers.get('location'), '/login');
+    assert.equal(root.status, 200);
+    assert.match(await root.text(), /Your AI workspace/);
     assert.equal((await fetch(`${base}/login`)).status, 200);
     assert.equal((await fetch(`${base}/__dev/workos-setup`)).status, 404);
     assert.equal((await fetch(`${base}/api/dev/workos-setup`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${base}/onboarding`)).status, 200);
     assert.equal((await fetch(`${base}/app`)).status, 200);
+    const oldPreview = await fetch(`${base}/desktop`, { redirect: 'manual' });
+    assert.equal(oldPreview.status, 302);
+    assert.equal(oldPreview.headers.get('location'), '/app');
   });
 });
 
