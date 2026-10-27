@@ -234,7 +234,9 @@ export function createAiChatService({
     }
 
     if (upstream.status < 200 || upstream.status >= 300) {
-      throw new AiProviderError('ai_provider_upstream_failed', 502);
+      const error = new AiProviderError('ai_provider_upstream_failed', 502);
+      error.upstreamStatus = Number(upstream.status || 0);
+      throw error;
     }
     const contentType = String(upstream.contentType || '').toLowerCase();
     if (!['application/json', 'application/problem+json'].includes(contentType)
