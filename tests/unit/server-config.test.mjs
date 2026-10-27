@@ -160,7 +160,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.1');
+    assert.equal(body.version, '2.3.2');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -191,6 +191,9 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.doesNotMatch(landing, /href="\/desktop(?:\.html)?"/);
     assert.match(landing, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(landing, /id="themeToggle"/);
+    assert.match(landing, /api\/auth\/session/);
+    assert.match(landing, /headerAccountLink/);
+    assert.match(landing, /footerAccountLink/);
     assert.match(landing, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(landing, /--font:Inter,ui-sans-serif,system-ui/);
     const dashboard = await (await fetch(`${base}/app`)).text();
@@ -199,7 +202,17 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(dashboard, /id="themeToggle"/);
     assert.match(dashboard, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(dashboard, /--font:Inter,ui-sans-serif,system-ui/);
+    const accountStart = dashboard.indexOf('<div class="account">');
+    const accountEmail = dashboard.indexOf('id="accountEmail"', accountStart);
+    const themeToggle = dashboard.indexOf('id="themeToggle"', accountStart);
+    const accountAvatar = dashboard.indexOf('id="accountAvatar"', accountStart);
+    assert.ok(accountStart >= 0 && accountEmail < themeToggle && themeToggle < accountAvatar, 'dashboard theme toggle belongs beside the account controls');
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
+    const login = await (await fetch(`${base}/login`)).text();
+    assert.match(login, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
+    assert.match(login, /id="themeToggle"/);
+    assert.match(login, /localStorage\.getItem\('keusTheme'\)/);
+    assert.match(login, /auth-theme-toggle/);
     const onboarding = await (await fetch(`${base}/onboarding`)).text();
     assert.match(onboarding, /window\.location\.href='\/app'/);
     assert.match(onboarding, /window\.location\.replace\('\/app'\)/);
