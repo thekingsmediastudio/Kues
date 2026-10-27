@@ -131,6 +131,7 @@ test('AI provider admin config requires WorkOS, Turso, and a separate 32-byte en
   const config = loadServerConfig({
     AI_PROVIDER_ADMIN_EMAILS: ' Owner@Example.test ',
     AI_PROVIDER_ENCRYPTION_KEY: encryptionKey,
+    AI_PROVIDER_CHAT_TEST_ENABLED: '1',
     AUTH_PROVIDER: 'workos',
     WORKOS_API_KEY: 'sk_test_key',
     WORKOS_CLIENT_ID: 'client_1234',
@@ -139,6 +140,7 @@ test('AI provider admin config requires WorkOS, Turso, and a separate 32-byte en
   });
   assert.equal(config.aiProvidersEnabled, true);
   assert.deepEqual(config.aiProviderAdminEmails, ['owner@example.test']);
+  assert.equal(config.aiProviderChatTestEnabled, true);
   assert.equal(JSON.stringify(config).includes(encryptionKey), false);
   assert.throws(() => loadServerConfig({ AI_PROVIDER_ADMIN_EMAILS: 'owner@example.test' }), ConfigError);
   assert.throws(() => loadServerConfig({
@@ -155,6 +157,16 @@ test('AI provider admin config requires WorkOS, Turso, and a separate 32-byte en
     AI_PROVIDER_ADMIN_EMAILS: 'owner@example.test', AI_PROVIDER_ENCRYPTION_KEY: encryptionKey,
     AUTH_PROVIDER: 'brevo', TURSO_DATABASE_URL: 'file:./local.db',
   }), ConfigError);
+  assert.equal(loadServerConfig({}).aiProviderChatTestEnabled, false);
+  assert.throws(() => loadServerConfig({ AI_PROVIDER_CHAT_TEST_ENABLED: 'yes' }), ConfigError);
+  assert.throws(() => loadServerConfig({ AI_PROVIDER_CHAT_TEST_ENABLED: '1' }), ConfigError);
+});
+
+test('the staging Render blueprint enables admin-only desktop chat testing without changing other environments', () => {
+  const render = readFileSync(new URL('../../render.yaml', import.meta.url), 'utf8');
+  assert.match(render, /name: keus-staging/);
+  assert.match(render, /key: AI_PROVIDER_CHAT_TEST_ENABLED\s+value: "1"/);
+  assert.equal(loadServerConfig({}).aiProviderChatTestEnabled, false);
 });
 
 test('server config rejects live PayPal, partial credentials, and wildcard CORS', () => {
@@ -288,8 +300,10 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /id="appSettingsButton"[^>]*onclick="openGeneralOverlay\('workspace'\)"/);
     assert.match(desktopPreview, /aria-label="Open Settings"/);
     assert.match(desktopPreview, /id="agentSearchInput"/);
-    assert.match(desktopPreview, /id="savedAgentRow"[^>]*role="group"[^>]*hidden/);
-    assert.match(desktopPreview, /Saved agent profile\$\{isActive \? ', active chat' : ''\}, status/);
+    assert.match(desktopPreview, /id="savedAgentRow"[^>]*role="button"[^>]*tabindex="-1"[^>]*hidden/);
+    assert.match(desktopPreview, /row\.setAttribute\('role', 'button'\)/);
+    assert.match(desktopPreview, /row\.setAttribute\('aria-pressed', String\(isActive\)\)/);
+    assert.match(desktopPreview, /selectDesktopAgent\(agent\.id\)/);
     assert.match(desktopPreview, /function renderSavedAgentRows\(agents, activeAgent\)/);
     assert.match(desktopPreview, /row\.hidden = false/);
     assert.match(desktopPreview, /row\.classList\.toggle\('active', isActive\)/);
@@ -340,7 +354,13 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /id="chatSendButton"[^>]*disabled/);
     assert.match(desktopPreview, /id="voiceCallButton"[^>]*disabled/);
     assert.match(desktopPreview, /id="desktopButton"[^>]*disabled/);
-    assert.match(desktopPreview, /Messaging is not connected in this preview/);
+    assert.match(desktopPreview, /Checking chat availability/);
+    assert.match(desktopPreview, /fetch\('\/api\/chat\/status'/);
+    assert.match(desktopPreview, /fetch\('\/api\/chat'/);
+    assert.match(desktopPreview, /Messages go to the configured AI service and are not saved in Keus chat history/);
+    assert.doesNotMatch(desktopPreview, /Groq|Qwen|GPT-OSS|model ID/i);
+    assert.match(desktopPreview, /bubble\.textContent = content/);
+    assert.match(desktopPreview, /text\.textContent = content/);
     assert.match(desktopPreview, /id="newAgentForm"/);
     assert.match(desktopPreview, /id="newAgentName"/);
     assert.match(desktopPreview, /id="newAgentRole"/);
