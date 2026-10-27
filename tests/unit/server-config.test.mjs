@@ -126,6 +126,37 @@ test('API Hub requires a WorkOS admin allowlist, Turso, and a 32-byte encryption
   }), ConfigError);
 });
 
+test('AI provider admin config requires WorkOS, Turso, and a separate 32-byte encryption key without exposing it', () => {
+  const encryptionKey = Buffer.alloc(32, 19).toString('base64');
+  const config = loadServerConfig({
+    AI_PROVIDER_ADMIN_EMAILS: ' Owner@Example.test ',
+    AI_PROVIDER_ENCRYPTION_KEY: encryptionKey,
+    AUTH_PROVIDER: 'workos',
+    WORKOS_API_KEY: 'sk_test_key',
+    WORKOS_CLIENT_ID: 'client_1234',
+    WORKOS_REDIRECT_URI: 'http://localhost:3100/auth/callback',
+    TURSO_DATABASE_URL: 'file:./local.db',
+  });
+  assert.equal(config.aiProvidersEnabled, true);
+  assert.deepEqual(config.aiProviderAdminEmails, ['owner@example.test']);
+  assert.equal(JSON.stringify(config).includes(encryptionKey), false);
+  assert.throws(() => loadServerConfig({ AI_PROVIDER_ADMIN_EMAILS: 'owner@example.test' }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    AI_PROVIDER_ADMIN_EMAILS: 'owner@example.test', AI_PROVIDER_ENCRYPTION_KEY: 'bad',
+    AUTH_PROVIDER: 'workos', WORKOS_API_KEY: 'sk_test_key', WORKOS_CLIENT_ID: 'client_1234',
+    WORKOS_REDIRECT_URI: 'http://localhost:3100/auth/callback', TURSO_DATABASE_URL: 'file:./local.db',
+  }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    AI_PROVIDER_ADMIN_EMAILS: 'not-an-email', AI_PROVIDER_ENCRYPTION_KEY: encryptionKey,
+    AUTH_PROVIDER: 'workos', WORKOS_API_KEY: 'sk_test_key', WORKOS_CLIENT_ID: 'client_1234',
+    WORKOS_REDIRECT_URI: 'http://localhost:3100/auth/callback', TURSO_DATABASE_URL: 'file:./local.db',
+  }), ConfigError);
+  assert.throws(() => loadServerConfig({
+    AI_PROVIDER_ADMIN_EMAILS: 'owner@example.test', AI_PROVIDER_ENCRYPTION_KEY: encryptionKey,
+    AUTH_PROVIDER: 'brevo', TURSO_DATABASE_URL: 'file:./local.db',
+  }), ConfigError);
+});
+
 test('server config rejects live PayPal, partial credentials, and wildcard CORS', () => {
   assert.throws(() => loadServerConfig({ PAYPAL_ENV: 'live' }), ConfigError);
   assert.throws(() => loadServerConfig({ PAYPAL_CLIENT_ID: 'id-only' }), ConfigError);

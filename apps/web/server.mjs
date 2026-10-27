@@ -10,6 +10,7 @@ import { AuthError, createAuthService } from './lib/auth/service.mjs';
 import { createBrevoEmailDelivery } from './lib/auth/brevo-delivery.mjs';
 import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
 import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
+import { AiProviderError, createAiProviderService } from './lib/ai-providers/service.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
 import { WorkOS } from '@workos-inc/node';
 
@@ -441,6 +442,61 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
   return false;
 }
 
+async function handleAiProviderAdminRequest(req, res, url, { config, authService, aiProviderService }) {
+  if (!config.aiProvidersEnabled || !aiProviderService) {
+    sendJson(res, 503, { error: 'ai_provider_admin_not_configured' });
+    return true;
+  }
+  if (url.pathname !== '/api/admin/ai-providers') {
+    sendJson(res, 404, { error: 'ai_provider_admin_route_not_found' });
+    return true;
+  }
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST, OPTIONS');
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return true;
+  }
+  const origin = requestOrigin(req);
+  if (!origin.present || !origin.valid || !origin.sameOrigin) {
+    sendJson(res, 403, { error: 'same_origin_required' });
+    return true;
+  }
+  if (!authService) {
+    sendJson(res, 503, { error: 'auth_storage_not_configured' });
+    return true;
+  }
+  let user = null;
+  try {
+    const token = cookieValue(req, sessionCookieName(config));
+    user = token ? await authService.getSession({ token }) : null;
+  } catch {
+    user = null;
+  }
+  if (!user) {
+    sendJson(res, 401, { error: 'authentication_required' });
+    return true;
+  }
+  const admins = Array.isArray(config.aiProviderAdminEmails) ? config.aiProviderAdminEmails : [];
+  if (!admins.includes(String(user.email || '').trim().normalize('NFKC').toLowerCase())) {
+    sendJson(res, 403, { error: 'ai_provider_admin_required' });
+    return true;
+  }
+
+  try {
+    const input = await readJsonBody(req, 16 * 1024);
+    const provider = await aiProviderService.createProvider({ input });
+    sendJson(res, 201, { provider });
+  } catch (error) {
+    if (error instanceof AiProviderError || error instanceof RequestError) {
+      sendJson(res, error.status, { error: error.code });
+    } else {
+      console.error('AI provider admin request failed:', error?.name || 'Error');
+      sendJson(res, 500, { error: 'ai_provider_request_failed' });
+    }
+  }
+  return true;
+}
+
 async function handleApiHubRequest(req, res, url, { config, authService, apiHubService }) {
   if (!config.apiHubEnabled || !apiHubService) {
     sendJson(res, 503, { error: 'api_hub_not_configured' });
@@ -844,6 +900,7 @@ export function createServer({
   workspaceService = null,
   workosAuth = null,
   apiHubService = null,
+  aiProviderService = null,
   signInOnlyPreview = false,
 } = {}) {
   const runtime = {
@@ -985,6 +1042,15 @@ export function createServer({
           workspaceService,
         });
         if (handled) return;
+      }
+
+      if (url.pathname === '/api/admin/ai-providers' || url.pathname.startsWith('/api/admin/ai-providers/')) {
+        await handleAiProviderAdminRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          aiProviderService,
+        });
+        return;
       }
 
       if (url.pathname.startsWith('/api/hub/')) {
@@ -1180,6 +1246,7 @@ if (isMain) {
     let workspaceService = null;
     let workosAuth = null;
     let apiHubService = null;
+    let aiProviderService = null;
     try {
       if (config.databaseConfigured) {
         db = createDatabaseClient();
@@ -1196,6 +1263,9 @@ if (isMain) {
         workspaceService = createWorkspaceService({ db, competition: config.competition });
         if (config.apiHubEnabled) {
           apiHubService = createApiHubService({ db, encryptionKey: process.env.API_HUB_ENCRYPTION_KEY });
+        }
+        if (config.aiProvidersEnabled) {
+          aiProviderService = createAiProviderService({ db, encryptionKey: process.env.AI_PROVIDER_ENCRYPTION_KEY });
         }
         if (config.workosConfigured) {
           const workos = new WorkOS({
@@ -1217,6 +1287,7 @@ if (isMain) {
         workspaceService,
         workosAuth,
         apiHubService,
+        aiProviderService,
         signInOnlyPreview,
       });
       server.on('close', () => { void db?.close(); });
