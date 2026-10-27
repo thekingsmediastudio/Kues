@@ -213,7 +213,8 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(landing, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(landing, /id="themeToggle"/);
     assert.match(landing, /<div class="topbar-left">[\s\S]*?<a class="brand"[\s\S]*?<nav class="nav"/);
-    assert.doesNotMatch(landing, /api\/auth\/session/);
+    assert.match(landing, /api\/auth\/session/);
+    assert.match(landing, /api\/settings\/theme/);
     assert.match(landing, /class="button button-dark" id="headerAccountLink" href="\/login">Sign in/);
     assert.doesNotMatch(landing, /class="button button-dark" href="\/app">Open dashboard/);
     assert.match(landing, /headerAccountLink/);
@@ -233,6 +234,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     }
     assert.match(dashboard, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(dashboard, /id="themeToggle"/);
+    assert.match(dashboard, /api\/settings\/theme/);
     assert.match(dashboard, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(dashboard, /--font:Inter,ui-sans-serif,system-ui/);
     assert.doesNotMatch(dashboard, /<aside\b|class="sidebar"|id="setupNav"|>Setup<\/a>/);
@@ -252,7 +254,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /credentials:\s*'same-origin'/);
     assert.match(desktopPreview, /id="newAgentButton" onclick="openNewAgentModal\(\)"/);
     assert.match(desktopPreview, /id="newAgentButtonLabel">New Agent<\/span>/);
-    assert.match(desktopPreview, /id="appSettingsButton"[^>]*onclick="openGeneralOverlay\('apps'\)"/);
+    assert.match(desktopPreview, /id="appSettingsButton"[^>]*onclick="openGeneralOverlay\('workspace'\)"/);
     assert.match(desktopPreview, /aria-label="Open Settings"/);
     assert.match(desktopPreview, /id="agentSearchInput"/);
     assert.match(desktopPreview, /id="savedAgentRow"[^>]*role="group"[^>]*hidden/);
@@ -270,7 +272,29 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.equal((desktopPreview.match(/class="agent-row\b/g) || []).length, 1, 'only the authenticated saved-agent row is present in the list');
     assert.doesNotMatch(desktopPreview, /data-agent-id=|id="workspaceName"|id="savedSetupName"|id="savedPaymentState"/);
     assert.match(desktopPreview, /id="appSettingsTitle">Settings/);
-    assert.match(desktopPreview, /Settings are not connected to this preview/);
+    assert.match(desktopPreview, /id="settingsPreviewNotice"[^>]*role="status"/);
+    assert.match(desktopPreview, /Settings load from your authenticated account/);
+    assert.match(desktopPreview, /Local review data cannot save account or workspace changes/);
+    assert.match(desktopPreview, /Saved to the signed-in account's shared workspace/);
+    assert.match(desktopPreview, /Changes are saved to this signed-in workspace/);
+    assert.match(desktopPreview, /id="profileSettingsForm"/);
+    assert.match(desktopPreview, /id="workspaceSettingsForm"/);
+    assert.match(desktopPreview, /id="settingsAgentForm"/);
+    assert.match(desktopPreview, /id="emailChangeStartForm"/);
+    assert.match(desktopPreview, /id="emailChangeConfirmForm"/);
+    assert.match(desktopPreview, /id="passwordChangeForm"/);
+    assert.match(desktopPreview, /api\/settings\/email-change\/start/);
+    assert.match(desktopPreview, /api\/settings\/email-change\/confirm/);
+    for (const pane of ['Workspace', 'Agents', 'Apps', 'Usage', 'Account', 'Appearance']) {
+      assert.match(desktopPreview, new RegExp(`id="settingsPane${pane}"`));
+    }
+    assert.match(desktopPreview, /New agents are saved as paused and will not run automatically/);
+    assert.match(desktopPreview, /7,000,000 AI tokens/);
+    for (const app of ['PayPal Sandbox', 'Channel3', 'KERNEL', 'WhatsApp', 'Inbox', 'Instagram Shops']) {
+      assert.ok(desktopPreview.includes(app), `settings include preview app label ${app}`);
+    }
+    assert.match(desktopPreview, /data-preview-theme="dark"/);
+    assert.doesNotMatch(desktopPreview, /Settings are not connected to this preview/);
     assert.match(desktopPreview, /id="accountEmail"/);
     assert.match(desktopPreview, /aria-controls="accountMenu"/);
     const desktopMenu = desktopPreview.indexOf('id="accountMenu"');
@@ -347,11 +371,13 @@ test('public landing and authenticated dashboard have separate page routes', asy
     const login = await (await fetch(`${base}/login`)).text();
     assert.match(login, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(login, /id="themeToggle"/);
+    assert.match(login, /api\/settings\/theme/);
     assert.match(login, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(login, /auth-theme-toggle/);
     const onboarding = await (await fetch(`${base}/onboarding`)).text();
     assert.match(onboarding, /window\.location\.href='\/app'/);
     assert.match(onboarding, /window\.location\.replace\('\/app'\)/);
+    assert.match(onboarding, /data\.user\.theme/);
     assert.doesNotMatch(onboarding, /window\.location\.(?:href|replace)='\/desktop'/);
     for (const legacy of ['/desktop', '/desktop.html']) {
       const response = await fetch(`${base}${legacy}`, { redirect: 'manual' });
@@ -374,7 +400,8 @@ test('landing renders the signed-in dashboard links before returning HTML', asyn
     const signedInHtml = await signedIn.text();
     assert.match(signedInHtml, /id="headerAccountLink" href="\/app">Dashboard/);
     assert.match(signedInHtml, /id="footerAccountLink" href="\/app">Dashboard/);
-    assert.doesNotMatch(signedInHtml, /api\/auth\/session/);
+    assert.match(signedInHtml, /api\/auth\/session/);
+    assert.match(signedInHtml, /api\/settings\/theme/);
 
     const signedOut = await fetch(`${base}/`);
     const signedOutHtml = await signedOut.text();
