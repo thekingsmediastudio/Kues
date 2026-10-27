@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { ConfigError, loadServerConfig } from '../../apps/web/lib/config.mjs';
 import { createServer } from '../../apps/web/server.mjs';
 import { createDatabaseClient, DatabaseConfigurationError } from '../../apps/web/lib/db/client.mjs';
@@ -160,7 +161,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(health.status, 200);
     const body = await health.json();
     assert.equal(body.service, 'keus-web');
-    assert.equal(body.version, '2.3.3');
+    assert.equal(body.version, '2.3.4');
     assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
@@ -176,6 +177,21 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     assert.equal(missing.status, 404);
     assert.deepEqual(await missing.json(), { error: 'api_route_not_found' });
   });
+});
+
+test('user-facing Keus pages avoid em dashes and emoji glyphs', () => {
+  const files = ['landing.html', 'dashboard.html', 'login.html', 'onboarding.html', 'pocket.html', 'api-hub.html', 'auth-verify.html'];
+  const forbiddenGlyphs = [0x2713, 0x2726, 0x2315, 0x2667, 0x2197, 0x2022].map((codePoint) => String.fromCodePoint(codePoint));
+  for (const file of files) {
+    const html = readFileSync(new URL(`../../apps/web/public/${file}`, import.meta.url), 'utf8');
+    assert.equal(html.includes(String.fromCodePoint(0x2014)), false, `${file} contains an em dash`);
+    assert.doesNotMatch(html, /&mdash;|&#(?:8212|x2014);/i, file);
+    for (const character of html) {
+      const codePoint = character.codePointAt(0);
+      assert.ok(!(codePoint >= 0x1f000 && codePoint <= 0x1faff) && !(codePoint >= 0x2600 && codePoint <= 0x27bf), `${file} contains a pictographic symbol`);
+    }
+    for (const glyph of forbiddenGlyphs) assert.equal(html.includes(glyph), false, `${file} contains a decorative text glyph`);
+  }
 });
 
 test('public landing and authenticated dashboard have separate page routes', async () => {
@@ -199,6 +215,15 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(landing, /--font:Inter,ui-sans-serif,system-ui/);
     const dashboard = await (await fetch(`${base}/app`)).text();
     assert.match(dashboard, /api\/workspace\/bootstrap/);
+    const loadingMark = dashboard.match(/<div class="loading-mark"[\s\S]*?<\/svg>/)?.[0] || '';
+    const dashboardBrandMark = dashboard.match(/<span class="brand-mark"[\s\S]*?<\/svg>/)?.[0] || '';
+    for (const mark of [loadingMark, dashboardBrandMark]) {
+      assert.match(mark, /fill="#32d583"/);
+      assert.match(mark, /<ellipse cx="15\.2"/);
+      assert.match(mark, /<ellipse cx="25"/);
+      assert.match(mark, /M16\.7 23\.35/);
+      assert.match(mark, /<circle cx="11\.2"/);
+    }
     assert.match(dashboard, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(dashboard, /id="themeToggle"/);
     assert.match(dashboard, /localStorage\.getItem\('keusTheme'\)/);
