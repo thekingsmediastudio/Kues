@@ -1,6 +1,7 @@
 # Keus Main Project — Desktop-First Roadmap
 
-**Status (reviewed 2026-10-26):** Keus remains a prototype/backend foundation; no hosted deployment, live commerce integration, or real payment flow is claimed. Post-review source repairs passed 51/51 unit tests under Node 24.22.1, `npm audit --omit=dev` reported 0 vulnerabilities, and Chromium local-preview checks passed at desktop and narrow widths. The earlier milestone totals below are historical pre-repair results. WorkOS Magic Auth/email-code seams and a development-only, memory-held staging setup exist in source; no key is loaded and no real email has been sent. Google/passkeys and remote Turso still require setup and testing.
+**Status (reviewed 2026-10-27):** Keus has an active Render staging service at `https://keus-staging.onrender.com`; the last verified staging health version is **2.2.1**. This staging release still uses the earlier email-code flow. A WorkOS email/password implementation is in the local source change, with **86/86 unit tests passing**, `npm audit --omit=dev` reporting **0 vulnerabilities**, and JavaScript syntax checks passing. The password-auth release has not yet been live-tested; no WorkOS email was sent. The temporary browser credential-entry setup was removed. Google/GitHub remain disabled; remote Turso is configured for staging.
+
 **Scope:** Desktop-first main product. Mobile companion and F3 Android side-app control are deferred.
 
 ## Product and implementation boundaries
@@ -14,24 +15,22 @@
 - PayPal activity is Sandbox-only for review. Do not claim a retailer was paid or that live funds moved.
 - Use Render Free, Channel3 live search, Turso Free, and Workers AI only for minimal synthetic shopping prompts/product facts. Use KERNEL only if the no-charge/hackathon-credit boundary is verified.
 - Label sample/demo integrations and data clearly. Never represent a prototype as a connected service.
-- Existing `/pocket`, ADB, or phone-oriented code/tests may remain in the repository, but are outside this build scope and must not be expanded or presented as shipped functionality.
-- Add a separate online account and monetization layer: user authentication, workspace/user usage records, plan entitlements, subscription state, and payment records. This is distinct from agent shopping payments.
-- Competition-period offer is a free base allowance with server-enforced usage limits; users may subscribe for extended usage. SaaS subscription billing is separate from agent purchase payments. Payment provider, exact limits, pricing, and competition rules still need confirmation.
+- Keep online account access, usage records, plan entitlements, subscriptions, and payments separate from agent shopping payments.
+- Competition-period staging allowance is 7,000,000 AI tokens per verified account per UTC day, aggregated across that account’s authorized workspaces; different users sharing one workspace have separate buckets. PayPal is the selected future subscription provider. SaaS billing remains separate from agent purchase payments; checkout/webhooks are not implemented.
+- Do not introduce a shared password for existing users. Existing email-code accounts set a private password using their own WorkOS reset link.
 
 ## Repository audit — working-copy status
 
-The 2026-10-26 review repairs are implemented and locally verified in the extracted working copy: input validation, receipt authenticity, policy/skill binding, production desktop page access, strict origin handling, explicit static routes, onboarding persistence, and sample-data labels. This is not a production release. Numerical test counts in older milestone sections are historical; the current repair verification is 51/51 tests under Node 24.22.1.
+The 2026-10-26 review repairs are implemented and locally verified in the extracted working copy: input validation, receipt authenticity, policy/skill binding, production desktop page access, strict origin handling, explicit static routes, onboarding persistence, and sample-data labels. This is not a production release. Older milestone totals are historical; the current source test suite is rerun before publication and its latest result is recorded in this roadmap and `RENDER_DEPLOYMENT.md`.
 
-
-- The web app is a small Node.js HTTP server. It now has `@libsql/client` as its first runtime dependency; desktop/onboarding remain static HTML, and the API seam exposes `/api/health` plus consistent JSON 404s for routes not yet implemented.
+- The web app is a small Node.js HTTP server. It uses `@libsql/client`; desktop/onboarding remain static HTML, and the API seam exposes `/api/health` plus consistent JSON 404s for routes not yet implemented.
 - The desktop page is a roughly 3,200-line interactive mockup. It uses illustrative/sample state and browser storage; many buttons explicitly identify themselves as previews.
 - The onboarding page is a separate static HTML journey. Its “connected app” and PayPal choices are labelled as illustrative.
-- Shared JavaScript modules already implement mandate hashing, evidence hashing, policy checks, agent identity/envelopes, Sentinel checks, watch goals, SKILL.md verification, and Flight-Box receipt hashing.
-- A PayPal client helper has OAuth, Vault, authorization, capture, void, and refund request functions. No PayPal credentials were present, so no PayPal request was made.
-- There is no implemented Channel3 client, Workers AI service, remote Turso connection, or server-side WebAuthn verification route. The initial migration and repository layer are now tested locally through `@libsql/client` against SQLite; remote Turso credentials remain unset.
+- Shared JavaScript modules implement mandate hashing, evidence hashing, policy checks, agent identity/envelopes, Sentinel checks, watch goals, SKILL.md verification, and Flight-Box receipt hashing.
+- A PayPal client helper has OAuth, Vault, authorization, capture, void, and refund request functions. No PayPal request was made for this staging auth release.
+- There is no implemented Channel3 client, Workers AI service, production AI-call route, or server-side WebAuthn verification route. A remote Turso database is configured for staging; production is out of scope.
 - `.env.example` has placeholders for server-side services; placeholders do not mean integrations are connected. Mobile bridge variables were removed from the desktop setup template.
-- A prior milestone recorded 44/44 unit tests and a local policy/challenge dry run; that result predates this review patch. Re-run the full suite on the current tree before treating it as verified.
-- There is no Git repository metadata in this working copy. A `render.yaml` staging blueprint and setup guide are present, but no Render deployment is claimed live.
+- There is no Git repository metadata in this working copy. A `render.yaml` staging blueprint is present; the existing Render staging deployment and its last verified version are documented in `RENDER_DEPLOYMENT.md`.
 
 ## Ordered implementation steps and gates
 
@@ -44,43 +43,38 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 
 ### 1. Backend seam and configuration — **Base complete**
 - Added `apps/web/lib/config.mjs` with server-only configuration parsing, paired PayPal credential validation, Sandbox-only enforcement, and explicit non-wildcard CORS origin validation.
-- Refactored `apps/web/server.mjs` to expose a testable `createServer`, return JSON for API misses, remove the mobile route from the advertised health surface, and restrict page delivery to explicit routes/assets. Review follow-up adds production session checks for desktop workspace aliases and stricter Origin validation; these changes require post-edit QA.
+- Refactored `apps/web/server.mjs` to expose a testable `createServer`, return JSON for API misses, remove the mobile route from the advertised health surface, and restrict page delivery to explicit routes/assets.
 - Updated `.env.example` for desktop WebAuthn, optional CORS origins, Sandbox test payee, and deferred/unused partner integrations.
 - Guarded the PayPal helper so `PAYPAL_ENV=live` fails closed even when imported outside the web server.
-- Added server/config tests. The original 14/14 count is a historical milestone, not a current-tree result.
-- Request-body limits and authenticated write-route checks will be added with the first write API, rather than leaving unused parser code in the server.
+- Added server/config tests; historical milestone counts are not current-tree results.
 
 **Gate:** Passed locally with no credentials; secrets are not returned by health/config; desktop and onboarding routes return 200; `/api/health` returns 200; unknown API routes return JSON 404; wildcard CORS and live PayPal mode are rejected.
 
 ### 2. Persistence and core domain — **Local adapter/migrations/token quota base complete**
 - Drafted `apps/web/migrations/0001_core.sql` with Turso/SQLite-compatible tables for users, linked auth identities/sessions/passkeys, workspaces/agents/spend policies, plan entitlements/subscriptions, token usage and reservations, product offers/evidence, runs/decisions/mandates/approvals, separate SaaS billing records and Sandbox agent-payment records, and receipts.
 - Added `@libsql/client`, a server-only client factory (`apps/web/lib/db/client.mjs`), and `npm run db:migrate` (`scripts/migrate.mjs`). The runner records migration checksums and fails on edits to already-applied migrations.
-- Applied the migration twice against a local file-backed libSQL database; the second run reported up-to-date. Representative auth, usage, subscription, and Sandbox purchase rows passed local SQLite checks.
-- Added `reserveTokens`, `settleTokenReservation`, and `releaseTokenReservation` with write transactions, idempotency, expiry/release handling, bounded lock retries, and conditional quota updates. Usage counts preserve input/output separately; concurrent reservations are tested across a shared client and independent local DB clients.
-- Meter AI token usage as the primary free allowance: record input/output tokens with provider, model, user/workspace, run, and timestamp; deduplicate usage events. Keep configurable rate limits for searches/runs to control third-party costs even if they are not quota meters.
-- Keep identity/session secrets out of browser storage; keep SaaS account billing distinct from the Sandbox test-payee flow for agent purchases.
+- Added `reserveTokens`, `settleTokenReservation`, and `releaseTokenReservation` with write transactions, idempotency, expiry/release handling, bounded lock retries, conditional quota updates, and multi-client contention coverage.
+- Meter AI token usage as the primary free allowance: record input/output tokens with provider, model, user/workspace, run, and timestamp; deduplicate usage events. Keep search/run limits as operational cost controls.
+- Keep identity/session secrets out of browser storage; keep SaaS account billing distinct from Sandbox agent-purchase payments.
 - Keep money in integer minor units; record currency, source, timestamps, state transitions, and idempotency keys.
-- Represent the competition offer as a configurable free token allowance with subscription tiers for extended usage. Do not hard-code final limits or prices until agreed.
+- Configure staging's competition allowance at 7,000,000 tokens per verified account per UTC day; subscription pricing/tiers remain configurable until separately approved. PayPal is the selected future subscription provider, but checkout/webhooks are not implemented.
 - Define a repository/service boundary so unit tests do not need a live database.
 
-**Gate:** Local file-backed migration, repeat-run/drift detection, quota reservation/settlement/release, idempotent retries, and multi-client contention tests pass. A remote Turso connection and production persistence test are pending because credentials are not configured.
+**Gate:** Local migration, repeat-run/drift detection, quota reservation/settlement/release, idempotent retries, and multi-client contention tests pass. The remote Turso database is configured for staging; production persistence testing is outside this release.
 
-### 3. Online account access and desktop workspace — **WorkOS email-code UI/API implemented; live email test pending**
-- Retained `apps/web/lib/auth/service.mjs` for normalized identities, hashed local session tokens, session lookup/revocation, and Keus account ownership. Added durable rate limiting for WorkOS code requests (3/minute and 5/hour per normalized address); the emailed code is never stored.
-- Added WorkOS Magic Auth via the Node SDK: Keus requests a code server-side, verifies it with WorkOS, requires a verified email, links the provider subject to the existing Keus user, and issues a Keus-local session.
-- Added migration `0002_workos_identity.sql` for WorkOS-linked identities and `0003_workos_email_code_requests.sql` for rate-limited code-send records, without editing the checksum-protected first migration.
-- Rebuilt `/login` as a first-party Keus email/code page with resend/change-email controls and a secondary hosted AuthKit route for Google/other methods. Google/passkeys remain unavailable until enabled and tested in WorkOS.
-- Added `POST /api/auth/email/start`, `POST /api/auth/email/verify`, `GET /api/auth/config`, `GET /auth/start`, and `GET /auth/callback`; existing same-origin session/logout API remains. Keus session tokens are HttpOnly in the browser and stored only as hashes. WorkOS access/refresh tokens are not returned or persisted.
-- Added explicit `AUTH_PROVIDER=workos` and complete credential/callback validation. Secrets are not returned in config. The old Brevo adapter remains legacy only and cannot be enabled alongside WorkOS.
-- An earlier milestone recorded 42/42 tests across WorkOS seams, rate limiting, CSRF, identity linking, Keus sessions, quota, and policy. That test total predates the current repair edits; use the current QA run for present status.
-- A sandbox-side smoke test registered `http://localhost:3100/auth/callback` in WorkOS staging and showed Keus redirecting to the real hosted AuthKit sign-in page; video: `test-artifacts/workos-authkit-handoff.webm`. The direct email-code API has not yet been live-tested; no real email was sent. The current preview exposes an opt-in same-origin setup form that accepts only `sk_test_` keys, holds them in server memory, and clears them on restart; no key is currently loaded. The user plans to rotate the test key before production.
-- Google connection/passkeys are not yet enabled, remote Turso is unconfigured, and not all Keus product/API routes are gated by auth. This slice establishes sign-in/session handling, not whole-product authorization.
-- Keep account authentication ceremonies separate from transaction-bound WebAuthn approval, even if a credential can be reused.
-- Retain the chat-first shell, agent sidebar, centered settings, and New Agent flow; add account, current plan, and token-usage visibility without crowding the workspace.
-- Replace demo-only state at the integration seams with API-backed state while keeping clear empty/loading/error states.
-- Do not redesign the approved layout into a multi-pane dashboard or right-edge drawer.
+### 3. Online account access and desktop workspace — **WorkOS email/password source flow implemented; live staging verification pending**
+- `apps/web/lib/auth/service.mjs` retains normalized identities, Keus-local hashed session tokens, session lookup/revocation, and account/workspace ownership. Durable throttling for WorkOS verification/reset requests remains in place.
+- WorkOS owns passwords and verifies email. Keus signup collects email and password, creates the WorkOS user, and requires WorkOS email-code verification before issuing a Keus session.
+- Password sign-in uses WorkOS password authentication. Pending verification data is held in a short-lived HttpOnly cookie; passwords are never persisted in Keus or returned to the browser.
+- A verified WorkOS subject is linked to the existing Keus identity. Matching normalized, verified emails reuse the existing Keus user and preserve workspace, onboarding, and usage ownership. New accounts go to `/onboarding`; existing accounts go to `/app`.
+- Existing passwordless/email-code accounts use a WorkOS password-reset link to choose their own password. The account is not duplicated and no shared default password is assigned.
+- The app's previous Magic Auth request/verify/consume paths are retired; the hosted AuthKit sign-in entry is blocked and Magic Auth callbacks are rejected. Email codes are used only for WorkOS email verification. Google/GitHub remain disabled.
+- The development browser form and server endpoint that accepted WorkOS keys were removed. WorkOS secrets belong only in the host's private environment/secret manager; never paste keys into chat or the browser.
+- Automated verification: **86/86 unit tests passed**, `npm audit --omit=dev` reported **0 vulnerabilities**, and JavaScript syntax checks passed. These mocked/code-level checks do not prove live WorkOS email delivery.
+- Staging currently remains at its last verified health version **2.2.1** until the pending source release deploys version **2.2.2**. No live password signup, verification email, or password-reset email has yet been tested. After deployment, use an owner-controlled staging inbox for live checks.
+- The account-authentication ceremony remains separate from transaction-bound desktop WebAuthn approval. Not all future product/API routes are gated by auth; protect each new data/action API before connecting product behavior.
 
-**Gate:** Partial. Mocked WorkOS email-code seams, memory-only test setup, state checks, identity linking, and Keus-local sessions have prior test coverage. Production session checks for the desktop page aliases now pass local fixture tests. The full product/API is not authorized end-to-end. Remaining: real staging inbox test, key rotation before production, approved Google/passkey setup, remote Turso, and route-by-route authorization for future data/action APIs.
+**Gate:** Source and mocked tests complete. Publish to the fixed staging source branch, wait for Render health to identify version 2.2.2, then validate new-user signup/verification, password sign-in, and password reset for an existing account. Do not change production, assign a shared password, or use a temporary key-entry/verifier flow. Google/GitHub, passkeys, and a production-wide authorization review remain separate work.
 
 ### 4. Live Channel3 product discovery
 - Implement a server-side Channel3 client, with credentials held only on the server.
@@ -109,38 +103,37 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 - Bind the challenge to the exact mandate and evidence hash; enforce one-time use and short expiry.
 - Verify assertions server-side before capture is even considered. No virtual-keyfob or phone-based substitute is represented as real approval.
 
-**Gate:** Valid assertion for the unchanged mandate passes; replay, expiry, changed amount/payee/evidence, bad origin, or signature fails closed.
+**Gate:** A replayed or modified assertion is rejected; no signature is accepted from browser-only logic.
 
-### 8. SaaS subscription billing and token entitlements
-- Enforce a free competition token allowance and paid plans for extended usage; keep quotas/prices configurable.
-- Choose the subscription processor only after checking coverage for the operating country and competition rules; use idempotent webhook processing and explicit subscription states.
-- Keep SaaS subscription charges, invoices, and refunds fully separate from PayPal Sandbox agent-purchase authorization/capture records.
-- Never grant paid entitlements from a browser redirect alone; verify payment status server-side.
+### 8. Usage, account, and subscription visibility
+- Show the free token allowance, usage window, current plan, and subscription state without conflating them with agent-purchase spend.
+- Use server-side plan/usage APIs and clear empty/loading/error states; do not trust client-side quota state.
+- Implement PayPal subscription checkout, webhooks, reconciliation, and cancellation only in a separately approved billing milestone.
 
-**Gate:** Free quota is enforced server-side; successful subscription payment changes the entitlement exactly once; failed/expired/cancelled states do not grant extended usage; no live payment is represented as a Sandbox agent purchase.
+**Gate:** User-facing usage agrees with the account-scoped database ledger, and billing state is auditable independently of agent purchases.
 
-### 9. Capture, receipt, and recovery paths
-- Only after verified WebAuthn, expose the separately gated Sandbox capture action.
-- Persist a tamper-evident receipt with mandate, policy/Sentinel result, evidence references/hashes, WebAuthn verification metadata, and PayPal IDs.
-- Add idempotent void/refund handling and clear pending/failed states.
+### 9. Production authorization and deployment hardening
+- Protect each data/action API with Keus session and workspace/account authorization; production page gating alone is insufficient.
+- Review origin/CSRF, session lifetime/revocation, WorkOS settings, secret handling, Turso migrations/backups, rate limits, and dependency posture.
+- Keep production changes out of the current staging password-auth release.
 
-**Gate:** End-to-end Sandbox test demonstrates authorize → desktop approval → capture, plus void/refund paths, with a verifiable receipt and no ambiguous claims.
+**Gate:** Security review and independent staging verification complete before any production authorization is requested.
 
 ### 10. Deployment, security review, and demo readiness
-- Deploy the web service on Render Free and data on Turso Free; document environment setup and migrations.
+- Keep the current public deployment staging-only; document environment setup and migrations.
 - Verify KERNEL cost/credit eligibility before enabling it; otherwise keep it disabled and labelled.
 - Run unit, integration, and route/security checks; test browser behavior on the preview origin and deployed HTTPS origin.
 - Provide a demo script that distinguishes live Channel3 results, Sandbox payment state, and any remaining illustrative screens.
 
 **Gate:** A reviewer can reproduce the demo from setup instructions; no secrets are exposed; no mobile path is required; all prototype boundaries are explicit.
 
-## Decisions to confirm before turning on SaaS subscription collection
+## Current decisions and remaining subscription work
 
-- **Sign-in methods requested:** email-based passwordless, Google OAuth, and passkeys. **Provider selected: WorkOS AuthKit.** WorkOS Magic Auth uses a six-digit code (the user approved WorkOS, with this UX difference documented); enable Google/passkeys separately in its dashboard and keep them unavailable until verified.
-- **Competition model:** free base allowance; subscription for extended usage.
-- **Primary usage meter:** AI token usage (track input/output separately). Keep search/run throttles as operational safeguards.
-- **Still to decide:** token allowance, tier prices/limits, competition start/end dates, billing currency, and a subscription processor with suitable country coverage. Keep paid checkout disabled until those are confirmed.
+- **Authentication:** WorkOS email/password with email verification, password reset, and open self-service registration. Google/GitHub and passkeys are not enabled.
+- **Competition model:** 7,000,000 tokens per account per UTC day during the configured staging window; usage aggregates across that account's authorized workspaces and remains isolated from another user sharing a workspace.
+- **Primary usage meter:** AI token usage, with input and output recorded separately. Search/run throttles remain operational safeguards.
+- **Subscription:** PayPal is the selected intended provider; exact paid-tier prices, billing currency, and checkout/webhooks remain to be implemented. Checkout stays disabled.
 
 ## Immediate next action
 
-WorkOS staging setup remains a separate follow-up: a prior sandbox-side smoke test reached hosted AuthKit, but a real inbox code and final Keus session were not completed; no email was sent. The current review first requires completing post-edit unit/browser/security QA and packaging the corrected source. Later staging work must still use a test key only, rotate it before production, configure remote Turso, and enable Google/passkeys only after approval and testing. The current production workspace guard is limited to the desktop page aliases; API/product actions still need explicit authorization before any connected product launch. Do not request or place secrets in chat/browser code/committed files. Keep passkeys unavailable until enabled and tested against the final relying-party domain. Continue with authorization protection and account/usage visibility without changing the desktop layout. Keep subscription checkout disabled until its billing provider, competition rules, and quotas/prices are confirmed; keep Channel3, agent-purchase PayPal, transaction WebAuthn, and KERNEL behind their planned service boundaries.
+Publish the password-auth source to the fixed `thekingsmediastudio/Kues` `main` branch, wait for the staging health marker to report version 2.2.2, then run the live WorkOS signup/verification/password-sign-in flow with an inbox controlled by the account owner. Separately use a reset link for an existing email-code account so its owner chooses a private password. Do not change production, ask for secrets in chat, add a temporary key-entry flow, or create/delete test accounts without owner authorization. Keep Google/GitHub and passkeys disabled; keep Channel3, agent-purchase PayPal, transaction WebAuthn, and KERNEL behind their planned service boundaries.
