@@ -476,10 +476,21 @@
     max-width: 740px;
     margin: 0 auto;
     padding: 0 24px;
+    min-height: 100%;
     display: flex;
     flex-direction: column;
     gap: 20px;
   }
+
+  .chat-empty-state { width: 100%; max-width: 560px; margin: auto; padding: 34px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .chat-empty-state[hidden] { display: none; }
+  .chat-empty-kicker { color: var(--cue-gold); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+  .chat-empty-state h2 { color: var(--text-main); font-size: clamp(24px, 4vw, 34px); letter-spacing: -.045em; line-height: 1.12; }
+  .chat-empty-state p { max-width: 480px; color: var(--text-sec); font-size: 14px; line-height: 1.6; }
+  .chat-suggestion-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+  .chat-suggestion-list button { border: 1px solid var(--border-strong); border-radius: 999px; background: rgba(255,255,255,.035); color: var(--text-sec); padding: 9px 12px; font: inherit; font-size: 12px; cursor: pointer; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+  .chat-suggestion-list button:hover { background: var(--bg-hover); border-color: var(--cue-gold); color: var(--text-main); }
+  .chat-suggestion-list button:focus-visible { outline: 2px solid var(--cue-gold); outline-offset: 2px; }
 
   .user-msg-row { display: flex; justify-content: flex-end; }
   .user-bubble {
@@ -490,8 +501,12 @@
     border-radius: 18px 18px 4px 18px;
     font-size: 14px;
     line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
+  .chat-reply-avatar { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; }
+  .chat-reply-avatar svg { width: 24px; height: 24px; }
   .agent-msg-row {
     display: flex;
     align-items: flex-start;
@@ -522,6 +537,8 @@
     font-size: 14px;
     line-height: 1.55;
     color: #d8d8df;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .msg-text strong { color: #fff; font-weight: 600; }
 
@@ -1442,8 +1459,10 @@
   :root[data-theme="light"] .header-title,:root[data-theme="light"] .agent-name{color:#22362a}
   :root[data-theme="light"] .header-sub,:root[data-theme="light"] .agent-preview{color:#718076}
   :root[data-theme="light"] .user-bubble{background:#fff;border-color:#e0e7df;color:#243629;box-shadow:0 5px 14px rgba(25,45,30,.06)}
-  :root[data-theme="light"] .msg-text{color:#3e4b42}
-  :root[data-theme="light"] .msg-text strong{color:#1e3225}
+:root[data-theme="light"] .msg-text{color:#3e4b42}
+:root[data-theme="light"] .msg-text strong{color:#1e3225}
+:root[data-theme="light"] .chat-suggestion-list button{background:#fff;border-color:#dce5dc;color:#57665c}
+:root[data-theme="light"] .chat-suggestion-list button:hover{background:#f2f6ef;color:#1e3225}
   :root[data-theme="light"] .grok-computer-card,:root[data-theme="light"] .cue-hold-card,:root[data-theme="light"] .settings-modal,:root[data-theme="light"] .new-agent-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
   :root[data-theme="light"] .d-card,:root[data-theme="light"] .app-tile,:root[data-theme="light"] .pay-card-item{background:#f7f9f6;border-color:#dfe7df;color:#243629}
   :root[data-theme="light"] .modal-sidebar{background:#f1f5ef;border-color:#e1e8df}
@@ -1715,7 +1734,7 @@
     </div>
 
     <div class="agent-list" id="agentList">
-      <div class="agent-row saved-agent-list-row" id="savedAgentRow" role="group" aria-label="Saved agent profile, display only" hidden>
+      <div class="agent-row saved-agent-list-row" id="savedAgentRow" role="button" tabindex="-1" aria-pressed="false" aria-label="Saved agent profile" hidden>
         <span class="saved-agent-avatar" id="savedAgentAvatar" aria-hidden="true"></span>
         <div class="agent-meta">
           <div class="agent-top"><span class="agent-name" id="savedAgentName">Saved agent</span><span class="agent-time" id="savedAgentStatus">Status unavailable</span></div>
@@ -1767,7 +1786,18 @@
       </div>
     </header>
     <div class="chat-stream" id="chatStream">
-      <div class="stream-inner" id="streamInner" role="log" aria-label="Conversation message history" aria-live="polite"></div>
+      <div class="stream-inner" id="streamInner" role="log" aria-label="Conversation message history" aria-live="polite">
+        <div class="chat-empty-state" id="chatEmptyState" hidden>
+          <span class="chat-empty-kicker">Test chat</span>
+          <h2>What can I help with?</h2>
+          <p>Ask a question for a text reply. Catalog search and external actions are not connected yet.</p>
+          <div class="chat-suggestion-list" aria-label="Suggested test prompts">
+            <button type="button" data-chat-suggestion="Help me plan a focused workday.">Plan a focused workday</button>
+            <button type="button" data-chat-suggestion="Explain a difficult idea in simple terms.">Explain an idea simply</button>
+            <button type="button" data-chat-suggestion="Draft a short checklist for organizing my desk.">Draft a short checklist</button>
+          </div>
+        </div>
+      </div>
     </div>
     <footer class="composer-area" id="chatComposer" aria-label="Message composer">
       <div class="composer-inner">
@@ -1779,11 +1809,11 @@
           <button class="composer-icon-btn" id="chatMicButton" type="button" disabled aria-label="Voice input, unavailable in this preview" title="Voice input is not connected in this preview">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5v1.2a6.5 6.5 0 0 0 13 0v-1.2M12 18.2v3.3M9 21.5h6"/></svg>
           </button>
-          <button class="comp-send" id="chatSendButton" type="button" disabled aria-label="Send message" title="Messaging is not connected in this preview">
+          <button class="comp-send" id="chatSendButton" type="button" disabled aria-label="Send message" title="Send message">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
           </button>
         </div>
-        <p class="composer-preview-note" id="chatPreviewNote">Messaging is not connected in this preview.</p>
+        <p class="composer-preview-note" id="chatPreviewNote" role="status" aria-live="polite">Checking chat availability...</p>
       </div>
     </footer>
 
@@ -2080,6 +2110,11 @@
   let currentSettingsAgentColor = '#32d583';
   let currentSettingsApprovalPath = 'desktop';
   let savedAgentRowTemplate = null;
+  let chatAvailable = false;
+  let chatPending = false;
+  let chatNotice = '';
+  let chatMessages = [];
+  let renderedChatAgentId = null;
   function openOverlay(id) {
     const backdrop = document.getElementById(id);
     if (!backdrop) return;
@@ -2630,7 +2665,17 @@
       row.hidden = false;
       row.style.display = '';
       row.classList.toggle('active', isActive);
-      row.setAttribute('aria-label', `Saved agent profile${isActive ? ', active chat' : ''}, status ${status}, display only`);
+      row.setAttribute('role', 'button');
+      row.tabIndex = 0;
+      row.setAttribute('aria-pressed', String(isActive));
+      row.setAttribute('aria-label', `${String(agent.name || 'Saved agent')}, ${status}${isActive ? ', selected' : ''}`);
+      row.addEventListener('click', () => selectDesktopAgent(agent.id));
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectDesktopAgent(agent.id);
+        }
+      });
       if (isActive) {
         avatar.id = 'savedAgentAvatar';
         name.id = 'savedAgentName';
@@ -2645,6 +2690,201 @@
       avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', agent.settings?.color || agent.color || '#32d583');
       list.append(row);
     });
+  }
+
+  function agentsFromBootstrap(data = currentBootstrap) {
+    const agents = Array.isArray(data?.agents)
+      ? data.agents.filter((entry) => entry && entry.id)
+      : (data?.onboarding?.agent?.id ? [data.onboarding.agent] : []);
+    return agents;
+  }
+
+  function findSelectedChatAgent() {
+    const agents = agentsFromBootstrap();
+    return agents.find((entry) => String(entry.id) === String(selectedAgentId)) || null;
+  }
+
+  function clearChatStream() {
+    const stream = document.getElementById('streamInner');
+    const emptyState = document.getElementById('chatEmptyState');
+    if (stream) stream.replaceChildren(...(emptyState ? [emptyState] : []));
+    if (emptyState) emptyState.hidden = true;
+  }
+
+  function syncChatComposer() {
+    const input = document.getElementById('chatInput');
+    const sendButton = document.getElementById('chatSendButton');
+    const agent = findSelectedChatAgent();
+    const sampleFixture = document.documentElement.dataset.reviewFixture === 'true';
+    const hasAgent = Boolean(agent && agent.status !== 'archived');
+    const canChat = Boolean(chatAvailable && hasAgent && currentBootstrap?.user?.id && !sampleFixture);
+    if (input) {
+      input.disabled = !canChat || chatPending;
+      input.placeholder = !currentBootstrap?.user?.id
+        ? 'Workspace data unavailable'
+        : hasAgent ? `Message ${String(agent.name || 'your agent')}...` : 'Save an agent to start a chat';
+      input.setAttribute('aria-label', input.placeholder);
+    }
+    if (sendButton) sendButton.disabled = !canChat || chatPending || !String(input?.value || '').trim();
+
+    if (chatPending) {
+      textById('chatPreviewNote', 'Waiting for a reply...');
+    } else if (chatNotice) {
+      textById('chatPreviewNote', chatNotice);
+    } else if (sampleFixture) {
+      textById('chatPreviewNote', 'Sample review data; messaging is unavailable.');
+    } else if (!hasAgent) {
+      textById('chatPreviewNote', 'Save an agent to use the message composer.');
+    } else if (canChat) {
+      textById('chatPreviewNote', 'Admin test chat. Messages go to the configured AI service and are not saved in Keus chat history. Avoid sensitive information.');
+    } else {
+      textById('chatPreviewNote', 'Messaging is not available for this account.');
+    }
+    const emptyState = document.getElementById('chatEmptyState');
+    const stream = document.getElementById('streamInner');
+    const hasVisibleMessages = Boolean(stream && Array.from(stream.children).some((node) => node.id !== 'chatEmptyState'));
+    if (emptyState) emptyState.hidden = !canChat || hasVisibleMessages;
+  }
+
+  function appendUserChatMessage(content) {
+    const row = document.createElement('div');
+    row.className = 'user-msg-row';
+    const bubble = document.createElement('div');
+    bubble.className = 'user-bubble';
+    bubble.textContent = content;
+    row.append(bubble);
+    document.getElementById('streamInner')?.append(row);
+    const stream = document.getElementById('chatStream');
+    if (stream) stream.scrollTop = stream.scrollHeight;
+  }
+
+  function createAssistantChatMessage(content, { pending = false } = {}) {
+    const agent = findSelectedChatAgent();
+    const row = document.createElement('div');
+    row.className = pending ? 'agent-msg-row chat-pending' : 'agent-msg-row';
+    const avatar = document.createElement('span');
+    avatar.className = 'chat-reply-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.innerHTML = objectAvatarSvg(agent?.avatar || 'bulb', agent?.settings?.color || '#32d583');
+    const body = document.createElement('div');
+    body.className = 'agent-msg-body';
+    const senderLine = document.createElement('div');
+    senderLine.className = 'msg-sender-line';
+    const sender = document.createElement('span');
+    sender.className = 'msg-sender';
+    sender.textContent = String(agent?.name || 'Keus assistant');
+    senderLine.append(sender);
+    const text = document.createElement('div');
+    text.className = 'msg-text';
+    text.textContent = content;
+    body.append(senderLine, text);
+    row.append(avatar, body);
+    document.getElementById('streamInner')?.append(row);
+    const stream = document.getElementById('chatStream');
+    if (stream) stream.scrollTop = stream.scrollHeight;
+    return row;
+  }
+
+  function selectDesktopAgent(agentId) {
+    const agent = agentsFromBootstrap().find((entry) => String(entry.id) === String(agentId));
+    if (!agent) return;
+    const nextId = String(agent.id);
+    if (nextId !== renderedChatAgentId) {
+      chatMessages = [];
+      chatNotice = '';
+      clearChatStream();
+      renderedChatAgentId = nextId;
+    }
+    selectedAgentId = nextId;
+    renderSavedAgentRows(agentsFromBootstrap(), agent);
+    const avatar = document.getElementById('hdrAvatar');
+    if (avatar) avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', agent.settings?.color || '#32d583');
+    textById('hdrName', String(agent.name || 'Saved agent'));
+    const status = ({ active: 'Active', paused: 'Paused', archived: 'Archived' })[String(agent.status || '').toLowerCase()] || 'Status unavailable';
+    textById('hdrSub', status);
+    syncChatComposer();
+  }
+
+  function chatErrorCopy(code) {
+    const messages = {
+      token_usage_limit_exceeded: 'This account has reached its current AI usage limit.',
+      active_entitlement_required: 'An active AI usage allowance is required to continue.',
+      ai_chat_rate_limited: 'Too many test messages. Wait a minute and try again.',
+      ai_chat_agent_unavailable: 'That agent is not available in this workspace.',
+      authentication_required: 'Sign in again to continue.',
+    };
+    return messages[code] || 'I could not get a reply. Please try again.';
+  }
+
+  async function loadChatAvailability() {
+    if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
+      chatAvailable = false;
+      syncChatComposer();
+      return;
+    }
+    try {
+      const response = await fetch('/api/chat/status', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      chatAvailable = response.ok && data.available === true;
+    } catch {
+      chatAvailable = false;
+    }
+    syncChatComposer();
+  }
+
+  async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const content = String(input?.value || '').trim();
+    const agent = findSelectedChatAgent();
+    if (!content || !chatAvailable || !agent || chatPending) return;
+    chatNotice = '';
+    chatMessages.push({ role: 'user', content });
+    while (chatMessages.length > 12) chatMessages.shift();
+    appendUserChatMessage(content);
+    if (input) input.value = '';
+    chatPending = true;
+    syncChatComposer();
+    const pendingRow = createAssistantChatMessage('Thinking...', { pending: true });
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: String(agent.id), messages: chatMessages.slice(-12) }),
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      if (!response.ok || typeof data.reply !== 'string' || !data.reply.trim()) {
+        const error = new Error(String(data.error || 'ai_chat_unavailable'));
+        error.code = String(data.error || 'ai_chat_unavailable');
+        throw error;
+      }
+      pendingRow?.remove();
+      const reply = data.reply.trim();
+      chatMessages.push({ role: 'assistant', content: reply });
+      while (chatMessages.length > 12) chatMessages.shift();
+      createAssistantChatMessage(reply);
+    } catch (error) {
+      pendingRow?.remove();
+      if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
+      chatNotice = chatErrorCopy(error.code);
+    } finally {
+      chatPending = false;
+      syncChatComposer();
+      input?.focus();
+    }
   }
 
   const localReviewFixture = {
@@ -2667,6 +2907,11 @@
   }
 
   function renderLocalReviewFixture() {
+    chatAvailable = false;
+    chatPending = false;
+    chatNotice = '';
+    chatMessages = [];
+    renderedChatAgentId = null;
     renderAuthenticatedWorkspace(localReviewFixture);
     document.documentElement.dataset.reviewFixture = 'true';
     renderSettingsFromBootstrap(localReviewFixture);
@@ -2679,10 +2924,17 @@
     const createButton = document.getElementById('createNewAgentButton');
     if (createButton) createButton.disabled = true;
     textById('newAgentFormStatus', 'This sample review account is not authenticated and cannot save agents.');
+    syncChatComposer();
   }
 
   function setWorkspaceUnavailable() {
     currentBootstrap = null;
+    chatAvailable = false;
+    chatPending = false;
+    chatNotice = 'Workspace data could not be loaded; messaging is unavailable.';
+    chatMessages = [];
+    renderedChatAgentId = null;
+    clearChatStream();
     renderSettingsFromBootstrap(null);
     const row = document.getElementById('savedAgentRow');
     if (row) row.hidden = true;
@@ -2695,11 +2947,7 @@
     textById('accountMenuWorkspace', 'Workspace unavailable');
     textById('hdrName', 'Workspace');
     textById('hdrSub', 'Workspace data unavailable');
-    const chatInput = document.getElementById('chatInput');
-    if (chatInput) { chatInput.disabled = true; chatInput.placeholder = 'Workspace data unavailable'; }
-    const chatSendButton = document.getElementById('chatSendButton');
-    if (chatSendButton) chatSendButton.disabled = true;
-    textById('chatPreviewNote', 'Workspace data could not be loaded; messaging is unavailable.');
+    syncChatComposer();
     const createButton = document.getElementById('createNewAgentButton');
     if (createButton) createButton.disabled = true;
     textById('newAgentFormStatus', 'Workspace data is unavailable; no agent can be saved.');
@@ -2713,6 +2961,7 @@
       location.replace('/login?auth_error=session');
       return;
     }
+    currentBootstrap = data;
     delete document.documentElement.dataset.reviewFixture;
     const reviewBadge = document.getElementById('sampleReviewBadge');
     if (reviewBadge) reviewBadge.hidden = true;
@@ -2728,6 +2977,12 @@
     let agent = selectedAgentId ? agents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
     if (!agent) agent = agents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || agents[0] || onboarding.agent || profileAgent;
     selectedAgentId = agent?.id ? String(agent.id) : null;
+    if (selectedAgentId !== renderedChatAgentId) {
+      renderedChatAgentId = selectedAgentId;
+      chatMessages = [];
+      chatNotice = '';
+      clearChatStream();
+    }
     const name = String(agent?.name || '').trim();
     const role = String(agent?.role || '').trim();
     const avatarKind = String(agent?.avatar || profileAgent.avatar || 'bulb');
@@ -2742,16 +2997,7 @@
     if (headerAvatar) headerAvatar.innerHTML = avatarSvg;
     textById('hdrName', hasSavedAgent ? name : workspaceName);
     textById('hdrSub', hasSavedAgent ? statusLabel : 'No saved agent');
-    const chatInput = document.getElementById('chatInput');
-    if (chatInput) {
-      const placeholder = hasSavedAgent ? `Message ${name}...` : 'Messaging unavailable in this preview';
-      chatInput.disabled = !hasSavedAgent;
-      chatInput.placeholder = placeholder;
-      chatInput.setAttribute('aria-label', placeholder);
-    }
-    const chatSendButton = document.getElementById('chatSendButton');
-    if (chatSendButton) chatSendButton.disabled = true;
-    textById('chatPreviewNote', hasSavedAgent ? 'Messaging is not connected in this preview.' : 'Save an agent to use the message composer.');
+    syncChatComposer();
     const createButton = document.getElementById('createNewAgentButton');
     if (createButton) createButton.disabled = false;
     textById('newAgentFormStatus', 'App labels and memory preferences save with the agent. Integrations are not connected.');
@@ -2765,6 +3011,7 @@
     textById('accountAvatar', displayName.trim().charAt(0).toLocaleUpperCase() || 'K');
     filterTeammates(document.getElementById('agentSearchInput')?.value || '');
     renderSettingsFromBootstrap(data);
+    syncChatComposer();
   }
 
   async function loadAuthenticatedWorkspace() {
@@ -2787,6 +3034,7 @@
         throw new Error(data.error || 'workspace_load_failed');
       }
       renderAuthenticatedWorkspace(data);
+      void loadChatAvailability();
     } catch {
       setWorkspaceUnavailable();
     }
@@ -3092,6 +3340,24 @@
       if (label) label.textContent = 'Sign out';
       showToast('Sign out failed. Please try again.');
     }
+  });
+
+  const chatInput = document.getElementById('chatInput');
+  chatInput?.addEventListener('input', syncChatComposer);
+  chatInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.isComposing) {
+      event.preventDefault();
+      void sendChatMessage();
+    }
+  });
+  document.getElementById('chatSendButton')?.addEventListener('click', () => void sendChatMessage());
+  document.querySelectorAll('[data-chat-suggestion]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!chatInput || !chatAvailable) return;
+      chatInput.value = String(button.dataset.chatSuggestion || '');
+      syncChatComposer();
+      void sendChatMessage();
+    });
   });
 
   loadAuthenticatedWorkspace();

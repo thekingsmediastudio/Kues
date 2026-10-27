@@ -11,6 +11,8 @@ import { createBrevoEmailDelivery } from './lib/auth/brevo-delivery.mjs';
 import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
 import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
 import { AiProviderError, createAiProviderService } from './lib/ai-providers/service.mjs';
+import { AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
+import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
 import { WorkOS } from '@workos-inc/node';
 
@@ -523,6 +525,170 @@ async function handleAiProviderAdminRequest(req, res, url, { config, authService
   return true;
 }
 
+function consumeAiChatRateLimit(rateWindows, userId) {
+  const now = Date.now();
+  let bucket = rateWindows.get(userId);
+  if (!bucket || now - bucket.startedAt >= 60_000 || now < bucket.startedAt) {
+    bucket = { startedAt: now, count: 0 };
+    rateWindows.set(userId, bucket);
+  }
+  if (bucket.count >= 8) throw new RequestError('ai_chat_rate_limited', 429);
+  bucket.count += 1;
+  if (rateWindows.size > 5000) {
+    for (const [id, item] of rateWindows) {
+      if (now - item.startedAt > 60_000) rateWindows.delete(id);
+    }
+  }
+}
+
+function aiProviderAdminAllowed(config, user) {
+  const email = String(user?.email || '').trim().normalize('NFKC').toLowerCase();
+  const admins = Array.isArray(config.aiProviderAdminEmails) ? config.aiProviderAdminEmails : [];
+  return Boolean(email && admins.includes(email));
+}
+
+async function handleDesktopAiChatRequest(req, res, url, {
+  config,
+  authService,
+  workspaceService,
+  aiChatService,
+  usageService,
+  rateWindows,
+}) {
+  const statusRoute = url.pathname === '/api/chat/status';
+  const chatRoute = url.pathname === '/api/chat';
+  if (!statusRoute && !chatRoute) return false;
+
+  const expectedMethod = statusRoute ? 'GET' : 'POST';
+  if (req.method !== expectedMethod) {
+    res.setHeader('Allow', `${expectedMethod}, OPTIONS`);
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return true;
+  }
+  if (chatRoute) {
+    try { requireSameOrigin(req); } catch (error) {
+      sendJson(res, error.status || 403, { error: error.code || 'same_origin_required' });
+      return true;
+    }
+  }
+  if (!authService) {
+    sendJson(res, statusRoute ? 200 : 503, statusRoute ? { available: false } : { error: 'ai_chat_unavailable' });
+    return true;
+  }
+
+  let user = null;
+  try {
+    const token = cookieValue(req, sessionCookieName(config));
+    user = token ? await authService.getSession({ token }) : null;
+  } catch {
+    user = null;
+  }
+  if (!user) {
+    sendJson(res, 401, { error: 'authentication_required' });
+    return true;
+  }
+
+  const enabledForAdmin = config.aiProviderChatTestEnabled === true
+    && Boolean(aiChatService)
+    && aiProviderAdminAllowed(config, user);
+  if (statusRoute) {
+    let available = false;
+    if (enabledForAdmin) {
+      try { available = await aiChatService.isReady(); } catch { available = false; }
+    }
+    sendJson(res, 200, { available: available === true });
+    return true;
+  }
+
+  if (!enabledForAdmin || !workspaceService || !usageService
+      || typeof usageService.reserveTokens !== 'function'
+      || typeof usageService.settleTokenReservation !== 'function'
+      || typeof usageService.releaseTokenReservation !== 'function') {
+    sendJson(res, 503, { error: 'ai_chat_unavailable' });
+    return true;
+  }
+
+  try {
+    consumeAiChatRateLimit(rateWindows, String(user.id || ''));
+    const input = await readJsonBody(req, 64 * 1024);
+    if (Object.keys(input).some((key) => !['agentId', 'messages'].includes(key))) {
+      throw new RequestError('ai_chat_request_invalid', 400);
+    }
+    const agentId = String(input.agentId || '').trim();
+    if (!agentId || agentId.length > 255 || /[\r\n\0]/.test(agentId)) {
+      throw new RequestError('ai_chat_request_invalid', 400);
+    }
+    const messages = normalizeAiChatMessages(input.messages);
+    if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
+
+    const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+    const workspace = bootstrap?.workspace;
+    const agent = (Array.isArray(bootstrap?.agents) ? bootstrap.agents : [])
+      .find((entry) => String(entry?.id) === agentId)
+      || (String(bootstrap?.onboarding?.agent?.id || '') === agentId ? bootstrap.onboarding.agent : null);
+    if (!workspace?.id || workspace.status !== 'active' || !agent || agent.status === 'archived') {
+      throw new RequestError('ai_chat_agent_unavailable', 404);
+    }
+
+    const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
+    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + 600;
+    const estimatedTokens = Math.ceil((messageCharacters + profileCharacters) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
+    const idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
+    await usageService.reserveTokens({
+      workspaceId: workspace.id,
+      userId: user.id,
+      idempotencyKey,
+      estimatedTokens,
+    });
+
+    let completion;
+    try {
+      completion = await aiChatService.complete({ agent, messages });
+    } catch (error) {
+      try { await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey }); } catch {}
+      throw error;
+    }
+
+    try {
+      await usageService.settleTokenReservation({
+        workspaceId: workspace.id,
+        idempotencyKey,
+        provider: completion.provider,
+        model: completion.model,
+        inputTokens: completion.inputTokens,
+        outputTokens: completion.outputTokens,
+      });
+    } catch (error) {
+      console.error('AI chat usage settlement failed:', error?.name || 'Error');
+      sendJson(res, 503, { error: 'ai_chat_unavailable' });
+      return true;
+    }
+    sendJson(res, 200, { reply: completion.text });
+  } catch (error) {
+    if (error instanceof UsageLimitError) {
+      sendJson(res, 429, { error: 'token_usage_limit_exceeded' });
+    } else if (error instanceof UsageReservationError) {
+      sendJson(res, error.code === 'active_entitlement_required' ? 403 : 409, {
+        error: error.code === 'active_entitlement_required' ? 'active_entitlement_required' : 'ai_chat_unavailable',
+      });
+    } else if (error instanceof RequestError) {
+      sendJson(res, error.status, { error: error.code });
+    } else if (error instanceof AiProviderError) {
+      if (error.code === 'ai_chat_messages_invalid') {
+        sendJson(res, error.status, { error: error.code });
+      } else {
+        sendJson(res, 502, { error: 'ai_chat_unavailable' });
+      }
+    } else if (error instanceof WorkspaceError) {
+      sendJson(res, error.status, { error: 'ai_chat_agent_unavailable' });
+    } else {
+      console.error('Desktop AI chat failed:', error?.name || 'Error');
+      sendJson(res, 500, { error: 'ai_chat_unavailable' });
+    }
+  }
+  return true;
+}
+
 async function handleApiHubRequest(req, res, url, { config, authService, apiHubService }) {
   if (!config.apiHubEnabled || !apiHubService) {
     sendJson(res, 503, { error: 'api_hub_not_configured' });
@@ -927,12 +1093,15 @@ export function createServer({
   workosAuth = null,
   apiHubService = null,
   aiProviderService = null,
+  aiChatService = null,
+  usageService = null,
   signInOnlyPreview = false,
 } = {}) {
   const runtime = {
     config,
     workosAuth,
   };
+  const aiChatRateWindows = new Map();
 
   return http.createServer((req, res) => {
     void (async () => {
@@ -1068,6 +1237,18 @@ export function createServer({
           workspaceService,
         });
         if (handled) return;
+      }
+
+      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status') {
+        await handleDesktopAiChatRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          workspaceService,
+          aiChatService,
+          usageService,
+          rateWindows: aiChatRateWindows,
+        });
+        return;
       }
 
       if (url.pathname === '/api/admin/ai-providers' || url.pathname.startsWith('/api/admin/ai-providers/')) {
@@ -1330,6 +1511,8 @@ if (isMain) {
     let workosAuth = null;
     let apiHubService = null;
     let aiProviderService = null;
+    let aiChatService = null;
+    let usageService = null;
     try {
       if (config.databaseConfigured) {
         db = createDatabaseClient();
@@ -1349,6 +1532,14 @@ if (isMain) {
         }
         if (config.aiProvidersEnabled) {
           aiProviderService = createAiProviderService({ db, encryptionKey: process.env.AI_PROVIDER_ENCRYPTION_KEY });
+        }
+        if (config.aiProviderChatTestEnabled && aiProviderService) {
+          aiChatService = createAiChatService({ aiProviderService });
+          usageService = {
+            reserveTokens: (input) => reserveTokens(db, input),
+            settleTokenReservation: (input) => settleTokenReservation(db, input),
+            releaseTokenReservation: (input) => releaseTokenReservation(db, input),
+          };
         }
         if (config.workosConfigured) {
           const workos = new WorkOS({
@@ -1371,6 +1562,8 @@ if (isMain) {
         workosAuth,
         apiHubService,
         aiProviderService,
+        aiChatService,
+        usageService,
         signInOnlyPreview,
       });
       server.on('close', () => { void db?.close(); });

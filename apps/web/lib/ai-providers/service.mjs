@@ -351,7 +351,26 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     return result.rows.map(safeProvider);
   }
 
-  // This is an internal server-side accessor for future provider calls, not an HTTP response.
+  async function hasPrimaryProvider() {
+    const result = await db.execute({
+      sql: 'SELECT id FROM ai_providers WHERE enabled = 1 AND is_primary = 1 LIMIT 1',
+    });
+    return result.rows.length > 0;
+  }
+
+  // These are internal server-side accessors, never HTTP responses.
+  async function getPrimaryProviderForRuntime() {
+    const result = await db.execute({
+      sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
+                   api_key_ciphertext, api_key_nonce, api_key_tag, key_version,
+                   enabled, is_primary, created_at, updated_at
+            FROM ai_providers WHERE enabled = 1 AND is_primary = 1 LIMIT 1`,
+    });
+    const row = result.rows[0];
+    if (!row) throw new AiProviderError('ai_provider_primary_unavailable', 503);
+    return { ...safeProvider(row), apiKey: decryptApiKey(row, key) };
+  }
+
   async function getProviderForRuntime({ providerKey }) {
     const normalizedKey = String(providerKey || '').trim().toLowerCase();
     if (!normalizedKey) throw new AiProviderError('ai_provider_key_invalid');
@@ -367,5 +386,13 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     return { ...safeProvider(row), apiKey: decryptApiKey(row, key) };
   }
 
-  return Object.freeze({ createProvider, updateProvider, deleteProvider, listProviders, getProviderForRuntime });
+  return Object.freeze({
+    createProvider,
+    updateProvider,
+    deleteProvider,
+    listProviders,
+    hasPrimaryProvider,
+    getPrimaryProviderForRuntime,
+    getProviderForRuntime,
+  });
 }

@@ -258,7 +258,7 @@ function buildOperationUrl(baseUrlValue, operation, pathParams, query) {
   return target;
 }
 
-async function resolvePublicAddresses(hostname, resolveHost) {
+export async function resolvePublicAddresses(hostname, resolveHost) {
   const cleanHost = String(hostname || '').replace(/^\[|\]$/g, '');
   if (forbiddenHostname(cleanHost) || net.isIP(cleanHost)) throw new ApiHubError('connector_destination_blocked', 403);
   let addresses;
@@ -285,7 +285,7 @@ export function createPinnedLookup(preferred) {
   };
 }
 
-function requestHttps({ url, method, headers, body, addresses, maxResponseBytes = MAX_RESPONSE_BYTES }) {
+export function requestHttps({ url, method, headers, body, addresses, maxResponseBytes = MAX_RESPONSE_BYTES }) {
   return new Promise((resolve, reject) => {
     const preferred = addresses.find((item) => item.family === 4) || addresses[0];
     const request = https.request(url, {
