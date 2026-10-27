@@ -136,7 +136,7 @@ test('desktop chat rejects unsafe destinations, provider failures, malformed out
     });
     await assert.rejects(
       failed.complete({ agent: {}, messages }),
-      (error) => error instanceof AiProviderError && error.code === 'ai_provider_upstream_failed',
+      (error) => error instanceof AiProviderError && error.code === 'ai_provider_upstream_failed' && error.upstreamStatus === 429,
     );
 
     await assert.rejects(
