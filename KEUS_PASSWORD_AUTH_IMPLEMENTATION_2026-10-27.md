@@ -1,37 +1,40 @@
 # Keus WorkOS email/password authentication — 2026-10-27
 
-## Scope and safety decision
+## Scope and recovery decision
 
-This source change replaces passwordless WorkOS email sign-in with password authentication for the existing staging app. It preserves open email registration, verified WorkOS identity linking, Keus-local sessions, workspace/onboarding routing, and the account-scoped quota model. Google/GitHub stay disabled; production is not changed.
+This implementation keeps first-party sign-in on WorkOS email/password for staging. It preserves identity linking, Keus-local sessions, workspace/onboarding routing, and the per-account quota behavior. Google/GitHub and production remain untouched.
 
-Existing email-code-only users are not assigned a common password. If a WorkOS email already exists, Keus sends a WorkOS password-reset link so the account owner chooses a private password. The existing WorkOS subject and Keus user/workspace remain intact. Keus does not persist passwords.
+Password recovery is a separate form with a six-digit email code and a new-password/confirmation pair. WorkOS's native reset API creates a reset token/URL, so Keus does not call it. Instead, the server uses WorkOS Magic Auth only as a one-time mailbox-ownership proof, then updates the existing WorkOS user's password through `updateUser`. No Keus login session or WorkOS token is returned from the recovery endpoint; the user must sign in with the new password. The normal app Magic Auth sign-in routes remain retired/blocked.
+
+Existing email-code users are not assigned a common password. An already-registered address submitted in Create account does not create a duplicate WorkOS/Keus identity or send a reset link; the user can choose the explicit Forgot password form and set a private password with a code.
 
 ## Flow
 
-1. Signup submits email and password to WorkOS, then starts WorkOS email verification. The user enters the six-digit code before Keus issues a local session.
-2. Sign-in authenticates the email/password with WorkOS. An unverified account must finish verification before a session is issued.
-3. Password reset uses WorkOS and returns a generic response to avoid revealing whether an address exists.
-4. After verification, Keus links the verified WorkOS subject to the existing Keus identity when possible. New accounts continue to `/onboarding`; existing users continue to `/app`.
+1. Signup creates a WorkOS email/password user and starts email verification. The user enters the six-digit verification code before Keus issues a local session.
+2. Sign-in authenticates the email/password with WorkOS. An unverified account must finish email-code verification before a Keus session is issued.
+3. Forgot password opens its own form. The user enters an email; the server only requests a WorkOS Magic Auth code for an existing user and always returns a generic accepted response. The email and short-lived reset challenge are held in an `HttpOnly`, `SameSite=Strict` cookie.
+4. The recovery form submits the six-digit code plus a new password. The server verifies the code with `authenticateWithMagicAuth`, checks that the returned WorkOS identity matches the challenge email, and updates that user's password. It creates no Keus session and exposes neither the code nor WorkOS auth tokens.
+5. The user signs in with the new password. Existing WorkOS/Keus identity and workspace data remain associated; new accounts still go to `/onboarding`, existing users to `/app`.
 
-The pending WorkOS verification challenge is held in a short-lived `HttpOnly` cookie. The old Magic Auth request/verify/consume routes return `410 password_auth_required`; the hosted AuthKit sign-in entry is blocked and a Magic Auth callback is rejected. The development-only credential form and server endpoint that accepted WorkOS keys were removed, along with the setup-token CORS allowance. The former public HTML path now contains only an inert retirement notice, so even a static-file host cannot collect credentials.
+The old Magic Auth request/verify/consume app routes return `410 password_auth_required`; hosted AuthKit sign-in is blocked and Magic Auth callbacks are rejected. Magic Auth is called only behind the recovery API, never as an app sign-in route. The temporary development credential-entry form and server endpoint that accepted WorkOS keys remain removed.
 
 ## Key source changes
 
-- `apps/web/lib/auth/workos-auth.mjs`: WorkOS password signup/sign-in, email verification, reset, and existing-account linking behavior.
-- `apps/web/server.mjs`: password endpoints, generic reset responses, pending-auth cookie handling, disabled legacy flow, removed temporary credential setup, and health version marker **2.2.2**.
-- `apps/web/public/login.html`: password, verification-code, and password-reset UI.
-- `AUTH_SETUP.md`, `.env.example`, `PROJECT_ROADMAP.md`, and `RENDER_DEPLOYMENT.md`: current password-auth configuration and release boundaries; the 2026-10-26 Magic Auth implementation record is explicitly marked historical.
-- Unit tests cover password signup/sign-in, unverified email, reset and account enumeration, identity/workspace preservation, Magic Auth blocking, same-origin checks, and the removed test-credential route.
+- `apps/web/lib/auth/workos-auth.mjs`: WorkOS password signup/sign-in, verification, recovery-only code issuance/verification, password update, and existing-account handling.
+- `apps/web/server.mjs`: recovery start/verify endpoints, short-lived reset cookie, no-session reset response, same-origin checks, and health version marker **2.2.3**.
+- `apps/web/public/login.html`: a separate Forgot password form with email, six-digit recovery code, new password, and confirmation fields; no reset-link UI.
+- `tests/unit/workos-auth.test.mjs`, `tests/unit/workos-endpoints.test.mjs`, and `tests/unit/password-reset-ui.test.mjs`: code-only recovery, identity matching, generic responses, no-session behavior, cookie scope, invalid-code rejection, and recovery UI coverage.
+- `AUTH_SETUP.md`, `PROJECT_ROADMAP.md`, `RENDER_DEPLOYMENT.md`, and `SERVICE_REGISTRATION_CHECKLIST.md`: recovery-only use of Magic Auth is distinguished from passwordless sign-in.
 
 ## Verification
 
-- `npm test`: **86/86 passed**.
-- `npm audit --omit=dev`: **0 vulnerabilities**.
-- `node --check` passed for the server, WorkOS adapter, and affected tests; the inline login script syntax check passed.
-- These are local, mocked/code-level checks. No new WorkOS API request or email was sent during this verification.
+- `npm test`: **89/89 passed**.
+- Inline login script and affected JavaScript files pass `node --check`.
+- The recovery endpoint tests verify that invalid codes do not update passwords, account lookup only sends codes to existing accounts, and successful recovery does not issue a Keus session.
+- Mocked tests do not prove WorkOS email delivery. No email was sent during code implementation or local verification. Live recovery testing still requires an owner-controlled inbox.
 
 ## Staging release status
 
-The source was merged to the fixed `thekingsmediastudio/Kues` `main` branch as `33499ecf3150451c1b447b1fb81bf2f66397d284`; the checksum-safe migration correction was merged as `5e2339bf359d2482a4833c7591629f0e8f563b4a`. The 2.2.2 staging deployment is now health-ready. Live probes report `emailPasswordEnabled: true`, `emailAuthMethod: "password"`, `magicAuthEnabled: false`, Google/GitHub disabled, legacy email auth 410, and retired setup routes 404. Invalid-email validation probes returned 400 without sending an email. Migration `0003_workos_email_code_requests.sql` was confirmed byte-for-byte identical to the archived original after correction. No verification or reset email has been sent; select an owner-controlled inbox before live email tests. Never paste WorkOS credentials into chat or use a temporary verifier/key-entry form.
+The live staging deployment was version **2.2.2** before this recovery-only source change. The 2.2.3 code release is to be published to the fixed `thekingsmediastudio/Kues/main` target under the user's prior publish-now authorization; verify Render health/config after it deploys. No migration changed, and checksum-protected migration `0003_workos_email_code_requests.sql` remains untouched. No WorkOS verification or recovery email has been sent; obtain owner confirmation before live inbox testing. Never paste WorkOS credentials into chat or use a temporary verifier/key-entry form.
 
 The 7,000,000-token per-account daily UTC allowance remains unchanged. PayPal checkout/webhooks are not implemented, and no production AI route currently invokes the quota reservation ledger.

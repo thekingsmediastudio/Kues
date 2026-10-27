@@ -140,6 +140,7 @@ function clearSessionCookie(config) {
 
 const WORKOS_STATE_COOKIE = 'kues_workos_state';
 const PENDING_AUTH_COOKIE = 'kues_pending_auth';
+const PASSWORD_RESET_COOKIE = 'kues_password_reset';
 
 function pendingAuthCookieValue(challenge) {
   const value = Buffer.from(JSON.stringify(challenge), 'utf8').toString('base64url');
@@ -179,6 +180,40 @@ function setPendingAuthCookie(config, challenge) {
 function clearPendingAuthCookie(config) {
   const secure = config.nodeEnv === 'production' ? '; Secure' : '';
   return `${PENDING_AUTH_COOKIE}=; Max-Age=0; Path=/api/auth/password; HttpOnly; SameSite=Strict${secure}`;
+}
+
+function passwordResetCookieValue(challenge) {
+  const email = String(challenge?.email || '').trim().normalize('NFKC').toLowerCase();
+  if (challenge?.kind !== 'password_reset' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new AuthError('password_reset_unavailable', 503);
+  }
+  const value = Buffer.from(JSON.stringify({ kind: 'password_reset', email }), 'utf8').toString('base64url');
+  if (!value || value.length > 4096) throw new AuthError('password_reset_unavailable', 503);
+  return value;
+}
+
+function parsePasswordResetCookie(value) {
+  const encoded = String(value || '');
+  if (!/^[A-Za-z0-9_-]{1,4096}$/.test(encoded)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    if (!parsed || typeof parsed !== 'object' || parsed.kind !== 'password_reset') return null;
+    const email = String(parsed.email || '').trim().normalize('NFKC').toLowerCase();
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+    return { kind: 'password_reset', email };
+  } catch {
+    return null;
+  }
+}
+
+function setPasswordResetCookie(config, challenge) {
+  const secure = config.nodeEnv === 'production' ? '; Secure' : '';
+  return `${PASSWORD_RESET_COOKIE}=${passwordResetCookieValue(challenge)}; Max-Age=600; Path=/api/auth/password/reset; HttpOnly; SameSite=Strict${secure}`;
+}
+
+function clearPasswordResetCookie(config) {
+  const secure = config.nodeEnv === 'production' ? '; Secure' : '';
+  return `${PASSWORD_RESET_COOKIE}=; Max-Age=0; Path=/api/auth/password/reset; HttpOnly; SameSite=Strict${secure}`;
 }
 
 function setWorkOSStateCookie(config, state) {
@@ -246,6 +281,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       '/api/auth/password/verify',
       '/api/auth/password/resend',
       '/api/auth/password/reset/start',
+      '/api/auth/password/reset/verify',
     ]);
     if (passwordPaths.has(url.pathname)) {
       if (req.method !== 'POST') {
@@ -270,7 +306,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
           sendJson(res, 202, { accepted: true, email: result.email }, {
             'Set-Cookie': setPendingAuthCookie(config, result.challenge),
           });
-        } else if (result.passwordResetStarted === true) {
+        } else if (result.passwordResetAvailable === true) {
           sendJson(res, 202, { accepted: true, email: result.email }, {
             'Set-Cookie': clearPendingAuthCookie(config),
           });
@@ -331,10 +367,26 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       }
 
       if (url.pathname === '/api/auth/password/reset/start') {
-        await workosAuth.startPasswordReset(body);
+        const result = await workosAuth.startPasswordReset(body);
         sendJson(res, 202, {
           accepted: true,
-          message: 'If an account exists for that email, a password setup link will be sent.',
+          message: 'If an account exists for that email, a password reset code will be sent.',
+        }, {
+          'Set-Cookie': setPasswordResetCookie(config, result.challenge),
+        });
+        return true;
+      }
+
+      if (url.pathname === '/api/auth/password/reset/verify') {
+        const challenge = parsePasswordResetCookie(cookieValue(req, PASSWORD_RESET_COOKIE));
+        if (!challenge) {
+          sendJson(res, 400, { error: 'invalid_or_expired_code' });
+          return true;
+        }
+        const result = await workosAuth.completePasswordReset({ ...body, challenge, ...metadata });
+        if (result?.passwordUpdated !== true) throw new AuthError('password_reset_unavailable', 503);
+        sendJson(res, 200, { passwordUpdated: true }, {
+          'Set-Cookie': clearPasswordResetCookie(config),
         });
         return true;
       }
@@ -380,7 +432,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
     const token = cookieValue(req, sessionCookieName(config));
     if (token) await authService.revokeSession({ token });
-    sendJson(res, 200, { authenticated: false }, { 'Set-Cookie': [clearSessionCookie(config), clearPendingAuthCookie(config)] });
+    sendJson(res, 200, { authenticated: false }, { 'Set-Cookie': [clearSessionCookie(config), clearPendingAuthCookie(config), clearPasswordResetCookie(config)] });
     return true;
   }
 
@@ -710,7 +762,7 @@ export function createServer({
         const payload = {
           ok: true,
           service: 'keus-desktop',
-          version: '2.2.2',
+          version: '2.2.3',
           surfaces: ['desktop:/app', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {

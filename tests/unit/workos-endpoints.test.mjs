@@ -250,7 +250,7 @@ test('WorkOS signup does not reveal whether an email-code account already exists
   const workosAuth = {
     async signUpWithPassword({ email }) {
       requests += 1;
-      if (email === 'existing@example.test') return { needsEmailVerification: false, passwordResetStarted: true, email };
+      if (email === 'existing@example.test') return { needsEmailVerification: false, passwordResetAvailable: true, email };
       return { needsEmailVerification: true, email, challenge: { kind: 'pending', token: 'new-token', email } };
     },
   };
@@ -272,9 +272,18 @@ test('WorkOS signup does not reveal whether an email-code account already exists
   });
 });
 
-test('password reset endpoint returns a generic response and never reveals account existence', async () => {
+test('password reset sends a generic code response and never creates a Keus session', async () => {
   const requests = [];
-  const workosAuth = { async startPasswordReset(value) { requests.push(value); return { accepted: true }; } };
+  const workosAuth = {
+    async startPasswordReset(value) {
+      requests.push({ type: 'start', value });
+      return { accepted: true, email: value.email, challenge: { kind: 'password_reset', email: value.email } };
+    },
+    async completePasswordReset(value) {
+      requests.push({ type: 'complete', value });
+      return { passwordUpdated: true };
+    },
+  };
   await withServer({ authService: {}, workosAuth }, async (base) => {
     const response = await fetch(`${base}/api/auth/password/reset/start`, {
       method: 'POST',
@@ -284,9 +293,35 @@ test('password reset endpoint returns a generic response and never reveals accou
     assert.equal(response.status, 202);
     assert.deepEqual(await response.json(), {
       accepted: true,
-      message: 'If an account exists for that email, a password setup link will be sent.',
+      message: 'If an account exists for that email, a password reset code will be sent.',
     });
-    assert.deepEqual(requests, [{ email: 'person@example.test' }]);
+    const resetCookie = response.headers.get('set-cookie');
+    assert.match(resetCookie, /kues_password_reset=/);
+    assert.match(resetCookie, /HttpOnly/);
+    assert.match(resetCookie, /SameSite=Strict/);
+    assert.match(resetCookie, /Path=\/api\/auth\/password\/reset/);
+    assert.doesNotMatch(resetCookie, /kues_session=/);
+    assert.deepEqual(requests, [{ type: 'start', value: { email: 'person@example.test' } }]);
+
+    const cookieValue = resetCookie.match(/kues_password_reset=([^;]+)/)?.[1];
+    const verifyResponse = await fetch(`${base}/api/auth/password/reset/verify`, {
+      method: 'POST',
+      headers: { Origin: base, Cookie: `kues_password_reset=${cookieValue}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: '123456', newPassword: 'a strong new password' }),
+    });
+    assert.equal(verifyResponse.status, 200);
+    assert.deepEqual(await verifyResponse.json(), { passwordUpdated: true });
+    const clearCookie = verifyResponse.headers.get('set-cookie');
+    assert.match(clearCookie, /kues_password_reset=; Max-Age=0/);
+    assert.doesNotMatch(clearCookie, /kues_session=/);
+    assert.deepEqual(requests[1], {
+      type: 'complete',
+      value: {
+        code: '123456', newPassword: 'a strong new password',
+        challenge: { kind: 'password_reset', email: 'person@example.test' },
+        ipAddress: '127.0.0.1', userAgent: 'node',
+      },
+    });
   });
 });
 
@@ -305,6 +340,14 @@ test('WorkOS password routes require same-origin requests and old Magic Auth end
     });
     assert.equal(crossOrigin.status, 403);
     assert.deepEqual(await crossOrigin.json(), { error: 'origin_not_allowed' });
+
+    const crossOriginRecovery = await fetch(`${base}/api/auth/password/reset/verify`, {
+      method: 'POST',
+      headers: { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: '123456', newPassword: 'a strong new password' }),
+    });
+    assert.equal(crossOriginRecovery.status, 403);
+    assert.deepEqual(await crossOriginRecovery.json(), { error: 'origin_not_allowed' });
 
     for (const [path, body] of [
       ['/api/auth/email/start', { email: 'person@example.test' }],
