@@ -211,7 +211,7 @@ test('server allows only explicit cross-origin API access and returns JSON API m
 });
 
 test('user-facing Keus pages avoid em dashes and emoji glyphs', () => {
-  const files = ['landing.html', 'dashboard.html', 'desktop-preview.html', 'login.html', 'onboarding.html', 'pocket.html', 'api-hub.html', 'auth-verify.html'];
+  const files = ['landing.html', 'dashboard.html', 'desktop-preview.html', 'login.html', 'onboarding.html', 'pocket.html', 'api-hub.html', 'ai-providers-admin.html', 'auth-verify.html'];
   const forbiddenGlyphs = [0x2713, 0x2726, 0x2315, 0x2667, 0x2197, 0x2022].map((codePoint) => String.fromCodePoint(codePoint));
   for (const file of files) {
     const html = readFileSync(new URL(`../../apps/web/public/${file}`, import.meta.url), 'utf8');
