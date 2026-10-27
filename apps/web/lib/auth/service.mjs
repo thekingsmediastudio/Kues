@@ -193,7 +193,7 @@ export function createAuthService({ db, emailDelivery = null, competition = null
     });
   }
 
-  /** Reserve a rate-limited WorkOS Magic Auth send without persisting the one-time code. */
+  /** Rate-limit WorkOS verification-code and password-reset email requests without storing secrets. */
   async function reserveWorkOSCodeRequest({ email: rawEmail, now = new Date().toISOString() }) {
     const email = normalizeEmail(rawEmail);
     const requestedAt = asIso(now);
