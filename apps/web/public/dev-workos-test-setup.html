@@ -1,71 +1,22 @@
 <!doctype html>
 <html lang="en">
 <head>
-<link rel="icon" type="image/svg+xml" href="/keus-icon.svg">
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="keus-setup-token" content="%%WORKOS_SETUP_TOKEN%%"><title>Private test setup · Keus</title>
-<style>
-:root{color-scheme:dark;--bg:#090a09;--card:#191b19;--line:#343834;--text:#f3f4f1;--muted:#a4aaa2;--green:#32d583;--red:#ff9b91}*{box-sizing:border-box}body{min-height:100vh;margin:0;padding:24px;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 0,#182019,transparent 55%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}.panel{width:min(100%,430px);padding:28px;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 20px 60px #0007}.brand{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:23px;font-size:15px;font-weight:700}.brand svg{width:25px;height:25px}.eyebrow{text-align:center;margin:0 0 7px;color:#93a18f;font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;text-align:center;font-size:22px;letter-spacing:-.04em}p{color:var(--muted)}.intro{text-align:center;margin:9px 0 22px;font-size:12px}.warning{padding:12px 13px;border:1px solid #61563a;border-radius:8px;background:#29251a;color:#ded1a7;font-size:11px;line-height:1.55}.field{display:grid;gap:7px;margin:16px 0}label{font-size:12px;font-weight:600;color:#ddd}input{width:100%;height:43px;padding:0 12px;border:1px solid #454945;border-radius:7px;background:#101210;color:#f4f4f2;font:inherit;outline:none}input:focus{border-color:#32d583;box-shadow:0 0 0 2px #32d58322}.primary{width:100%;height:44px;margin-top:4px;border:0;border-radius:7px;background:#f1f1f1;color:#111;font:650 13px system-ui;cursor:pointer}.primary:disabled{opacity:.45;cursor:not-allowed}.secondary{width:100%;height:40px;margin-top:10px;border:1px solid #454945;border-radius:7px;background:transparent;color:#e5e7e3;font:550 12px system-ui;cursor:pointer}.status{min-height:20px;margin-top:12px;color:var(--muted);font-size:12px}.status.error{color:var(--red)}.status.success{color:var(--green)}.back{display:block;margin-top:16px;text-align:center;color:#b8beb6;font-size:12px;text-decoration:none}.back:hover{color:#fff}.fine{margin:17px 0 0;color:#7e857d;font-size:10px;line-height:1.55;text-align:center}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Setup unavailable · Keus</title>
+  <style>
+    :root{color-scheme:dark;font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;background:#090b0a;color:#f4f5f2}
+    *{box-sizing:border-box}body{min-height:100vh;margin:0;padding:24px;display:grid;place-items:center}
+    main{width:min(100%,440px);padding:30px;border:1px solid #303630;border-radius:14px;background:#171a17}
+    h1{margin:0 0 12px;font-size:24px}p{color:#c1c7c0}a{display:inline-block;margin-top:12px;color:#32d583}
+  </style>
 </head>
 <body>
-<main class="panel">
-  <div class="brand"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.4c3.2 0 5.5 1.5 7.1 3.9 3.4-.5 6.4 1.4 7.6 4.5 2.7 1.7 3.9 4.6 3.4 7.6 1.5 3.5.1 7-2.7 8.8-.5 3.6-3.2 6-6.7 6.3-2.4 2.3-5.5 2.5-8.7 1.2-3.5 1.2-6.7.2-8.4-2.6-3.7-.6-6-3.1-6.1-6.6-2.3-2.8-2.5-5.9-.8-8.8-.5-3.4 1.3-6.3 4.5-7.7C10.3 6.5 13 4.6 16.1 5c1.1-1 2.4-1.6 3.9-1.6Z" fill="#32d583"/><ellipse cx="15.2" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><ellipse cx="25" cy="18.1" rx="1.65" ry="2.65" fill="#173026"/><path d="M16.8 24c1.8 2.2 5.9 2.7 8.2 0" fill="none" stroke="#173026" stroke-width="1.8" stroke-linecap="round"/><circle cx="11.2" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/><circle cx="29" cy="22.5" r="1.5" fill="#f39b91" opacity=".75"/></svg><span>Keus</span></div>
-  <p class="eyebrow">Development only</p><h1>Connect WorkOS test</h1><p class="intro">Enter your WorkOS staging credentials to test email-code sign-in in this preview.</p>
-  <div class="warning"><strong>Test key only.</strong> This page sends the key directly to the Keus preview server over HTTPS. It is kept in server memory for this session only; it is not written to a file or logged. Stopping/restarting the server clears it. Do not enter a production key.</div>
-  <form id="setupForm" autocomplete="off">
-    <div class="field"><label for="apiKey">WorkOS test API key</label><input id="apiKey" name="apiKey" type="password" placeholder="sk_test_…" autocomplete="new-password" required></div>
-    <div class="field"><label for="clientId">WorkOS client ID</label><input id="clientId" name="clientId" type="text" placeholder="client_…" autocomplete="off" spellcheck="false" required></div>
-    <button class="primary" id="connectButton" type="submit">Connect test account</button>
-  </form>
-  <div class="status" id="status" role="status" aria-live="polite"></div>
-  <button class="secondary" id="replaceButton" type="button" hidden>Replace test credentials</button>
-  <a class="back" href="/login">Return to Keus sign in</a>
-  <p class="fine">This temporary setup route is enabled only for the isolated development preview. It cannot be enabled in production.</p>
-</main>
-<script>
-const form=document.getElementById('setupForm');
-const button=document.getElementById('connectButton');
-const status=document.getElementById('status');
-const replaceButton=document.getElementById('replaceButton');
-const tokenMeta=document.querySelector('meta[name="keus-setup-token"]');
-let setupToken=tokenMeta.content;
-const replacing=new URLSearchParams(location.search).get('replace')==='1';
-const setupErrors={
-  test_setup_token_invalid:'Reload the Connect WorkOS page from the live preview, then try again.',
-  origin_not_allowed:'The preview origin was blocked. Reload this form from the Keus WorkOS Test Setup live preview and try again.',
-  local_auth_storage_not_ready:'Temporary Keus test storage is not ready. Reload the setup preview and try again.',
-  test_api_key_required:'Use a WorkOS test key beginning with sk_test_.',
-  invalid_workos_client_id:'The client ID should start with client_.',
-  workos_key_rejected:'WorkOS rejected the API key. Check that it is active and belongs to the staging app.',
-  workos_access_denied:'WorkOS denied access. Check that the API key and client ID are from the same staging app.',
-  workos_rate_limited:'WorkOS is rate-limiting setup attempts. Wait briefly and try again.',
-  workos_unreachable:'The preview could not reach WorkOS. Check the connection and try again.',
-  test_setup_invalid:'The test settings could not be loaded. Check the key and client ID formats.',
-};
-if(replacing){
-  status.textContent='Enter the replacement WorkOS test key and client ID.';status.className='status';
-}else{
-  fetch('/api/auth/config',{headers:{Accept:'application/json'},cache:'no-store'}).then((response)=>response.json().then((data)=>({response,data}))).then(({response,data})=>{
-    if(response.ok&&data.provider==='workos'&&data.enabled===true&&data.testSetupAvailable===true){
-      form.hidden=true;replaceButton.hidden=false;
-      status.textContent='Test credentials are loaded in memory for this preview session. Return to sign in to request a code.';
-      status.className='status success';
-    }
-  }).catch(()=>{});
-}
-replaceButton.addEventListener('click',()=>location.assign(`${location.pathname}?replace=1`));
-form.addEventListener('submit',async(event)=>{
-  event.preventDefault();button.disabled=true;status.textContent='Loading test credentials into this preview…';status.className='status';
-  let apiKey=document.getElementById('apiKey').value;const clientId=document.getElementById('clientId').value;
-  document.getElementById('apiKey').value='';
-  try{
-    const response=await fetch('/api/dev/workos-setup',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json','X-Keus-Setup-Token':setupToken},body:JSON.stringify({apiKey,clientId})});apiKey='';
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok){status.textContent=setupErrors[data.error]||'Could not load the test credentials. Check the settings and try again.';status.className='status error';button.disabled=false;return}
-    setupToken=data.setupToken||setupToken;tokenMeta.content=setupToken;
-    status.textContent='Test credentials are loaded in memory for this preview session. Return to sign in to request a code.';status.className='status success';form.hidden=true;replaceButton.hidden=false;
-  }catch{apiKey='';status.textContent='Could not reach the Keus preview server. Try again.';status.className='status error';button.disabled=false}
-});
-</script>
+  <main>
+    <h1>Setup unavailable</h1>
+    <p>This temporary WorkOS credential-entry page has been retired. Keus never accepts WorkOS keys in the browser. If you need sign-in, return to the Keus login page.</p>
+    <a href="/login">Return to Keus sign in</a>
+  </main>
 </body>
 </html>

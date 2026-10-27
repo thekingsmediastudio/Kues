@@ -1,4 +1,4 @@
--- Track WorkOS Magic Auth code request rate limits without storing the emailed code.
+-- Track WorkOS email verification and password-reset request limits without storing emailed secrets.
 CREATE TABLE auth_challenges_workos_code (
   id TEXT PRIMARY KEY,
   user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
