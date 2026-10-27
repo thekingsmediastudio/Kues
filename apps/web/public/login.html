@@ -208,7 +208,7 @@ body { display:block; min-height:100vh; min-height:100dvh; padding:clamp(16px,3v
     <h2>You’re signed in</h2><p id="signedMessage">Your Keus workspace is ready.</p><button class="secondary" type="button" id="logoutButton">Sign out</button>
   </section>
   <div class="secure-note"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span>Keus secure sign-in</span></div>
-  <p class="footer"><a href="/app">Back to Keus</a></p>
+  <p class="footer"><a href="/">Back to Keus home</a></p>
 </main>
 </div>
 <script>
@@ -270,7 +270,7 @@ const authErrors={
   same_origin_required:'This request could not be verified. Refresh the page and try again.',
 };
 const authErrorsFromUrl=new URLSearchParams(location.search).get('auth_error');
-const oauthErrorMessages={not_configured:'Sign-in is not configured for this environment yet.',provider_disabled:'That provider is not enabled here yet. Use email and password instead.',invalid_request:'That sign-in request was not valid. Choose a method and try again.',state:'The sign-in request expired or could not be verified. Start again.',provider:'The identity provider did not complete sign-in. Try again or choose another method.',signin_failed:'We could not complete sign-in. Try again or use another method.',unavailable:'The identity provider is temporarily unavailable.'};
+const oauthErrorMessages={session:'Sign in to access your Keus dashboard.',not_configured:'Sign-in is not configured for this environment yet.',provider_disabled:'That provider is not enabled here yet. Use email and password instead.',invalid_request:'That sign-in request was not valid. Choose a method and try again.',state:'The sign-in request expired or could not be verified. Start again.',provider:'The identity provider did not complete sign-in. Try again or choose another method.',signin_failed:'We could not complete sign-in. Try again or use another method.',unavailable:'The identity provider is temporarily unavailable.'};
 if(authErrorsFromUrl){setStatus(formStatus,oauthErrorMessages[authErrorsFromUrl]||'The sign-in did not complete. Try email and password or choose another method.','error');history.replaceState(null,'',location.pathname)}
 async function readJson(response){try{return await response.json()}catch{return {}}}
 function startResendCooldown(){

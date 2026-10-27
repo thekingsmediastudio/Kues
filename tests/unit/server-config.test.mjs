@@ -159,8 +159,9 @@ test('server allows only explicit cross-origin API access and returns JSON API m
     const health = await fetch(`${base}/api/health`);
     assert.equal(health.status, 200);
     const body = await health.json();
-    assert.equal(body.version, '2.2.3');
-    assert.deepEqual(body.surfaces, ['desktop:/app', 'onboarding:/onboarding']);
+    assert.equal(body.service, 'keus-web');
+    assert.equal(body.version, '2.3.0');
+    assert.deepEqual(body.surfaces, ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding']);
     assert.equal(health.headers.get('access-control-allow-origin'), null);
 
     const allowed = await fetch(`${base}/api/health`, { headers: { Origin: 'https://preview.example' } });
@@ -177,17 +178,33 @@ test('server allows only explicit cross-origin API access and returns JSON API m
   });
 });
 
-test('desktop and onboarding routes remain available', async () => {
+test('public landing and authenticated dashboard have separate page routes', async () => {
   await withServer(loadServerConfig({}), async (base) => {
-    for (const route of ['/app', '/onboarding', '/login', '/auth/verify']) {
+    for (const route of ['/', '/app', '/dashboard', '/onboarding', '/login', '/auth/verify']) {
       const res = await fetch(`${base}${route}`);
-      assert.equal(res.status, 200);
+      assert.equal(res.status, 200, route);
       assert.match(res.headers.get('content-type') || '', /text\/html/);
+    }
+    const landing = await (await fetch(`${base}/`)).text();
+    assert.match(landing, /Your AI workspace/);
+    assert.match(landing, /href="\/app"/);
+    assert.doesNotMatch(landing, /href="\/desktop(?:\.html)?"/);
+    const dashboard = await (await fetch(`${base}/app`)).text();
+    assert.match(dashboard, /api\/workspace\/bootstrap/);
+    assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
+    const onboarding = await (await fetch(`${base}/onboarding`)).text();
+    assert.match(onboarding, /window\.location\.href='\/app'/);
+    assert.match(onboarding, /window\.location\.replace\('\/app'\)/);
+    assert.doesNotMatch(onboarding, /window\.location\.(?:href|replace)='\/desktop'/);
+    for (const legacy of ['/desktop', '/desktop.html']) {
+      const response = await fetch(`${base}${legacy}`, { redirect: 'manual' });
+      assert.equal(response.status, 302, legacy);
+      assert.equal(response.headers.get('location'), '/app');
     }
   });
 });
 
-test('unknown page and static paths return 404 instead of desktop HTML; approved assets are explicit', async () => {
+test('unknown page and static paths return 404; approved assets are explicit', async () => {
   await withServer(loadServerConfig({}), async (base) => {
     for (const route of ['/does-not-exist', '/robots.txt', '/desktop.css', '/..%2fserver.mjs']) {
       const response = await fetch(`${base}${route}`);
@@ -206,10 +223,13 @@ test('unknown page and static paths return 404 instead of desktop HTML; approved
   });
 });
 
-test('production workspace aliases require a valid local session and fail closed without auth storage', async () => {
+test('public landing stays open while dashboard and onboarding require a valid local session', async () => {
   const production = loadServerConfig({ NODE_ENV: 'production' });
   await withServer(production, async (base) => {
-    for (const route of ['/app', '/onboarding']) {
+    const landing = await fetch(`${base}/`);
+    assert.equal(landing.status, 200);
+    assert.match(await landing.text(), /Your AI workspace/);
+    for (const route of ['/app', '/dashboard', '/desktop', '/desktop.html', '/onboarding']) {
       const noStorage = await fetch(`${base}${route}`, { redirect: 'manual' });
       assert.equal(noStorage.status, 503, route);
       assert.deepEqual(await noStorage.json(), { error: 'auth_storage_not_configured' });
@@ -217,7 +237,8 @@ test('production workspace aliases require a valid local session and fail closed
   });
   const sessions = { async getSession({ token }) { return token === 'valid-session' ? { id: 'user-1' } : null; } };
   await withServer(production, async (base) => {
-    for (const route of ['/', '/app', '/desktop', '/desktop.html', '/onboarding']) {
+    assert.equal((await fetch(`${base}/`, { headers: { Cookie: '__Host-kues_session=invalid' } })).status, 200);
+    for (const route of ['/app', '/dashboard', '/desktop', '/desktop.html', '/onboarding']) {
       const response = await fetch(`${base}${route}`, { redirect: 'manual' });
       assert.equal(response.status, 302, route);
       assert.equal(response.headers.get('location'), '/login?auth_error=session');
@@ -227,10 +248,15 @@ test('production workspace aliases require a valid local session and fail closed
     assert.equal(login.status, 200);
   }, sessions);
   await withServer(production, async (base) => {
-    for (const route of ['/app', '/onboarding']) {
+    for (const route of ['/app', '/dashboard', '/onboarding']) {
       const response = await fetch(`${base}${route}`, { headers: { Cookie: '__Host-kues_session=valid-session' }, redirect: 'manual' });
       assert.equal(response.status, 200);
       assert.match(await response.text(), /Keus/i);
+    }
+    for (const route of ['/desktop', '/desktop.html']) {
+      const response = await fetch(`${base}${route}`, { headers: { Cookie: '__Host-kues_session=valid-session' }, redirect: 'manual' });
+      assert.equal(response.status, 302, route);
+      assert.equal(response.headers.get('location'), '/app');
     }
   }, sessions);
 });
@@ -256,7 +282,7 @@ test('Origin validation does not trust a matching Referer or Sec-Fetch-Site head
       Origin: sameProxyOrigin, 'X-Forwarded-Proto': 'https',
     } });
     assert.equal(forwardedProxy.status, 200);
-    assert.equal((await forwardedProxy.json()).service, 'keus-desktop');
+    assert.equal((await forwardedProxy.json()).service, 'keus-web');
   });
 });
 

@@ -15,7 +15,8 @@ import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
-const desktopHtmlPath = path.join(publicDir, 'desktop.html');
+const landingHtmlPath = path.join(publicDir, 'landing.html');
+const dashboardHtmlPath = path.join(publicDir, 'dashboard.html');
 const onboardingHtmlPath = path.join(publicDir, 'onboarding.html');
 const loginHtmlPath = path.join(publicDir, 'login.html');
 const authVerifyHtmlPath = path.join(publicDir, 'auth-verify.html');
@@ -30,7 +31,7 @@ const LEGACY_BRAND_REDIRECTS = new Map([
   ['/cueclaw-icon.png', '/keus-logo.svg'],
   ['/cueclaw-logo.png', '/keus-icon.svg'],
 ]);
-const PROTECTED_AUTH_PATHS = new Set(['/', '/app', '/desktop', '/desktop.html', '/onboarding']);
+const PROTECTED_AUTH_PATHS = new Set(['/app', '/dashboard', '/desktop', '/desktop.html', '/onboarding']);
 
 class RequestError extends Error {
   constructor(code, status) {
@@ -761,9 +762,9 @@ export function createServer({
         }
         const payload = {
           ok: true,
-          service: 'keus-desktop',
-          version: '2.2.3',
-          surfaces: ['desktop:/app', 'onboarding:/onboarding'],
+          service: 'keus-web',
+          version: '2.3.0',
+          surfaces: ['marketing:/', 'dashboard:/app', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -816,12 +817,7 @@ export function createServer({
         return;
       }
 
-      if (signInOnlyPreview && url.pathname === '/') {
-        redirect(res, '/login');
-        return;
-      }
-
-      if (signInOnlyPreview && !['/', '/login', '/app', '/onboarding', '/keus-icon.svg', '/keus-logo.svg'].includes(url.pathname)) {
+      if (signInOnlyPreview && !['/', '/login', '/app', '/dashboard', '/desktop', '/desktop.html', '/onboarding', '/keus-icon.svg', '/keus-logo.svg'].includes(url.pathname)) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end('Not found in sign-in preview');
         return;
@@ -898,6 +894,11 @@ export function createServer({
         }
       }
 
+      if (url.pathname === '/desktop' || url.pathname === '/desktop.html') {
+        redirect(res, '/app');
+        return;
+      }
+
       const staticAsset = STATIC_ASSETS.get(url.pathname);
       if (staticAsset) {
         try {
@@ -912,7 +913,7 @@ export function createServer({
       }
 
       const pageRoutes = new Map([
-        ['/', desktopHtmlPath], ['/app', desktopHtmlPath], ['/desktop', desktopHtmlPath], ['/desktop.html', desktopHtmlPath],
+        ['/', landingHtmlPath], ['/app', dashboardHtmlPath], ['/dashboard', dashboardHtmlPath],
         ['/onboarding', onboardingHtmlPath], ['/onboarding.html', onboardingHtmlPath], ['/login', loginHtmlPath],
         ['/auth/verify', authVerifyHtmlPath], ['/pocket', pocketHtmlPath], ['/phone', pocketHtmlPath], ['/pocket.html', pocketHtmlPath],
       ]);
@@ -1001,7 +1002,7 @@ if (isMain) {
       });
       server.on('close', () => { void db?.close(); });
       server.listen(port, '0.0.0.0', () => {
-        console.log(`Keus desktop server listening on http://0.0.0.0:${port}`);
+        console.log(`Keus web server listening on http://0.0.0.0:${port}`);
         if (config.databaseConfigured) {
           console.log('Database schema ready.');
           console.log(config.workosConfigured
