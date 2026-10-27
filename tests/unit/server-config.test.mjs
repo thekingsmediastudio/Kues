@@ -301,6 +301,17 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.doesNotMatch(newAgentFormMarkup, /<select\b/, 'the new-agent form uses visual choices instead of dropdowns');
     assert.match(desktopPreview, /id="newAgentOrderCap"/);
     assert.match(desktopPreview, /id="newAgentDailyCap"/);
+    assert.match(desktopPreview, /id="newAgentAppsOptions"/);
+    assert.match(desktopPreview, /id="newAgentAppsCount"/);
+    assert.match(desktopPreview, /value="paypal" aria-label="PayPal Sandbox preview label"/);
+    assert.match(desktopPreview, /value="channel3" aria-label="Channel3 preview label"/);
+    assert.match(desktopPreview, /value="kernel" aria-label="KERNEL preview label"/);
+    assert.match(desktopPreview, /value="whatsapp" aria-label="WhatsApp preview label"/);
+    assert.match(desktopPreview, /value="gmail" aria-label="Inbox preview label"/);
+    assert.match(desktopPreview, /value="instagram" aria-label="Instagram Shops preview label"/);
+    assert.match(desktopPreview, /No integrations are connected/);
+    assert.match(desktopPreview, /Array\.from\(document\.querySelectorAll\('#newAgentAppsOptions input\[type="checkbox"\]:checked'\)/);
+    assert.doesNotMatch(desktopPreview, /id="newAgentApps"|Comma-separated app names/);
     assert.match(desktopPreview, /id="newAgentMemoryPills"/);
     assert.ok(desktopPreview.includes("String(value('newAgentMemoryPills')).split(/\\r?\\n/)") , 'memory preferences split on line boundaries');
     assert.match(desktopPreview, /id="createNewAgentButton"/);
@@ -309,7 +320,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /replaceAll\('stroke="#111113"','stroke="var\(--agent-avatar-outline\)"'\)/);
     assert.match(desktopPreview, /:root\{--agent-avatar-outline:#fff\}/);
     assert.match(desktopPreview, /:root\[data-theme="light"\]\{--agent-avatar-outline:#111113\}/);
-    assert.match(desktopPreview, /\.cueclaw-brand-name \{ color:#e9e9ec;font:800 11px/);
+    assert.match(desktopPreview, /\.cueclaw-brand-name \{ color:#fff;font:800 14px/);
     assert.match(desktopPreview, /:root\[data-theme="light"\] \.cueclaw-brand-name \{ color:#111113; \}/);
     assert.match(desktopPreview, /New agents are saved as paused and will not run automatically/);
     assert.match(desktopPreview, /This sample review account is not authenticated and cannot save agents/);
