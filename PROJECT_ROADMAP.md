@@ -1,6 +1,6 @@
 # Keus Main Project — Desktop-First Roadmap
 
-**Status (reviewed 2026-10-27):** Keus staging at `https://keus-staging.onrender.com` is live on health version **2.2.2** with WorkOS email/password enabled and Magic Auth disabled. Source merges `33499ecf3150451c1b447b1fb81bf2f66397d284` and checksum-safe migration correction `5e2339bf359d2482a4833c7591629f0e8f563b4a` are on the fixed `thekingsmediastudio/Kues/main` branch. Health/config/login and non-email endpoint probes passed; no verification or reset email has been sent because owner-controlled inbox confirmation is pending. Local checks pass **86/86 tests**, `npm audit --omit=dev` reports **0 vulnerabilities**, and JavaScript syntax checks pass. The temporary browser credential-entry setup was removed. Google/GitHub remain disabled; remote Turso is configured for staging.
+**Status (reviewed 2026-10-27):** Keus staging at `https://keus-staging.onrender.com` is live on health version **2.2.2** with WorkOS email/password enabled and normal Magic Auth sign-in disabled. Source merges `33499ecf3150451c1b447b1fb81bf2f66397d284` and checksum-safe migration correction `5e2339bf359d2482a4833c7591629f0e8f563b4a` are on the fixed `thekingsmediastudio/Kues/main` branch. The separate code-based recovery implementation is prepared as version **2.2.3**; deploy health/config checks remain to be confirmed. No verification or recovery email has been sent because owner-controlled inbox confirmation is pending. Local checks pass **89/89 tests**, `npm audit --omit=dev` reports **0 vulnerabilities**, and JavaScript syntax checks pass. The temporary browser credential-entry setup was removed. Google/GitHub remain disabled; remote Turso is configured for staging.
 
 **Scope:** Desktop-first main product. Mobile companion and F3 Android side-app control are deferred.
 
@@ -17,7 +17,7 @@
 - Label sample/demo integrations and data clearly. Never represent a prototype as a connected service.
 - Keep online account access, usage records, plan entitlements, subscriptions, and payments separate from agent shopping payments.
 - Competition-period staging allowance is 7,000,000 AI tokens per verified account per UTC day, aggregated across that account’s authorized workspaces; different users sharing one workspace have separate buckets. PayPal is the selected future subscription provider. SaaS billing remains separate from agent purchase payments; checkout/webhooks are not implemented.
-- Do not introduce a shared password for existing users. Existing email-code accounts set a private password using their own WorkOS reset link.
+- Do not introduce a shared password for existing users. Existing email-code accounts set a private password using a six-digit recovery code in the separate Forgot password form; no reset link or shared default password is used.
 
 ## Repository audit — working-copy status
 
@@ -67,14 +67,14 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 - WorkOS owns passwords and verifies email. Keus signup collects email and password, creates the WorkOS user, and requires WorkOS email-code verification before issuing a Keus session.
 - Password sign-in uses WorkOS password authentication. Pending verification data is held in a short-lived HttpOnly cookie; passwords are never persisted in Keus or returned to the browser.
 - A verified WorkOS subject is linked to the existing Keus identity. Matching normalized, verified emails reuse the existing Keus user and preserve workspace, onboarding, and usage ownership. New accounts go to `/onboarding`; existing accounts go to `/app`.
-- Existing passwordless/email-code accounts use a WorkOS password-reset link to choose their own password. The account is not duplicated and no shared default password is assigned.
-- The app's previous Magic Auth request/verify/consume paths are retired; the hosted AuthKit sign-in entry is blocked and Magic Auth callbacks are rejected. Email codes are used only for WorkOS email verification. Google/GitHub remain disabled.
+- Existing passwordless/email-code accounts use the separate Forgot password form to receive a six-digit recovery code and choose their own password. A verified code updates the existing WorkOS user, issues no Keus session, and creates no duplicate identity.
+- The app's previous Magic Auth request/verify/consume sign-in paths are retired; hosted AuthKit sign-in is blocked and Magic Auth callbacks are rejected. WorkOS Magic Auth code APIs are used only behind recovery; signup/login verification codes remain separate. Google/GitHub remain disabled.
 - The development browser form and server endpoint that accepted WorkOS keys were removed. WorkOS secrets belong only in the host's private environment/secret manager; never paste keys into chat or the browser.
-- Automated verification: **86/86 unit tests passed**, `npm audit --omit=dev` reported **0 vulnerabilities**, and JavaScript syntax checks passed. These mocked/code-level checks do not prove live WorkOS email delivery.
-- Staging is on health version **2.2.2**. `/api/auth/config` reports email/password enabled and Magic Auth/Google/GitHub disabled; health, login, retired-route and validation probes passed. Real verification and reset email delivery have not yet been tested; use an owner-controlled staging inbox after confirmation.
+- Automated verification: **89/89 unit tests passed**, `npm audit --omit=dev` reported **0 vulnerabilities**, and JavaScript syntax checks passed. These mocked/code-level checks do not prove live WorkOS email delivery.
+- Staging health was last verified at **2.2.2**. `/api/auth/config` reported email/password enabled and normal Magic Auth/Google/GitHub disabled; health, login, retired-route and validation probes passed. The recovery-code change is version **2.2.3** and must be confirmed on staging after deploy. Real verification and recovery email delivery have not yet been tested; use an owner-controlled staging inbox after confirmation.
 - The account-authentication ceremony remains separate from transaction-bound desktop WebAuthn approval. Not all future product/API routes are gated by auth; protect each new data/action API before connecting product behavior.
 
-**Gate:** Source and checksum-safe migration correction are deployed; complete live new-user signup/verification, password sign-in, and existing-account password-reset checks using an owner-controlled inbox. Do not change production, assign a shared password, or use a temporary key-entry/verifier flow. Google/GitHub, passkeys, and a production-wide authorization review remain separate work.
+**Gate:** Confirm the 2.2.3 source deploys to staging, then complete live new-user signup/verification, password sign-in, and existing-account code-recovery checks using an owner-controlled inbox. Do not change production, assign a shared password, send a reset link, or use a temporary key-entry/verifier flow. Google/GitHub, passkeys, and a production-wide authorization review remain separate work.
 
 ### 4. Live Channel3 product discovery
 - Implement a server-side Channel3 client, with credentials held only on the server.
@@ -129,11 +129,11 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 
 ## Current decisions and remaining subscription work
 
-- **Authentication:** WorkOS email/password with email verification, password reset, and open self-service registration. Google/GitHub and passkeys are not enabled.
+- **Authentication:** WorkOS email/password with email verification, open self-service registration, and a separate six-digit code-based password recovery form. Magic Auth is recovery-only at the API layer; ordinary passwordless sign-in, Google/GitHub, and passkeys are not enabled.
 - **Competition model:** 7,000,000 tokens per account per UTC day during the configured staging window; usage aggregates across that account's authorized workspaces and remains isolated from another user sharing a workspace.
 - **Primary usage meter:** AI token usage, with input and output recorded separately. Search/run throttles remain operational safeguards.
 - **Subscription:** PayPal is the selected intended provider; exact paid-tier prices, billing currency, and checkout/webhooks remain to be implemented. Checkout stays disabled.
 
 ## Immediate next action
 
-Confirm an owner-controlled inbox for staging email tests, then run signup/verification/password sign-in and an existing-account reset so the account owner chooses a private password. Staging is already on health version 2.2.2; no WorkOS email has been sent yet. Do not change production, ask for secrets in chat, add a temporary key-entry flow, or create/delete test accounts without owner authorization. Keep Google/GitHub and passkeys disabled; keep Channel3, agent-purchase PayPal, transaction WebAuthn, and KERNEL behind their planned service boundaries.
+Confirm the 2.2.3 staging deploy and an owner-controlled inbox, then run signup/verification/password sign-in and an existing-account code recovery so the account owner chooses a private password. Staging was last seen on 2.2.2; no WorkOS email has been sent yet. Do not change production, ask for secrets in chat, add a temporary key-entry flow, or create/delete test accounts without owner authorization. Keep Google/GitHub and passkeys disabled; keep Channel3, agent-purchase PayPal, transaction WebAuthn, and KERNEL behind their planned service boundaries.
