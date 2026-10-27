@@ -78,14 +78,18 @@ function isExistingUser(error) {
     || ['user_already_exists', 'email_already_exists', 'user_with_email_exists'].includes(code);
 }
 
-function workosError(error, fallbackCode, { password = false, verification = false, passwordReset = false, emailDelivery = false } = {}) {
+function workosError(error, fallbackCode, { password = false, verification = false, passwordReset = false, passwordUpdate = false, emailDelivery = false } = {}) {
   const status = statusOf(error);
   const code = providerCode(error);
   if (status === 429) return new AuthError('too_many_sign_in_requests', 429);
   if (verification && (
     ['invalid_one_time_code', 'one_time_code_expired', 'invalid_or_expired_code', 'invalid_grant'].includes(code)
-    || [400, 401, 422].includes(status)
+    || [400, 401, 404, 422].includes(status)
   )) return new AuthError('invalid_or_expired_code', 400);
+  if (passwordUpdate && (
+    ['password_rejected', 'password_policy_violation', 'password_not_strong_enough', 'password_too_short'].includes(code)
+    || [400, 422].includes(status)
+  )) return new AuthError('password_rejected', 400);
   if (password && ['invalid_credentials', 'invalid_password', 'invalid_email_or_password', 'user_not_found'].includes(code)) {
     return new AuthError('invalid_email_or_password', 401);
   }
@@ -154,11 +158,18 @@ export function createWorkOSAuth({ workos, clientId, redirectUri, authService } 
     });
   }
 
-  async function lookupUserId(email) {
+  async function findUserByEmail(email) {
     if (typeof workos.userManagement.listUsers !== 'function') return null;
+    const users = await workos.userManagement.listUsers({ email, limit: 1 });
+    const user = Array.isArray(users?.data) ? users.data.find((item) => {
+      try { return normalizeEmail(item.email) === email; } catch { return false; }
+    }) : null;
+    return user?.id ? user : null;
+  }
+
+  async function lookupUserId(email) {
     try {
-      const users = await workos.userManagement.listUsers({ email, limit: 1 });
-      const user = Array.isArray(users?.data) ? users.data.find((item) => normalizeEmail(item.email) === email) : null;
+      const user = await findUserByEmail(email);
       return user?.id || null;
     } catch {
       return null;
@@ -227,16 +238,9 @@ export function createWorkOSAuth({ workos, clientId, redirectUri, authService } 
       });
     } catch (error) {
       if (isExistingUser(error)) {
-        // Preserve existing WorkOS IDs and Keus workspaces. A reset link lets passwordless
-        // accounts set their first password without changing or duplicating the identity.
-        try {
-          await workos.userManagement.createPasswordReset({ email });
-        } catch (resetError) {
-          if (![404].includes(statusOf(resetError)) && providerCode(resetError) !== 'user_not_found') {
-            throw workosError(resetError, 'password_reset_unavailable', { passwordReset: true });
-          }
-        }
-        return { needsEmailVerification: false, passwordResetStarted: true, email };
+        // Do not send a reset link or overwrite an existing identity during signup.
+        // The owner can explicitly open the separate code-based Forgot password form.
+        return { needsEmailVerification: false, passwordResetAvailable: true, email };
       }
       throw workosError(error, 'workos_auth_unavailable');
     }
@@ -314,15 +318,78 @@ export function createWorkOSAuth({ workos, clientId, redirectUri, authService } 
   async function startPasswordReset({ email: rawEmail, now } = {}) {
     const email = normalizeEmail(rawEmail);
     await authService.reserveWorkOSCodeRequest({ email, now });
+
+    let user;
     try {
-      await workos.userManagement.createPasswordReset({ email });
+      user = await findUserByEmail(email);
     } catch (error) {
-      // Keep the response the same for unknown addresses so the endpoint cannot enumerate users.
-      if (statusOf(error) !== 404 && providerCode(error) !== 'user_not_found') {
-        throw workosError(error, 'password_reset_unavailable', { passwordReset: true });
+      throw workosError(error, 'password_reset_unavailable', { passwordReset: true });
+    }
+
+    if (user) {
+      if (typeof workos.userManagement.createMagicAuth !== 'function') {
+        throw new AuthError('password_reset_unavailable', 503);
+      }
+      try {
+        // Magic Auth is used only to prove mailbox ownership during recovery. No login
+        // session is created or returned from this flow.
+        await workos.userManagement.createMagicAuth({ email });
+      } catch (error) {
+        // Avoid disclosing whether an address exists if the user was removed between lookup and send.
+        if (statusOf(error) !== 404 && providerCode(error) !== 'user_not_found') {
+          throw workosError(error, 'password_reset_unavailable', { passwordReset: true, emailDelivery: true });
+        }
       }
     }
-    return { accepted: true, email };
+
+    // The same response and cookie shape are used for known and unknown addresses.
+    return { accepted: true, email, challenge: { kind: 'password_reset', email } };
+  }
+
+  async function completePasswordReset({ challenge: rawChallenge, code: rawCode, newPassword: rawPassword, ipAddress, userAgent } = {}) {
+    const code = requireSixDigitCode(rawCode);
+    const password = requirePassword(rawPassword);
+    const challenge = rawChallenge && typeof rawChallenge === 'object' ? rawChallenge : null;
+    if (!challenge || challenge.kind !== 'password_reset') throw new AuthError('invalid_or_expired_code', 400);
+
+    let email;
+    try { email = normalizeEmail(challenge.email); } catch { throw new AuthError('invalid_or_expired_code', 400); }
+
+    let result;
+    try {
+      if (typeof workos.userManagement.authenticateWithMagicAuth !== 'function') {
+        throw new AuthError('password_reset_unavailable', 503);
+      }
+      result = await workos.userManagement.authenticateWithMagicAuth({
+        clientId,
+        email,
+        code,
+        ipAddress,
+        userAgent,
+      });
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw workosError(error, 'workos_auth_unavailable', { verification: true });
+    }
+
+    const user = result?.user;
+    let authenticatedEmail = '';
+    try { authenticatedEmail = normalizeEmail(user?.email); } catch { /* handled below */ }
+    if (!user?.id || authenticatedEmail !== email) throw new AuthError('invalid_or_expired_code', 400);
+
+    try {
+      if (typeof workos.userManagement.updateUser !== 'function') {
+        throw new AuthError('password_reset_unavailable', 503);
+      }
+      // The verified recovery code authorizes this server-side password update. Do not
+      // create a Keus session or return WorkOS access/refresh tokens from recovery.
+      await workos.userManagement.updateUser({ userId: user.id, password, emailVerified: true });
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw workosError(error, 'password_reset_unavailable', { passwordReset: true, passwordUpdate: true });
+    }
+
+    return { passwordUpdated: true };
   }
 
   async function completeLogin({ code, ipAddress, userAgent, now }) {
@@ -349,6 +416,7 @@ export function createWorkOSAuth({ workos, clientId, redirectUri, authService } 
     resendPasswordVerification,
     verifyPasswordEmail,
     startPasswordReset,
+    completePasswordReset,
     completeLogin,
   });
 }
