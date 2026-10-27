@@ -650,6 +650,194 @@ async function handleWorkspaceRequest(req, res, url, { config, authService, work
   }
 }
 
+async function handleSettingsRequest(req, res, url, { config, authService, workspaceService, workosAuth }) {
+  const emailChangeRoute = url.pathname === '/api/settings/email-change';
+  const settingsRoute = new Set([
+    '/api/settings/profile',
+    '/api/settings/workspace',
+    '/api/settings/theme',
+    '/api/settings/password',
+    '/api/settings/email-change/start',
+    '/api/settings/email-change/confirm',
+  ]).has(url.pathname);
+  const agentMatch = url.pathname.match(/^\/api\/settings\/agents\/([^/]+)$/);
+  if (!settingsRoute && !emailChangeRoute && !agentMatch) return false;
+
+  const readPendingEmail = emailChangeRoute && req.method === 'GET';
+  const expectedMethod = readPendingEmail ? 'GET'
+    : ['/api/settings/email-change/start', '/api/settings/email-change/confirm'].includes(url.pathname) ? 'POST'
+      : 'PUT';
+  if (req.method !== expectedMethod) {
+    res.setHeader('Allow', `${expectedMethod}, OPTIONS`);
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return true;
+  }
+  if (!readPendingEmail) {
+    try { requireSameOrigin(req); } catch (error) {
+      sendJson(res, error.status || 403, { error: error.code || 'same_origin_required' });
+      return true;
+    }
+  }
+  if (!authService) {
+    sendJson(res, 503, { error: 'auth_storage_not_configured' });
+    return true;
+  }
+
+  const sessionToken = cookieValue(req, sessionCookieName(config));
+  let user = null;
+  try { user = sessionToken ? await authService.getSession({ token: sessionToken }) : null; } catch { user = null; }
+  if (!user) {
+    sendJson(res, 401, { error: 'authentication_required' });
+    return true;
+  }
+
+  const metadata = {
+    ipAddress: req.socket.remoteAddress,
+    userAgent: String(req.headers['user-agent'] || '').slice(0, 512),
+  };
+  try {
+    if (readPendingEmail) {
+      const pending = await authService.getPendingEmailChange({ userId: user.id, sessionToken });
+      sendJson(res, 200, {
+        pending: pending ? { email: pending.newEmail, expiresAt: pending.expiresAt } : null,
+      });
+      return true;
+    }
+
+    const body = await readJsonBody(req, 16 * 1024);
+    if (url.pathname === '/api/settings/profile') {
+      const updatedUser = await authService.updateDisplayName({ userId: user.id, displayName: body.displayName });
+      sendJson(res, 200, { updated: true, user: updatedUser });
+      return true;
+    }
+    if (url.pathname === '/api/settings/theme') {
+      const result = await authService.updateTheme({ userId: user.id, theme: body.theme });
+      sendJson(res, 200, result);
+      return true;
+    }
+    if (url.pathname === '/api/settings/workspace') {
+      if (!workspaceService) {
+        sendJson(res, 503, { error: 'workspace_storage_not_configured' });
+        return true;
+      }
+      const bootstrap = await workspaceService.updateWorkspaceName({ userId: user.id, name: body.name });
+      sendJson(res, 200, { saved: true, ...bootstrap });
+      return true;
+    }
+    if (agentMatch) {
+      if (!workspaceService) {
+        sendJson(res, 503, { error: 'workspace_storage_not_configured' });
+        return true;
+      }
+      let agentId;
+      try { agentId = decodeURIComponent(agentMatch[1]); } catch { throw new WorkspaceError('invalid_agent_id', 400); }
+      const bootstrap = await workspaceService.updateAgent({ userId: user.id, agentId, input: body });
+      sendJson(res, 200, { saved: true, ...bootstrap });
+      return true;
+    }
+    if (url.pathname === '/api/settings/password') {
+      if (config.authProvider !== 'workos' || !workosAuth) {
+        sendJson(res, 503, { error: 'auth_provider_not_configured' });
+        return true;
+      }
+      const identity = await authService.getWorkOSIdentity({ userId: user.id });
+      const result = await workosAuth.changePassword({
+        ...body,
+        userId: identity.providerSubject,
+        email: user.email,
+        ...metadata,
+      });
+      sendJson(res, 200, result);
+      return true;
+    }
+    if (url.pathname === '/api/settings/email-change/start') {
+      if (config.authProvider !== 'workos' || !workosAuth) {
+        sendJson(res, 503, { error: 'auth_provider_not_configured' });
+        return true;
+      }
+      const identity = await authService.getWorkOSIdentity({ userId: user.id });
+      await workosAuth.reauthenticatePassword({
+        userId: identity.providerSubject,
+        email: user.email,
+        currentPassword: body.currentPassword,
+        ...metadata,
+      });
+      const pending = await authService.reservePendingEmailChange({
+        userId: user.id,
+        newEmail: body.newEmail,
+        sessionToken,
+      });
+      try {
+        await authService.reserveWorkOSCodeRequest({ email: pending.newEmail });
+        const delivery = await workosAuth.sendEmailChangeCode({
+          userId: identity.providerSubject,
+          newEmail: pending.newEmail,
+        });
+        let expiresAt = pending.expiresAt;
+        if (delivery?.expiresAt) {
+          const adjusted = await authService.setPendingEmailChangeExpiry({
+            userId: user.id,
+            sessionToken,
+            expiresAt: delivery.expiresAt,
+          });
+          expiresAt = adjusted.expiresAt;
+        }
+        sendJson(res, 202, { accepted: true, email: pending.newEmail, expiresAt });
+      } catch (error) {
+        await authService.cancelPendingEmailChange({ userId: user.id, sessionToken }).catch(() => {});
+        throw error;
+      }
+      return true;
+    }
+    if (url.pathname === '/api/settings/email-change/confirm') {
+      if (config.authProvider !== 'workos' || !workosAuth) {
+        sendJson(res, 503, { error: 'auth_provider_not_configured' });
+        return true;
+      }
+      const pending = await authService.getPendingEmailChange({ userId: user.id, sessionToken });
+      if (!pending) throw new AuthError('invalid_email_change_code', 400);
+      const identity = await authService.getWorkOSIdentity({ userId: user.id });
+      let confirmed;
+      try {
+        confirmed = await workosAuth.confirmEmailChange({
+          userId: identity.providerSubject,
+          code: body.code,
+          expectedEmail: pending.newEmail,
+        });
+      } catch (error) {
+        if (error instanceof AuthError && error.code === 'invalid_email_change_code') {
+          await authService.recordPendingEmailChangeFailure({ userId: user.id, sessionToken }).catch(() => {});
+        }
+        throw error;
+      }
+      if (confirmed?.user?.id !== identity.providerSubject
+          || String(confirmed?.user?.email || '').trim().toLowerCase() !== pending.newEmail
+          || confirmed?.user?.emailVerified !== true) {
+        throw new AuthError('email_change_confirmation_failed', 502);
+      }
+      const updatedUser = await authService.completePendingEmailChange({
+        userId: user.id,
+        providerSubject: identity.providerSubject,
+        newEmail: pending.newEmail,
+        sessionToken,
+      });
+      sendJson(res, 200, { emailChanged: true, user: updatedUser });
+      return true;
+    }
+
+    sendJson(res, 404, { error: 'settings_route_not_found' });
+    return true;
+  } catch (error) {
+    if (error instanceof AuthError || error instanceof WorkspaceError || error instanceof RequestError) {
+      sendJson(res, error.status, { error: error.code });
+    } else {
+      console.error('Settings request failed:', error?.name || 'Error');
+      sendJson(res, 500, { error: 'settings_request_failed' });
+    }
+    return true;
+  }
+}
+
 export function createServer({
   config = loadServerConfig(),
   authService = null,
@@ -778,6 +966,16 @@ export function createServer({
           res.end();
         } else sendJson(res, 200, payload);
         return;
+      }
+
+      if (url.pathname.startsWith('/api/settings/')) {
+        const handled = await handleSettingsRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          workspaceService,
+          workosAuth: activeWorkosAuth,
+        });
+        if (handled) return;
       }
 
       if (url.pathname.startsWith('/api/workspace/') || url.pathname.startsWith('/api/onboarding/')) {
@@ -1009,6 +1207,7 @@ if (isMain) {
             clientId: process.env.WORKOS_CLIENT_ID,
             redirectUri: config.workosRedirectUri,
             authService,
+            apiKey: process.env.WORKOS_API_KEY,
           });
         }
       }
