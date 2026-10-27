@@ -165,46 +165,26 @@ test('WorkOS verification code completes pending password authentication and lin
   assert.equal('accessToken' in result, false);
 });
 
-test('existing passwordless WorkOS account is preserved and offered a password reset, not duplicated', async () => {
-  let resetRequest;
-  let sessionIdentity;
+test('existing passwordless WorkOS signup is not duplicated and never sends a password-reset link', async () => {
+  let resetLinkCalled = false;
+  let passwordAuthenticationCalled = false;
   const adapter = createWorkOSAuth({
     workos: {
       userManagement: {
         async createUser() { throw Object.assign(new Error('already registered'), { status: 409 }); },
-        async createPasswordReset(value) {
-          resetRequest = value;
-          return { passwordResetToken: 'must-not-leak', passwordResetUrl: 'https://workos.example.test/reset' };
-        },
-        async authenticateWithPassword({ email }) {
-          return {
-            user: { id: 'existing-workos-user', email, emailVerified: true, firstName: 'Existing', lastName: 'Member' },
-            accessToken: 'not-persisted', refreshToken: 'not-persisted',
-          };
-        },
+        async createPasswordReset() { resetLinkCalled = true; },
+        async authenticateWithPassword() { passwordAuthenticationCalled = true; throw new Error('must_not_run'); },
       },
     },
     clientId: 'client_kues',
     redirectUri: 'https://keus.example.test/auth/callback',
-    authService: authService({ session: async (value) => {
-      sessionIdentity = value;
-      return { user: { id: 'local-existing-user' }, sessionToken: 'existing-session' };
-    } }),
+    authService: authService(),
   });
 
   const result = await adapter.signUpWithPassword({ email: 'Person@Example.test', password: 'new strong password' });
-  assert.deepEqual(resetRequest, { email: 'person@example.test' });
-  assert.deepEqual(result, { needsEmailVerification: false, passwordResetStarted: true, email: 'person@example.test' });
-  assert.equal(JSON.stringify(result).includes('must-not-leak'), false);
-
-  // After the owner uses the reset email to set the first password, the same WorkOS user ID
-  // is linked back to the existing local Keus account and workspace.
-  const signedIn = await adapter.signInWithPassword({ email: 'person@example.test', password: 'owner-chosen-password' });
-  assert.deepEqual(sessionIdentity, {
-    providerSubject: 'existing-workos-user', email: 'person@example.test', emailVerified: true,
-    displayName: 'Existing Member', now: undefined,
-  });
-  assert.deepEqual(signedIn.user, { id: 'local-existing-user' });
+  assert.deepEqual(result, { needsEmailVerification: false, passwordResetAvailable: true, email: 'person@example.test' });
+  assert.equal(resetLinkCalled, false);
+  assert.equal(passwordAuthenticationCalled, false);
 });
 
 test('password sign-in creates a Keus session only for a verified WorkOS user', async () => {
@@ -257,30 +237,110 @@ test('unverified password sign-in returns a pending WorkOS token and sends no ap
   assert.deepEqual(result.challenge, { kind: 'pending', token: 'pending-for-login', email: 'person@example.test' });
 });
 
-test('forgot-password sends a reset through WorkOS and never returns the reset token', async () => {
-  let reset;
+test('forgot-password sends a WorkOS email code only for an existing account and never exposes it', async () => {
+  let lookup;
+  let codeRequest;
   const adapter = createWorkOSAuth({
-    workos: { userManagement: { async createPasswordReset(value) { reset = value; return { passwordResetToken: 'secret-reset-token' }; } } },
+    workos: { userManagement: {
+      async listUsers(value) { lookup = value; return { data: [{ id: 'existing-user', email: 'person@example.test' }] }; },
+      async createMagicAuth(value) { codeRequest = value; return { code: 'secret-magic-code' }; },
+    } },
     clientId: 'client_kues',
     redirectUri: 'https://keus.example.test/auth/callback',
     authService: authService(),
   });
   const result = await adapter.startPasswordReset({ email: 'Person@Example.test' });
-  assert.deepEqual(reset, { email: 'person@example.test' });
-  assert.deepEqual(result, { accepted: true, email: 'person@example.test' });
-  assert.equal(JSON.stringify(result).includes('secret-reset-token'), false);
+  assert.deepEqual(lookup, { email: 'person@example.test', limit: 1 });
+  assert.deepEqual(codeRequest, { email: 'person@example.test' });
+  assert.deepEqual(result, {
+    accepted: true,
+    email: 'person@example.test',
+    challenge: { kind: 'password_reset', email: 'person@example.test' },
+  });
+  assert.equal(JSON.stringify(result).includes('secret-magic-code'), false);
 });
 
-test('unknown password-reset email gets the same accepted result without account enumeration', async () => {
+test('password reset verifies the email code, updates only the WorkOS password, and creates no login session', async () => {
+  let authentication;
+  let passwordUpdate;
+  let sessionCreated = false;
   const adapter = createWorkOSAuth({
-    workos: { userManagement: { async createPasswordReset() { throw Object.assign(new Error('unknown user'), { status: 404 }); } } },
+    workos: { userManagement: {
+      async authenticateWithMagicAuth(value) {
+        authentication = value;
+        return {
+          accessToken: 'must-not-leak', refreshToken: 'must-not-leak-either',
+          user: { id: 'existing-user', email: 'person@example.test', emailVerified: true },
+        };
+      },
+      async updateUser(value) { passwordUpdate = value; return { id: value.userId }; },
+    } },
+    clientId: 'client_kues',
+    redirectUri: 'https://keus.example.test/auth/callback',
+    authService: authService({ session: async () => { sessionCreated = true; throw new Error('must_not_run'); } }),
+  });
+
+  const result = await adapter.completePasswordReset({
+    challenge: { kind: 'password_reset', email: 'person@example.test' },
+    code: '123456', newPassword: 'a strong new password', ipAddress: '127.0.0.1', userAgent: 'test-agent',
+  });
+  assert.deepEqual(authentication, {
+    clientId: 'client_kues', email: 'person@example.test', code: '123456',
+    ipAddress: '127.0.0.1', userAgent: 'test-agent',
+  });
+  assert.deepEqual(passwordUpdate, {
+    userId: 'existing-user', password: 'a strong new password', emailVerified: true,
+  });
+  assert.deepEqual(result, { passwordUpdated: true });
+  assert.equal(JSON.stringify(result).includes('must-not-leak'), false);
+  assert.equal(sessionCreated, false);
+});
+
+test('unknown password-reset email gets the same accepted challenge without sending a code', async () => {
+  let codeSent = false;
+  const adapter = createWorkOSAuth({
+    workos: { userManagement: {
+      async listUsers() { return { data: [] }; },
+      async createMagicAuth() { codeSent = true; throw new Error('must_not_run'); },
+    } },
     clientId: 'client_kues',
     redirectUri: 'https://keus.example.test/auth/callback',
     authService: authService(),
   });
   assert.deepEqual(await adapter.startPasswordReset({ email: 'unknown@example.test' }), {
-    accepted: true, email: 'unknown@example.test',
+    accepted: true,
+    email: 'unknown@example.test',
+    challenge: { kind: 'password_reset', email: 'unknown@example.test' },
   });
+  assert.equal(codeSent, false);
+});
+
+test('invalid recovery code cannot update a password or create a session', async () => {
+  let passwordUpdated = false;
+  let sessionCreated = false;
+  const adapter = createWorkOSAuth({
+    workos: { userManagement: {
+      async authenticateWithMagicAuth() {
+        throw Object.assign(new Error('private WorkOS details'), {
+          status: 401, rawData: { code: 'invalid_grant', message: 'private WorkOS details' },
+        });
+      },
+      async updateUser() { passwordUpdated = true; },
+    } },
+    clientId: 'client_kues',
+    redirectUri: 'https://keus.example.test/auth/callback',
+    authService: authService({ session: async () => { sessionCreated = true; throw new Error('must_not_run'); } }),
+  });
+  await assert.rejects(adapter.completePasswordReset({
+    challenge: { kind: 'password_reset', email: 'person@example.test' }, code: '123456', newPassword: 'a strong new password',
+  }), (error) => {
+    assert.equal(error.code, 'invalid_or_expired_code');
+    assert.equal(error.status, 400);
+    assert.equal(error.message.includes('private WorkOS details'), false);
+    return true;
+  });
+  assert.equal(passwordUpdated, false);
+  assert.equal(sessionCreated, false);
 });
 
 test('password authentication maps invalid credentials without exposing provider messages', async () => {
