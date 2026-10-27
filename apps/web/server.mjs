@@ -11,6 +11,7 @@ import { createBrevoEmailDelivery } from './lib/auth/brevo-delivery.mjs';
 import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
 import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
 import { AiProviderError, createAiProviderService } from './lib/ai-providers/service.mjs';
+import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-providers/history.mjs';
 import { AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
@@ -552,20 +553,22 @@ async function handleDesktopAiChatRequest(req, res, url, {
   authService,
   workspaceService,
   aiChatService,
+  aiChatHistoryService,
   usageService,
   rateWindows,
 }) {
   const statusRoute = url.pathname === '/api/chat/status';
+  const historyRoute = url.pathname === '/api/chat/history';
   const chatRoute = url.pathname === '/api/chat';
-  if (!statusRoute && !chatRoute) return false;
+  if (!statusRoute && !historyRoute && !chatRoute) return false;
 
-  const expectedMethod = statusRoute ? 'GET' : 'POST';
+  const expectedMethod = statusRoute || historyRoute ? 'GET' : 'POST';
   if (req.method !== expectedMethod) {
     res.setHeader('Allow', `${expectedMethod}, OPTIONS`);
     sendJson(res, 405, { error: 'method_not_allowed' });
     return true;
   }
-  if (chatRoute) {
+  if (chatRoute || (historyRoute && requestOrigin(req).present)) {
     try { requireSameOrigin(req); } catch (error) {
       sendJson(res, error.status || 403, { error: error.code || 'same_origin_required' });
       return true;
@@ -590,6 +593,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
 
   const enabledForAdmin = config.aiProviderChatTestEnabled === true
     && Boolean(aiChatService)
+    && Boolean(aiChatHistoryService)
     && aiProviderAdminAllowed(config, user);
   if (statusRoute) {
     let available = false;
@@ -600,27 +604,12 @@ async function handleDesktopAiChatRequest(req, res, url, {
     return true;
   }
 
-  if (!enabledForAdmin || !workspaceService || !usageService
-      || typeof usageService.reserveTokens !== 'function'
-      || typeof usageService.settleTokenReservation !== 'function'
-      || typeof usageService.releaseTokenReservation !== 'function') {
+  if (!enabledForAdmin || !workspaceService || !aiChatHistoryService) {
     sendJson(res, 503, { error: 'ai_chat_unavailable' });
     return true;
   }
 
-  try {
-    consumeAiChatRateLimit(rateWindows, String(user.id || ''));
-    const input = await readJsonBody(req, 64 * 1024);
-    if (Object.keys(input).some((key) => !['agentId', 'messages'].includes(key))) {
-      throw new RequestError('ai_chat_request_invalid', 400);
-    }
-    const agentId = String(input.agentId || '').trim();
-    if (!agentId || agentId.length > 255 || /[\r\n\0]/.test(agentId)) {
-      throw new RequestError('ai_chat_request_invalid', 400);
-    }
-    const messages = normalizeAiChatMessages(input.messages);
-    if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
-
+  const loadOwnedAgent = async (agentId) => {
     const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
     const workspace = bootstrap?.workspace;
     const agent = (Array.isArray(bootstrap?.agents) ? bootstrap.agents : [])
@@ -629,6 +618,81 @@ async function handleDesktopAiChatRequest(req, res, url, {
     if (!workspace?.id || workspace.status !== 'active' || !agent || agent.status === 'archived') {
       throw new RequestError('ai_chat_agent_unavailable', 404);
     }
+    return { workspace, agent };
+  };
+
+  const agentIdFromUrl = () => {
+    const agentId = String(url.searchParams.get('agentId') || '').trim();
+    if (!agentId || agentId.length > 255 || /[\r\n\0]/.test(agentId)) {
+      throw new RequestError('ai_chat_request_invalid', 400);
+    }
+    return agentId;
+  };
+
+  if (historyRoute) {
+    try {
+      if (!aiChatHistoryService || !workspaceService) throw new RequestError('ai_chat_unavailable', 503);
+      const agentId = agentIdFromUrl();
+      const { workspace } = await loadOwnedAgent(agentId);
+      const history = await aiChatHistoryService.getHistory({ workspaceId: workspace.id, userId: user.id, agentId });
+      sendJson(res, 200, { messages: history.messages });
+    } catch (error) {
+      if (error instanceof RequestError) {
+        sendJson(res, error.status, { error: error.code });
+      } else if (error instanceof WorkspaceError) {
+        sendJson(res, error.status, { error: 'ai_chat_agent_unavailable' });
+      } else {
+        const requestId = crypto.randomUUID();
+        console.error('Desktop AI chat history failed:', JSON.stringify({ requestId, error: error?.name || 'Error' }));
+        sendJson(res, error instanceof AiChatHistoryError ? error.status : 503, {
+          error: 'ai_chat_history_unavailable',
+          requestId,
+        });
+      }
+    }
+    return true;
+  }
+
+  if (!usageService
+      || typeof usageService.reserveTokens !== 'function'
+      || typeof usageService.settleTokenReservation !== 'function'
+      || typeof usageService.releaseTokenReservation !== 'function') {
+    sendJson(res, 503, { error: 'ai_chat_unavailable' });
+    return true;
+  }
+
+  const requestId = crypto.randomUUID();
+  try {
+    consumeAiChatRateLimit(rateWindows, String(user.id || ''));
+    const input = await readJsonBody(req, 16 * 1024);
+    if (Object.keys(input).some((key) => !['agentId', 'message'].includes(key))) {
+      throw new RequestError('ai_chat_request_invalid', 400);
+    }
+    const agentId = String(input.agentId || '').trim();
+    if (!agentId || agentId.length > 255 || /[\r\n\0]/.test(agentId)) {
+      throw new RequestError('ai_chat_request_invalid', 400);
+    }
+    const newUserMessage = normalizeAiChatMessages([{ role: 'user', content: input.message }])[0];
+    if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
+
+    const { workspace, agent } = await loadOwnedAgent(agentId);
+    const storedMessages = await aiChatHistoryService.getRecentMessages({
+      workspaceId: workspace.id,
+      userId: user.id,
+      agentId,
+      limit: 11,
+    });
+    const context = [];
+    let contextCharacters = newUserMessage.content.length;
+    for (let index = storedMessages.length - 1; index >= 0 && context.length < 11; index -= 1) {
+      const entry = storedMessages[index];
+      const content = String(entry.content || '').slice(0, 4_000);
+      if (contextCharacters + content.length > 16_000) break;
+      context.unshift({ role: entry.role, content });
+      contextCharacters += content.length;
+    }
+    if (context[0]?.role === 'assistant') context.shift();
+    const messages = normalizeAiChatMessages([...context, newUserMessage]);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + 600;
@@ -659,31 +723,50 @@ async function handleDesktopAiChatRequest(req, res, url, {
         outputTokens: completion.outputTokens,
       });
     } catch (error) {
-      console.error('AI chat usage settlement failed:', error?.name || 'Error');
-      sendJson(res, 503, { error: 'ai_chat_unavailable' });
+      console.error('AI chat usage settlement failed:', JSON.stringify({ requestId, error: error?.name || 'Error' }));
+      sendJson(res, 503, { error: 'ai_chat_unavailable', requestId });
       return true;
     }
-    sendJson(res, 200, { reply: completion.text });
+
+    await aiChatHistoryService.appendExchange({
+      workspaceId: workspace.id,
+      userId: user.id,
+      agentId,
+      userMessage: newUserMessage.content,
+      assistantMessage: completion.text,
+    });
+    sendJson(res, 200, { reply: completion.text, requestId });
   } catch (error) {
+    const safeCode = error instanceof UsageLimitError || error instanceof UsageReservationError
+      || error instanceof RequestError || error instanceof AiProviderError || error instanceof AiChatHistoryError
+      ? String(error.code || 'request_failed').slice(0, 80)
+      : 'internal_error';
+    const upstreamStatus = Number.isInteger(error?.upstreamStatus) && error.upstreamStatus >= 100 && error.upstreamStatus <= 599
+      ? error.upstreamStatus
+      : undefined;
+    console.error('Desktop AI chat failed:', JSON.stringify({ requestId, error: error?.name || 'Error', code: safeCode, ...(upstreamStatus ? { upstreamStatus } : {}) }));
+
     if (error instanceof UsageLimitError) {
       sendJson(res, 429, { error: 'token_usage_limit_exceeded' });
     } else if (error instanceof UsageReservationError) {
       sendJson(res, error.code === 'active_entitlement_required' ? 403 : 409, {
         error: error.code === 'active_entitlement_required' ? 'active_entitlement_required' : 'ai_chat_unavailable',
+        requestId,
       });
     } else if (error instanceof RequestError) {
-      sendJson(res, error.status, { error: error.code });
+      sendJson(res, error.status, { error: error.code, requestId });
+    } else if (error instanceof AiChatHistoryError) {
+      sendJson(res, error.status, { error: 'ai_chat_history_unavailable', requestId });
     } else if (error instanceof AiProviderError) {
       if (error.code === 'ai_chat_messages_invalid') {
-        sendJson(res, error.status, { error: error.code });
+        sendJson(res, error.status, { error: error.code, requestId });
       } else {
-        sendJson(res, 502, { error: 'ai_chat_unavailable' });
+        sendJson(res, 502, { error: 'ai_chat_unavailable', requestId });
       }
     } else if (error instanceof WorkspaceError) {
-      sendJson(res, error.status, { error: 'ai_chat_agent_unavailable' });
+      sendJson(res, error.status, { error: 'ai_chat_agent_unavailable', requestId });
     } else {
-      console.error('Desktop AI chat failed:', error?.name || 'Error');
-      sendJson(res, 500, { error: 'ai_chat_unavailable' });
+      sendJson(res, 500, { error: 'ai_chat_unavailable', requestId });
     }
   }
   return true;
@@ -1094,6 +1177,7 @@ export function createServer({
   apiHubService = null,
   aiProviderService = null,
   aiChatService = null,
+  aiChatHistoryService = null,
   usageService = null,
   signInOnlyPreview = false,
 } = {}) {
@@ -1239,12 +1323,13 @@ export function createServer({
         if (handled) return;
       }
 
-      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status') {
+      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status' || url.pathname === '/api/chat/history') {
         await handleDesktopAiChatRequest(req, res, url, {
           config: activeConfig,
           authService,
           workspaceService,
           aiChatService,
+          aiChatHistoryService,
           usageService,
           rateWindows: aiChatRateWindows,
         });
@@ -1512,6 +1597,7 @@ if (isMain) {
     let apiHubService = null;
     let aiProviderService = null;
     let aiChatService = null;
+    let aiChatHistoryService = null;
     let usageService = null;
     try {
       if (config.databaseConfigured) {
@@ -1535,6 +1621,7 @@ if (isMain) {
         }
         if (config.aiProviderChatTestEnabled && aiProviderService) {
           aiChatService = createAiChatService({ aiProviderService });
+          aiChatHistoryService = createAiChatHistoryService({ db, encryptionKey: process.env.AI_PROVIDER_ENCRYPTION_KEY });
           usageService = {
             reserveTokens: (input) => reserveTokens(db, input),
             settleTokenReservation: (input) => settleTokenReservation(db, input),
@@ -1563,6 +1650,7 @@ if (isMain) {
         apiHubService,
         aiProviderService,
         aiChatService,
+        aiChatHistoryService,
         usageService,
         signInOnlyPreview,
       });
