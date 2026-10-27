@@ -35,7 +35,7 @@
     </section>
     <section class="panel">
       <h2>Registered connections</h2>
-      <p class="small">This list shows connection metadata and allowed operations only—never the provider secret.</p>
+      <p class="small">This list shows connection metadata and allowed operations only. The provider secret is never shown.</p>
       <div id="connectors" class="cards"><p class="muted">Loading…</p></div>
     </section>
     <section class="panel wide">
@@ -160,7 +160,7 @@ function renderAudit(events){
   const table=document.createElement('table');const head=document.createElement('thead');const hr=document.createElement('tr');
   for(const name of ['When','Operation','Upstream','Result']){const th=document.createElement('th');th.textContent=name;hr.append(th);}head.append(hr);table.append(head);
   const body=document.createElement('tbody');
-  for(const event of events){const row=document.createElement('tr');for(const value of [new Date(event.createdAt).toLocaleString(),`${event.method} ${event.operation}`,event.upstreamStatus??'—',event.outcome]){const td=document.createElement('td');td.textContent=String(value);row.append(td);}body.append(row);}table.append(body);root.append(table);
+  for(const event of events){const row=document.createElement('tr');for(const value of [new Date(event.createdAt).toLocaleString(),`${event.method} ${event.operation}`,event.upstreamStatus??'Not reported',event.outcome]){const td=document.createElement('td');td.textContent=String(value);row.append(td);}body.append(row);}table.append(body);root.append(table);
 }
 async function refresh(){
   const [connectorData,tokenData,auditData]=await Promise.all([
