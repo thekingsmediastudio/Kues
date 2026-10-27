@@ -20,10 +20,11 @@ services:
         sync: false
       - key: WORKOS_CLIENT_ID
         sync: false
+      # Staging-only OAuth test using WorkOS-provided staging credentials. Do not enable in production by copying this blueprint.
       - key: WORKOS_GOOGLE_OAUTH_ENABLED
-        value: "0"
+        value: "1"
       - key: WORKOS_GITHUB_OAUTH_ENABLED
-        value: "0"
+        value: "1"
       # PayPal AI Hackathon 2026 competition access: opening through the end of judging.
       # 1 Oct 2026 9:15 AM Pacific = 5:15 PM WAT; judging ends 15 Dec 2026 5:00 PM WAT.
       - key: KEUS_COMPETITION_START_AT
