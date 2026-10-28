@@ -58,6 +58,34 @@ function sendJson(res, statusCode, payload, headers = {}) {
   res.end(body);
 }
 
+function writeSseEvent(res, event, payload, signal) {
+  if (signal?.aborted || res.destroyed || res.writableEnded) {
+    return Promise.reject(Object.assign(new Error('ai_chat_stream_client_closed'), { code: 'ai_chat_stream_client_closed' }));
+  }
+  const frame = `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+  let writable;
+  try { writable = res.write(frame); }
+  catch (error) { return Promise.reject(error); }
+  if (writable) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      res.removeListener('drain', onDrain);
+      res.removeListener('close', onClose);
+      res.removeListener('error', onError);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onDrain = () => { cleanup(); resolve(); };
+    const onClose = () => { cleanup(); reject(Object.assign(new Error('ai_chat_stream_client_closed'), { code: 'ai_chat_stream_client_closed' })); };
+    const onError = (error) => { cleanup(); reject(error); };
+    const onAbort = () => { cleanup(); reject(Object.assign(new Error('ai_chat_stream_client_closed'), { code: 'ai_chat_stream_client_closed' })); };
+    res.once('drain', onDrain);
+    res.once('close', onClose);
+    res.once('error', onError);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
+}
+
 function requestOrigin(req) {
   const origin = req.headers.origin;
   if (origin == null) return { present: false, valid: true, sameOrigin: true, value: null };
@@ -560,6 +588,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
   const statusRoute = url.pathname === '/api/chat/status';
   const historyRoute = url.pathname === '/api/chat/history';
   const chatRoute = url.pathname === '/api/chat';
+  const streamingRequest = chatRoute && String(req.headers.accept || '').split(',')
+    .some((entry) => /^\s*text\/event-stream(?:\s*;|\s*$)/i.test(entry));
   if (!statusRoute && !historyRoute && !chatRoute) return false;
 
   const expectedMethod = statusRoute || historyRoute ? 'GET' : 'POST';
@@ -604,7 +634,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
     return true;
   }
 
-  if (!enabledForAdmin || !workspaceService || !aiChatHistoryService) {
+  if (!enabledForAdmin || !workspaceService || !aiChatHistoryService
+      || (streamingRequest && typeof aiChatService.stream !== 'function')) {
     sendJson(res, 503, { error: 'ai_chat_unavailable' });
     return true;
   }
@@ -662,20 +693,30 @@ async function handleDesktopAiChatRequest(req, res, url, {
   }
 
   const requestId = crypto.randomUUID();
+  let streamResponseStarted = false;
+  let streamController = null;
+  let tokenReservationHeld = false;
+  let streamCompletion = null;
+  let streamHistoryAttempted = false;
+  let workspace = null;
+  let agent = null;
+  let agentId = '';
+  let newUserMessage = null;
+  let idempotencyKey = null;
   try {
     consumeAiChatRateLimit(rateWindows, String(user.id || ''));
     const input = await readJsonBody(req, 16 * 1024);
     if (Object.keys(input).some((key) => !['agentId', 'message'].includes(key))) {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
-    const agentId = String(input.agentId || '').trim();
+    agentId = String(input.agentId || '').trim();
     if (!agentId || agentId.length > 255 || /[\r\n\0]/.test(agentId)) {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
-    const newUserMessage = normalizeAiChatMessages([{ role: 'user', content: input.message }])[0];
+    newUserMessage = normalizeAiChatMessages([{ role: 'user', content: input.message }])[0];
     if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
 
-    const { workspace, agent } = await loadOwnedAgent(agentId);
+    ({ workspace, agent } = await loadOwnedAgent(agentId));
     const storedMessages = await aiChatHistoryService.getRecentMessages({
       workspaceId: workspace.id,
       userId: user.id,
@@ -697,13 +738,68 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + 600;
     const estimatedTokens = Math.ceil((messageCharacters + profileCharacters) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
-    const idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
+    idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
       workspaceId: workspace.id,
       userId: user.id,
       idempotencyKey,
       estimatedTokens,
     });
+    tokenReservationHeld = true;
+
+    if (streamingRequest) {
+      streamController = new AbortController();
+      const abortOnRequest = () => streamController.abort();
+      const abortOnResponseClose = () => {
+        if (!res.writableEnded) streamController.abort();
+      };
+      req.once('aborted', abortOnRequest);
+      res.once('close', abortOnResponseClose);
+      if (req.aborted || res.destroyed) streamController.abort();
+      streamResponseStarted = true;
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-store, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.flushHeaders?.();
+      try {
+        streamCompletion = await aiChatService.stream({
+          agent,
+          messages,
+          signal: streamController.signal,
+          onDelta: (text) => writeSseEvent(res, 'delta', { text }, streamController.signal),
+        });
+        if (streamCompletion.fallbackUsed === true) {
+          const fallbackAttempts = Number.isSafeInteger(streamCompletion.fallbackAttempts) ? streamCompletion.fallbackAttempts : 0;
+          console.info('Desktop AI chat used an approved fallback:', JSON.stringify({ requestId, fallbackAttempts }));
+        }
+        await usageService.settleTokenReservation({
+          workspaceId: workspace.id,
+          idempotencyKey,
+          provider: streamCompletion.provider,
+          model: streamCompletion.model,
+          inputTokens: streamCompletion.inputTokens,
+          outputTokens: streamCompletion.outputTokens,
+        });
+        tokenReservationHeld = false;
+        streamHistoryAttempted = true;
+        await aiChatHistoryService.appendExchange({
+          workspaceId: workspace.id,
+          userId: user.id,
+          agentId,
+          userMessage: newUserMessage.content,
+          assistantMessage: streamCompletion.text,
+        });
+        await writeSseEvent(res, 'done', { requestId }, streamController.signal);
+        res.end();
+        return true;
+      } finally {
+        req.removeListener('aborted', abortOnRequest);
+        res.removeListener('close', abortOnResponseClose);
+      }
+    }
 
     let completion;
     try {
@@ -758,6 +854,78 @@ async function handleDesktopAiChatRequest(req, res, url, {
       ...(upstreamStatus ? { upstreamStatus } : {}),
       ...(fallbackAttempts !== undefined ? { fallbackAttempts } : {}),
     }));
+
+    if (streamingRequest && streamResponseStarted) {
+      const partialCompletion = error?.partialCompletion && typeof error.partialCompletion === 'object'
+        ? error.partialCompletion
+        : null;
+      const completionToSave = streamCompletion || partialCompletion;
+      let streamFailure = error;
+
+      if (tokenReservationHeld && completionToSave) {
+        try {
+          await usageService.settleTokenReservation({
+            workspaceId: workspace.id,
+            idempotencyKey,
+            provider: completionToSave.provider,
+            model: completionToSave.model,
+            inputTokens: completionToSave.inputTokens,
+            outputTokens: completionToSave.outputTokens,
+          });
+          tokenReservationHeld = false;
+        } catch (settlementError) {
+          console.error('AI chat usage settlement failed:', JSON.stringify({ requestId, error: settlementError?.name || 'Error' }));
+          streamFailure = settlementError;
+        }
+      } else if (tokenReservationHeld) {
+        try {
+          await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey });
+          tokenReservationHeld = false;
+        } catch (releaseError) {
+          console.error('AI chat usage reservation release failed:', JSON.stringify({ requestId, error: releaseError?.name || 'Error' }));
+        }
+      }
+
+      if (completionToSave && !tokenReservationHeld && !streamHistoryAttempted) {
+        streamHistoryAttempted = true;
+        try {
+          await aiChatHistoryService.appendExchange({
+            workspaceId: workspace.id,
+            userId: user.id,
+            agentId,
+            userMessage: newUserMessage.content,
+            assistantMessage: completionToSave.text,
+          });
+        } catch (historyError) {
+          streamFailure = historyError;
+          console.error('Desktop AI chat history persistence failed:', JSON.stringify({ requestId, error: historyError?.name || 'Error' }));
+        }
+      }
+
+      const clientGone = streamController?.signal.aborted === true
+        || res.destroyed || error?.code === 'ai_chat_stream_client_closed';
+      if (!clientGone && !res.writableEnded) {
+        if (!res.headersSent) {
+          sendJson(res, 503, { error: 'ai_chat_unavailable', requestId });
+          return true;
+        }
+        let publicError = 'ai_chat_unavailable';
+        if (streamFailure instanceof UsageLimitError) publicError = 'token_usage_limit_exceeded';
+        else if (streamFailure instanceof UsageReservationError) {
+          publicError = streamFailure.code === 'active_entitlement_required' ? 'active_entitlement_required' : 'ai_chat_unavailable';
+        } else if (streamFailure instanceof RequestError) publicError = streamFailure.code;
+        else if (streamFailure instanceof AiChatHistoryError) publicError = 'ai_chat_history_unavailable';
+        else if (streamFailure instanceof WorkspaceError) publicError = 'ai_chat_agent_unavailable';
+        else if (streamFailure instanceof AiProviderError && streamFailure.code === 'ai_chat_messages_invalid') {
+          publicError = streamFailure.code;
+        }
+        try {
+          await writeSseEvent(res, 'error', { error: publicError, requestId }, streamController?.signal);
+        } catch {}
+        if (!res.destroyed && !res.writableEnded) res.end();
+      }
+      return true;
+    }
 
     if (error instanceof UsageLimitError) {
       sendJson(res, 429, { error: 'token_usage_limit_exceeded' });

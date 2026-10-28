@@ -322,6 +322,70 @@ export function requestHttps({ url, method, headers, body, addresses, maxRespons
   });
 }
 
+// Streaming counterpart to requestHttps. The response stays pinned to an
+// already-vetted public IP and is exposed as a bounded async iterable so callers
+// can forward parsed text without buffering the entire provider response.
+export function requestHttpsStream({ url, method, headers, body, addresses, signal, maxResponseBytes = MAX_RESPONSE_BYTES }) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(Object.assign(new Error('connector_request_aborted'), { code: 'connector_request_aborted' }));
+      return;
+    }
+    const preferred = addresses.find((item) => item.family === 4) || addresses[0];
+    let settled = false;
+    let responseStream = null;
+    const fail = (error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
+      } else if (responseStream && !responseStream.destroyed) {
+        responseStream.destroy(error);
+      }
+    };
+    const request = https.request(url, {
+      method,
+      headers,
+      agent: false,
+      servername: url.hostname,
+      lookup: createPinnedLookup(preferred),
+      timeout: 60_000,
+    }, (response) => {
+      responseStream = response;
+      response.on('error', fail);
+      settled = true;
+      const boundedBody = (async function* streamResponseBody() {
+        let size = 0;
+        for await (const chunk of response) {
+          size += chunk.length;
+          if (size > maxResponseBytes) {
+            const error = new Error('connector_response_too_large');
+            response.destroy(error);
+            throw error;
+          }
+          yield chunk;
+        }
+      }());
+      resolve({
+        status: Number(response.statusCode || 0),
+        contentType: String(response.headers['content-type'] || '').split(';', 1)[0].trim().toLowerCase(),
+        body: boundedBody,
+        cancel: () => response.destroy(),
+      });
+    });
+    const onAbort = () => {
+      const error = Object.assign(new Error('connector_request_aborted'), { code: 'connector_request_aborted' });
+      request.destroy(error);
+      if (responseStream && !responseStream.destroyed) responseStream.destroy(error);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    request.on('timeout', () => request.destroy(new Error('connector_timeout')));
+    request.on('error', fail);
+    request.on('close', () => signal?.removeEventListener('abort', onAbort));
+    if (body) request.write(body);
+    request.end();
+  });
+}
+
 function redactResponse(value, secrets, depth = 0) {
   if (depth > 30) return '[TRUNCATED]';
   if (typeof value === 'string') {

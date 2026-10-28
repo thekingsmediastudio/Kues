@@ -32,9 +32,10 @@ async function withServer(dependencies, run) {
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-function testDependencies({ enabled = true, complete } = {}) {
+function testDependencies({ enabled = true, complete, stream } = {}) {
   const usageCalls = { reserve: [], settle: [], release: [] };
   const aiCalls = [];
+  const streamCalls = [];
   const historyCalls = { append: [], recent: [] };
   const savedHistory = new Map();
   const historyKey = ({ workspaceId, userId, agentId }) => `${workspaceId}:${userId}:${agentId}`;
@@ -60,6 +61,12 @@ function testDependencies({ enabled = true, complete } = {}) {
       async complete(input) {
         aiCalls.push(input);
         if (complete) return complete(input);
+        return { text: 'Keep daily-use items close by.', provider: 'internal-provider-key', model: 'hidden-model-id', inputTokens: 12, outputTokens: 7 };
+      },
+      async stream(input) {
+        streamCalls.push(input);
+        if (stream) return stream(input);
+        await input.onDelta('Keep daily-use items close by.');
         return { text: 'Keep daily-use items close by.', provider: 'internal-provider-key', model: 'hidden-model-id', inputTokens: 12, outputTokens: 7 };
       },
     },
@@ -89,7 +96,7 @@ function testDependencies({ enabled = true, complete } = {}) {
       async releaseTokenReservation(input) { usageCalls.release.push(input); return { status: 'released' }; },
     },
   };
-  return { dependencies, usageCalls, aiCalls, historyCalls };
+  return { dependencies, usageCalls, aiCalls, streamCalls, historyCalls };
 }
 
 const messagePayload = {
@@ -271,5 +278,146 @@ test('desktop chat releases reserved usage on provider failure and rejects clien
     assert.equal((await response.json()).error, 'ai_chat_messages_invalid');
     assert.equal(invalid.usageCalls.reserve.length, 0);
     assert.equal(invalid.aiCalls.length, 0);
+  });
+});
+
+test('desktop chat streams answer deltas before settlement and keeps provider identity server-side', async () => {
+  let releaseSecondChunk;
+  const waitForSecondChunk = new Promise((resolve) => { releaseSecondChunk = resolve; });
+  let firstChunkReady;
+  const firstChunkSent = new Promise((resolve) => { firstChunkReady = resolve; });
+  const fixture = testDependencies({
+    stream: async ({ onDelta }) => {
+      await onDelta('Progress ');
+      firstChunkReady();
+      await waitForSecondChunk;
+      await onDelta('arrived.');
+      return {
+        text: 'Progress arrived.', provider: 'internal-provider-key', model: 'hidden-model-id',
+        inputTokens: 12, outputTokens: 7, fallbackUsed: false, fallbackAttempts: 0,
+      };
+    },
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messagePayload),
+    });
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') || '', /text\/event-stream/i);
+    assert.equal(await Promise.race([firstChunkSent.then(() => true), new Promise((resolve) => setTimeout(() => resolve(false), 1000))]), true);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const first = await reader.read();
+    const firstText = decoder.decode(first.value || new Uint8Array(), { stream: true });
+    assert.match(firstText, /event: delta/);
+    assert.match(firstText, /Progress /);
+    assert.equal(fixture.usageCalls.settle.length, 0);
+    assert.equal(fixture.historyCalls.append.length, 0);
+    releaseSecondChunk();
+
+    let rest = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      rest += decoder.decode(value, { stream: true });
+    }
+    const wire = firstText + rest + decoder.decode();
+    assert.match(wire, /arrived\./);
+    assert.match(wire, /event: done/);
+    assert.doesNotMatch(wire, /hidden-model-id|internal-provider-key|reasoning|chain.of.thought/i);
+    assert.equal(fixture.streamCalls.length, 1);
+    assert.equal(fixture.usageCalls.settle.length, 1);
+    assert.equal(fixture.usageCalls.settle[0].provider, 'internal-provider-key');
+    assert.equal(fixture.historyCalls.append[0].assistantMessage, 'Progress arrived.');
+  });
+});
+
+test('desktop chat settles and stores a partial answer after interruption without attempting another provider in the route', async () => {
+  const interrupted = new AiProviderError('ai_provider_stream_interrupted', 502);
+  interrupted.partialCompletion = {
+    text: 'Partial answer.', provider: 'internal-provider-key', model: 'hidden-model-id', inputTokens: 8, outputTokens: 3,
+  };
+  const fixture = testDependencies({
+    stream: async ({ onDelta }) => {
+      await onDelta('Partial answer.');
+      throw interrupted;
+    },
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messagePayload),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /event: delta/);
+    assert.match(wire, /Partial answer\./);
+    assert.match(wire, /event: error/);
+    assert.doesNotMatch(wire, /event: done|hidden-model-id|internal-provider-key/);
+    assert.equal(fixture.usageCalls.settle.length, 1);
+    assert.equal(fixture.usageCalls.settle[0].outputTokens, 3);
+    assert.equal(fixture.usageCalls.release.length, 0);
+    assert.equal(fixture.historyCalls.append.length, 1);
+    assert.equal(fixture.historyCalls.append[0].assistantMessage, 'Partial answer.');
+  });
+});
+
+test('desktop chat releases usage when a streaming provider fails before the first answer chunk', async () => {
+  const failure = new AiProviderError('ai_provider_unavailable', 502);
+  failure.retryable = true;
+  const fixture = testDependencies({ stream: async () => { throw failure; } });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messagePayload),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /event: error/);
+    assert.doesNotMatch(wire, /event: delta|event: done/);
+    assert.equal(fixture.usageCalls.settle.length, 0);
+    assert.equal(fixture.usageCalls.release.length, 1);
+    assert.equal(fixture.historyCalls.append.length, 0);
+  });
+});
+
+
+test('streaming chat withholds the done event and history when quota settlement remains uncertain', async () => {
+  const fixture = testDependencies();
+  fixture.dependencies.usageService.settleTokenReservation = async (input) => {
+    fixture.usageCalls.settle.push(input);
+    throw new Error('simulated settlement outage');
+  };
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messagePayload),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /event: delta/);
+    assert.match(wire, /event: error/);
+    assert.doesNotMatch(wire, /event: done/);
+    assert.equal(fixture.usageCalls.settle.length, 2);
+    assert.equal(fixture.usageCalls.release.length, 0);
+    assert.equal(fixture.historyCalls.append.length, 0);
   });
 });

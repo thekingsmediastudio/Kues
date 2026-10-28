@@ -505,8 +505,8 @@
     overflow-wrap: anywhere;
   }
 
-  .chat-reply-avatar { width: 28px; height: 28px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--bg-card); border: 1px solid var(--border); overflow: hidden; }
-  .chat-reply-avatar svg { width: 24px; height: 24px; }
+  .chat-reply-avatar { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+  .chat-reply-avatar svg { width: 46px; height: 46px; display: block; }
   .agent-msg-row {
     display: flex;
     align-items: flex-start;
@@ -541,6 +541,37 @@
     overflow-wrap: anywhere;
   }
   .msg-text strong { color: #fff; font-weight: 600; }
+  .chat-progress { width:fit-content; max-width:min(100%,360px); margin:0 0 10px; color:var(--text-sec); }
+  .chat-progress summary { box-sizing:border-box; display:inline-flex; align-items:center; gap:9px; min-height:30px; padding:6px 10px; border:1px solid rgba(255,255,255,.09); border-radius:999px; background:rgba(255,255,255,.035); cursor:pointer; list-style:none; color:var(--text-sec); font-size:12px; line-height:1; transition:background .16s ease,border-color .16s ease; }
+  .chat-progress summary::-webkit-details-marker { display:none; }
+  .chat-progress summary::before { content:''; display:block; flex:0 0 6px; width:6px; height:6px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:var(--text-dim); transform:rotate(-45deg); transition:transform .16s ease; }
+  .chat-progress:not([open]) summary:hover { border-color:rgba(255,255,255,.16); background:rgba(255,255,255,.055); }
+  .chat-progress[open] { display:block; width:min(100%,340px); max-width:100%; overflow:hidden; border:1px solid rgba(255,255,255,.09); border-radius:12px; background:linear-gradient(145deg,rgba(28,30,35,.92),rgba(19,20,24,.94)); box-shadow:inset 0 1px 0 rgba(255,255,255,.025); }
+  .chat-progress[open] summary { display:flex; width:100%; min-height:35px; padding:8px 11px; border:0; border-bottom:1px solid rgba(255,255,255,.065); border-radius:0; background:rgba(255,255,255,.018); }
+  .chat-progress[open] summary::before { transform:rotate(45deg); }
+  .chat-progress-label { color:#c9cbd1; font-size:12px; font-weight:500; }
+  .chat-progress-steps { position:relative; display:grid; gap:0; margin:0; padding:7px 13px 9px; list-style:none; }
+  .chat-progress-steps::before { content:''; position:absolute; left:19px; top:21px; bottom:23px; width:1px; background:rgba(255,255,255,.11); }
+  .chat-progress-steps li { position:relative; display:flex; align-items:center; gap:10px; min-height:28px; color:rgba(200,202,210,.58); font-size:12px; line-height:1.35; }
+  .chat-progress-steps li::before { content:''; position:relative; z-index:1; left:auto; top:auto; display:block; flex:0 0 12px; width:12px; height:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,.24); border-radius:50%; background:#1b1d21; }
+  .chat-progress-steps li.is-complete { color:rgba(228,233,231,.86); }
+  .chat-progress-steps li.is-complete::before { width:12px; height:12px; border:0; border-radius:0; background:transparent; border-right:1.6px solid #57c98c; border-bottom:1.6px solid #57c98c; transform:scale(.8) rotate(45deg); }
+  .chat-progress-steps li.is-active { color:#eeeadf; }
+  .chat-progress-steps li.is-active::before { border-color:#e9b95d; background:#e9b95d; box-shadow:0 0 0 3px rgba(233,185,93,.12); animation:chatThinkingPulse 1.08s ease-in-out infinite; }
+  .chat-progress-steps li.is-interrupted { color:#e7ae73; }
+  .chat-progress-steps li.is-interrupted::before { content:'!'; width:12px; height:12px; border:1px solid rgba(231,174,115,.55); border-radius:50%; background:rgba(231,174,115,.08); color:#e7ae73; font-size:9px; font-weight:700; line-height:10px; text-align:center; }
+  .chat-thinking-dots { display:inline-flex; align-items:center; gap:3px; margin-left:2px; height:1em; vertical-align:middle; }
+  .chat-thinking-dots[hidden] { display:none !important; }
+  .chat-thinking-dots span { width:4px; height:4px; border-radius:50%; background:currentColor; opacity:.34; animation:chatThinkingPulse 1.08s ease-in-out infinite; }
+  .chat-thinking-dots span:nth-child(2) { animation-delay:.16s; }
+  .chat-thinking-dots span:nth-child(3) { animation-delay:.32s; }
+  @keyframes chatThinkingPulse { 0%,60%,100% { opacity:.3; transform:translateY(0); } 30% { opacity:1; transform:translateY(-3px); } }
+  .chat-streaming .chat-answer-text::after { content:'▍'; display:inline-block; margin-left:2px; color:var(--cue-gold); animation:chatStreamCaret 1s steps(2,start) infinite; }
+  @keyframes chatStreamCaret { to { visibility:hidden; } }
+  @media (prefers-reduced-motion: reduce) {
+    .chat-thinking-dots span, .chat-progress-steps li.is-active::before, .chat-streaming .chat-answer-text::after { animation:none; }
+    .chat-thinking-dots span { opacity:.72; }
+  }
 
   /* =========================================================
      GROK BOT INLINE "COMPUTER" WINDOW CARD
@@ -1195,7 +1226,7 @@
   .dot-face i:last-child { animation-delay: .17s; }
   .dot-avatar:hover .dot-face { transform: translateY(-1px) scale(1.12); }
   .dot-avatar:hover .dot-face i { height:6px; }
-  body.typing-mode #hdrAvatar { transform: translateY(-2px) scale(1.06); filter:brightness(1.17); box-shadow:0 0 0 5px rgba(255,255,255,.07),0 0 26px color-mix(in srgb,var(--agent-glow,#f5b942) 55%, transparent); }
+  body.typing-mode #hdrAvatar { transform: translateY(-2px) scale(1.06); filter:brightness(1.17); box-shadow:none; }
   body.typing-mode #hdrAvatar .dot-face { transform:scale(1.2); }
   body.typing-mode #hdrAvatar .dot-face i { animation: excitedBlink .75s infinite; }
   @keyframes characterBlink { 0%,92%,96%,100% { transform:scaleY(1) } 94% { transform:scaleY(.12) } }
@@ -1491,9 +1522,10 @@
   .active-agent-summary .header-sub{flex:none}
   .header-agent-avatar,.saved-agent-avatar{display:grid;place-items:center;flex:none;border:0;border-radius:0;background:transparent;color:var(--text-sec);font-size:12px;font-weight:650}
   .header-agent-avatar{width:28px;height:28px}
-  .saved-agent-avatar{width:38px;height:38px}
-  .header-agent-avatar .agent-avatar-art{width:27px;height:27px;display:block;animation:none}
-  .saved-agent-avatar .agent-avatar-art{width:36px;height:36px;display:block;animation:none}
+  .saved-agent-avatar{width:52px;height:52px;background:transparent;border:0;border-radius:0}
+  .header-agent-avatar{width:42px;height:42px;background:transparent;border:0;border-radius:0}
+  .header-agent-avatar .agent-avatar-art{width:41px;height:41px;display:block;animation:none}
+  .saved-agent-avatar .agent-avatar-art{width:50px;height:50px;display:block;animation:none}
   .saved-agent-list-row{cursor:default;pointer-events:none}
   .saved-agent-list-row[hidden]{display:none!important}
   .composer-icon-btn{width:28px;height:32px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-sec);padding:0}
@@ -1504,8 +1536,12 @@
   @media(max-width:640px){
     .chat-header{height:58px;padding:0 5px;gap:4px}
     .active-agent-summary{gap:4px}
-    .header-agent-avatar{width:23px;height:23px}
-    .header-agent-avatar .agent-avatar-art{width:22px;height:22px}
+    .header-agent-avatar{width:32px;height:32px}
+    .header-agent-avatar .agent-avatar-art{width:31px;height:31px}
+    .saved-agent-avatar{width:46px;height:46px}
+    .saved-agent-avatar .agent-avatar-art{width:44px;height:44px}
+    .chat-reply-avatar{width:44px;height:44px}
+    .chat-reply-avatar svg{width:42px;height:42px}
     .header-title{gap:3px;font-size:11px}
     .active-agent-summary .header-title>span:first-child{max-width:52px}
     .review-data-badge{max-width:52px;margin-left:4px;padding:3px 5px;font-size:7px;white-space:normal;text-align:center;line-height:1.15}
@@ -2782,13 +2818,65 @@
     senderLine.append(sender);
     const text = document.createElement('div');
     text.className = 'msg-text';
-    text.textContent = content;
+    if (pending) {
+      const progress = document.createElement('details');
+      progress.className = 'chat-progress';
+      progress.open = true;
+      const summary = document.createElement('summary');
+      summary.setAttribute('aria-live', 'polite');
+      const progressLabel = document.createElement('span');
+      progressLabel.className = 'chat-progress-label';
+      progressLabel.textContent = 'Preparing response';
+      const dots = document.createElement('span');
+      dots.className = 'chat-thinking-dots';
+      dots.setAttribute('aria-hidden', 'true');
+      for (let index = 0; index < 3; index += 1) dots.append(document.createElement('span'));
+      summary.append(progressLabel, dots);
+      const steps = document.createElement('ol');
+      steps.className = 'chat-progress-steps';
+      for (const [index, label] of ['Prompt received', 'Preparing response', 'Streaming answer'].entries()) {
+        const step = document.createElement('li');
+        step.dataset.progressStep = String(index);
+        step.className = index === 0 ? 'is-complete' : index === 1 ? 'is-active' : '';
+        step.textContent = label;
+        steps.append(step);
+      }
+      progress.append(summary, steps);
+      text.setAttribute('aria-label', 'Reply progress');
+      text.append(progress);
+    } else {
+      text.textContent = content;
+    }
     body.append(senderLine, text);
     row.append(avatar, body);
     document.getElementById('streamInner')?.append(row);
     const stream = document.getElementById('chatStream');
     if (stream) stream.scrollTop = stream.scrollHeight;
     return row;
+  }
+
+  function setChatProgress(row, stage) {
+    const details = row?.querySelector('.chat-progress');
+    if (!details) return;
+    const states = {
+      preparing: { label: 'Preparing response', complete: 1, active: 1, dots: true },
+      streaming: { label: 'Streaming answer', complete: 2, active: 2, dots: false },
+      complete: { label: 'Reply complete', complete: 3, active: -1, dots: false },
+      interrupted: { label: 'Response interrupted', complete: 2, active: -1, dots: false },
+    };
+    const state = states[stage] || states.preparing;
+    const label = details.querySelector('.chat-progress-label');
+    if (label) label.textContent = state.label;
+    const dots = details.querySelector('.chat-thinking-dots');
+    if (dots) dots.hidden = !state.dots;
+    details.querySelectorAll('[data-progress-step]').forEach((step) => {
+      const index = Number(step.dataset.progressStep);
+      step.classList.remove('is-complete', 'is-active', 'is-interrupted');
+      if (stage === 'interrupted' && index === 2) step.classList.add('is-interrupted');
+      else if (index < state.complete) step.classList.add('is-complete');
+      else if (index === state.active) step.classList.add('is-active');
+    });
+    if (stage === 'complete') details.open = false;
   }
 
   function selectDesktopAgent(agentId) {
@@ -2913,6 +3001,64 @@
     }
   }
 
+  async function readChatEventStream(response, onEvent) {
+    const reader = response.body?.getReader?.();
+    if (!reader) throw Object.assign(new Error('ai_chat_stream_unavailable'), { code: 'ai_chat_stream_unavailable' });
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let eventName = 'message';
+    let dataLines = [];
+
+    const dispatch = async () => {
+      if (!dataLines.length) return;
+      const name = eventName;
+      const data = dataLines.join('\n');
+      eventName = 'message';
+      dataLines = [];
+      if (!['delta', 'done', 'error'].includes(name)) return;
+      let payload;
+      try { payload = JSON.parse(data); }
+      catch { throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' }); }
+      await onEvent(name, payload);
+    };
+    const processLine = async (rawLine) => {
+      const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+      if (line === '') {
+        await dispatch();
+        return;
+      }
+      if (line.startsWith(':')) return;
+      const separator = line.indexOf(':');
+      const field = separator < 0 ? line : line.slice(0, separator);
+      let value = separator < 0 ? '' : line.slice(separator + 1);
+      if (value.startsWith(' ')) value = value.slice(1);
+      if (field === 'event') eventName = value;
+      else if (field === 'data') dataLines.push(value);
+    };
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let newline;
+        while ((newline = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, newline);
+          buffer = buffer.slice(newline + 1);
+          await processLine(line);
+        }
+      }
+      buffer += decoder.decode();
+      if (buffer) await processLine(buffer);
+      await dispatch();
+    } catch (error) {
+      try { await reader.cancel(); } catch {}
+      throw error;
+    } finally {
+      try { reader.releaseLock(); } catch {}
+    }
+  }
+
   async function sendChatMessage() {
     const input = document.getElementById('chatInput');
     const content = String(input?.value || '').trim();
@@ -2928,41 +3074,105 @@
     chatPending = true;
     syncChatComposer();
     const pendingRow = createAssistantChatMessage('Thinking...', { pending: true });
+    let assistantRow = null;
+    let replyText = '';
+    let completed = false;
+    let requestId = '';
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
         body: JSON.stringify({ agentId: requestAgentId, message: content }),
       });
-      let data = {};
-      try { data = await response.json(); } catch {}
       if (response.status === 401) {
+        pendingRow?.remove();
         location.replace('/login?auth_error=session');
         return;
       }
-      if (!response.ok || typeof data.reply !== 'string' || !data.reply.trim()) {
+      if (!response.ok) {
+        let data = {};
+        try { data = await response.json(); } catch {}
         const error = new Error(String(data.error || 'ai_chat_unavailable'));
         error.code = String(data.error || 'ai_chat_unavailable');
         error.requestId = String(data.requestId || '');
+        throw error;
+      }
+      if (!String(response.headers.get('content-type') || '').toLowerCase().includes('text/event-stream')) {
+        throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' });
+      }
+
+      await readChatEventStream(response, async (eventName, payload) => {
+        if (eventName === 'delta') {
+          if (typeof payload?.text !== 'string' || !payload.text) return;
+          if (!assistantRow) {
+            assistantRow = pendingRow;
+            assistantRow?.classList.remove('chat-pending');
+            const textNode = assistantRow?.querySelector('.msg-text');
+            const progress = textNode?.querySelector('.chat-progress');
+            const answerText = document.createElement('div');
+            answerText.className = 'chat-answer-text';
+            textNode?.removeAttribute('aria-label');
+            if (textNode) textNode.replaceChildren(...(progress ? [progress, answerText] : [answerText]));
+          }
+          assistantRow?.classList.add('chat-streaming');
+          setChatProgress(assistantRow, 'streaming');
+          replyText += payload.text;
+          const answerText = assistantRow?.querySelector('.chat-answer-text');
+          if (answerText) answerText.textContent = replyText;
+          const stream = document.getElementById('chatStream');
+          if (stream) stream.scrollTop = stream.scrollHeight;
+        } else if (eventName === 'done') {
+          completed = true;
+          requestId = String(payload?.requestId || '');
+        } else if (eventName === 'error') {
+          const error = new Error(String(payload?.error || 'ai_chat_unavailable'));
+          error.code = String(payload?.error || 'ai_chat_unavailable');
+          error.requestId = String(payload?.requestId || '');
+          throw error;
+        }
+      });
+      if (!completed || !replyText.trim()) {
+        const error = new Error('ai_chat_stream_interrupted');
+        error.code = 'ai_chat_stream_interrupted';
+        error.requestId = requestId;
         throw error;
       }
       if (requestAgentId !== String(selectedAgentId || '') || requestViewVersion !== chatHistoryLoadVersion) {
         if (requestAgentId === String(selectedAgentId || '') && chatAvailable) void loadChatHistory(requestAgentId);
         return;
       }
-      pendingRow?.remove();
-      const reply = data.reply.trim();
+      assistantRow?.classList.remove('chat-streaming');
+      setChatProgress(assistantRow, 'complete');
+      const reply = replyText.trim();
+      const answerText = assistantRow?.querySelector('.chat-answer-text');
+      if (answerText) answerText.textContent = reply;
       chatMessages.push({ role: 'assistant', content: reply });
       while (chatMessages.length > 100) chatMessages.shift();
-      createAssistantChatMessage(reply);
     } catch (error) {
-      pendingRow?.remove();
-      userRow?.remove();
+      assistantRow?.classList.remove('chat-streaming');
       if (requestAgentId === String(selectedAgentId || '') && requestViewVersion === chatHistoryLoadVersion) {
-        if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
-        chatNotice = chatErrorCopy(error.code, error.requestId);
-        if (input && !input.value) input.value = content;
+        if (replyText.trim()) {
+          const partialReply = replyText.trim();
+          if (!assistantRow) {
+            pendingRow?.remove();
+            assistantRow = createAssistantChatMessage(partialReply);
+          } else {
+            setChatProgress(assistantRow, 'interrupted');
+            const answerText = assistantRow.querySelector('.chat-answer-text');
+            if (answerText) answerText.textContent = partialReply;
+          }
+          chatMessages.push({ role: 'assistant', content: partialReply });
+          while (chatMessages.length > 100) chatMessages.shift();
+          const reference = error.requestId ? ` Reference: ${error.requestId}` : '';
+          chatNotice = `The reply was interrupted. Check the saved conversation before retrying.${reference}`;
+        } else {
+          pendingRow?.remove();
+          userRow?.remove();
+          if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
+          chatNotice = chatErrorCopy(error.code, error.requestId);
+          if (input && !input.value) input.value = content;
+        }
       }
     } finally {
       chatPending = false;

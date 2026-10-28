@@ -184,3 +184,171 @@ test('chat retries primary HTTP 429/5xx failures but never fails over on authent
     await db.close();
   }
 });
+
+
+test('chat streaming fails over to an approved backup only before the first final-answer chunk', async () => {
+  const { db, aiProviderService } = await createFallbackFixture();
+  try {
+    const { Readable } = await import('node:stream');
+    const observed = [];
+    const deltas = [];
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: publicLookup,
+      requestHttpsStreamImpl: async (request) => {
+        observed.push(request.url.hostname);
+        const body = JSON.parse(request.body.toString('utf8'));
+        assert.equal(body.stream, true);
+        assert.equal(request.headers.accept, 'text/event-stream');
+        if (request.url.hostname === 'primary.provider.com') {
+          return { status: 503, contentType: 'text/event-stream', body: Readable.from([]) };
+        }
+        const events = [
+          'data: {"choices":[{"delta":{"content":"Backup ","reasoning_content":"hidden reasoning"},"finish_reason":null}]}\n\n',
+          'data: {"choices":[{"delta":{"content":"answer."},"finish_reason":null}]}\n\n',
+          'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        ];
+        return { status: 200, contentType: 'text/event-stream', body: Readable.from(events) };
+      },
+    });
+    const result = await chat.stream({
+      agent: { name: 'Test helper', role: 'Helpful' },
+      messages,
+      onDelta: async (text) => deltas.push(text),
+    });
+    assert.equal(result.text, 'Backup answer.');
+    assert.equal(result.provider, 'approved-backup');
+    assert.equal(result.fallbackUsed, true);
+    assert.equal(result.fallbackAttempts, 1);
+    assert.deepEqual(observed, ['primary.provider.com', 'backup.provider.com']);
+    assert.deepEqual(deltas, ['Backup ', 'answer.']);
+    assert.doesNotMatch(deltas.join(''), /hidden reasoning/);
+  } finally {
+    await db.close();
+  }
+});
+
+test('chat does not fail over after any final-answer text has been emitted; interrupted text is returned only for safe settlement', async () => {
+  const { db, aiProviderService } = await createFallbackFixture();
+  try {
+    const { Readable } = await import('node:stream');
+    const observed = [];
+    const deltas = [];
+    const brokenBody = Readable.from((async function* () {
+      yield 'data: {"choices":[{"delta":{"content":"Primary partial."},"finish_reason":null}]}\n\n';
+      throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' });
+    }()));
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: publicLookup,
+      requestHttpsStreamImpl: async (request) => {
+        observed.push(request.url.hostname);
+        return { status: 200, contentType: 'text/event-stream', body: brokenBody };
+      },
+    });
+    await assert.rejects(
+      chat.stream({ agent: {}, messages, onDelta: async (text) => deltas.push(text) }),
+      (error) => error instanceof AiProviderError
+        && error.code === 'ai_provider_stream_interrupted'
+        && error.partialCompletion?.text === 'Primary partial.'
+        && error.partialCompletion?.provider === 'primary-provider'
+        && error.fallbackAttempts === 0,
+    );
+    assert.deepEqual(observed, ['primary.provider.com']);
+    assert.deepEqual(deltas, ['Primary partial.']);
+  } finally {
+    await db.close();
+  }
+});
+
+test('chat streaming ignores reasoning-only events and emits only final answer text', async () => {
+  const { Readable } = await import('node:stream');
+  const provider = {
+    providerKey: 'test-provider', apiProtocol: 'openai_responses', apiKey: 'local_key_not_real',
+    baseUrl: 'https://primary.provider.com/v1', modelId: 'test-model',
+  };
+  const chat = createAiChatService({
+    aiProviderService: {
+      async getPrimaryProviderForRuntime() { return provider; },
+      async getFallbackProvidersForRuntime() { return []; },
+    },
+    resolveHost: publicLookup,
+    requestHttpsStreamImpl: async (request) => {
+      assert.equal(new URL(request.url).pathname, '/v1/responses');
+      const payload = JSON.parse(request.body.toString('utf8'));
+      assert.equal(payload.stream, true);
+      const events = [
+        'event: response.reasoning_summary_text.delta\ndata: {"type":"response.reasoning_summary_text.delta","delta":"secret chain of thought"}\n\n',
+        'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Visible answer."}\n\n',
+        'event: response.completed\ndata: {"type":"response.completed","response":{"usage":{"input_tokens":5,"output_tokens":2}}}\n\n',
+      ];
+      return { status: 200, contentType: 'text/event-stream', body: Readable.from(events) };
+    },
+  });
+  const deltas = [];
+  const result = await chat.stream({ agent: {}, messages, onDelta: async (text) => deltas.push(text) });
+  assert.equal(result.text, 'Visible answer.');
+  assert.deepEqual(deltas, ['Visible answer.']);
+  assert.equal(result.inputTokens, 5);
+  assert.equal(result.outputTokens, 2);
+  assert.doesNotMatch(JSON.stringify(result), /secret chain of thought/);
+});
+
+
+test('Anthropic and Google streams emit visible text blocks but suppress thinking parts', async () => {
+  const { Readable } = await import('node:stream');
+  const cases = [
+    {
+      provider: {
+        providerKey: 'anthropic-provider', apiProtocol: 'anthropic_messages', apiKey: 'local_key_not_real',
+        baseUrl: 'https://primary.provider.com/v1', modelId: 'claude-test',
+      },
+      events: [
+        'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":4}}}\n\n',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"private thought"}}\n\n',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Visible "}}\n\n',
+        'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":2}}\n\n',
+        'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+      ],
+      expect: (request) => {
+        assert.equal(new URL(request.url).pathname, '/v1/messages');
+        assert.equal(JSON.parse(request.body.toString('utf8')).stream, true);
+      },
+      visible: 'Visible ',
+    },
+    {
+      provider: {
+        providerKey: 'google-provider', apiProtocol: 'google_generative', apiKey: 'local_key_not_real',
+        baseUrl: 'https://primary.provider.com/v1beta', modelId: 'gemini-test',
+      },
+      events: [
+        'data: {"candidates":[{"content":{"parts":[{"text":"private thought","thought":true},{"text":"Visible ","thought":false},{"text":"also hidden","type":"thinking"}]}}],"usageMetadata":{"promptTokenCount":4}}\n\n',
+        'data: {"candidates":[{"content":{"parts":[{"text":"answer."}]},"finishReason":"STOP"}],"usageMetadata":{"candidatesTokenCount":2}}\n\n',
+      ],
+      expect: (request) => {
+        const url = new URL(request.url);
+        assert.equal(url.pathname, '/v1beta/models/gemini-test:streamGenerateContent');
+        assert.equal(url.searchParams.get('alt'), 'sse');
+      },
+      visible: 'Visible answer.',
+    },
+  ];
+  for (const scenario of cases) {
+    const chat = createAiChatService({
+      aiProviderService: {
+        async getPrimaryProviderForRuntime() { return scenario.provider; },
+        async getFallbackProvidersForRuntime() { return []; },
+      },
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsStreamImpl: async (request) => {
+        scenario.expect(request);
+        return { status: 200, contentType: 'text/event-stream', body: Readable.from(scenario.events) };
+      },
+    });
+    const deltas = [];
+    const result = await chat.stream({ agent: {}, messages, onDelta: async (text) => deltas.push(text) });
+    assert.equal(result.text, scenario.visible);
+    assert.equal(deltas.join(''), scenario.visible);
+    assert.doesNotMatch(JSON.stringify(result), /private thought|also hidden/);
+  }
+});
