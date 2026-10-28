@@ -362,7 +362,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /message: content/);
     assert.doesNotMatch(desktopPreview, /Groq|Qwen|GPT-OSS|model ID/i);
     assert.match(desktopPreview, /bubble\.textContent = content/);
-    assert.match(desktopPreview, /text\.textContent = content/);
+    assert.match(desktopPreview, /renderChatMarkdown\(answerText, content\)/);
     assert.match(desktopPreview, /id="newAgentForm"/);
     assert.match(desktopPreview, /id="newAgentName"/);
     assert.match(desktopPreview, /id="newAgentRole"/);
