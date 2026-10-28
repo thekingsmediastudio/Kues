@@ -137,6 +137,16 @@ test('AI provider creation route is same-origin, WorkOS-session and admin-allowl
       assert.equal(JSON.stringify(updatedBody).includes(replacementKey), false);
       assert.equal((await aiProviderService.getProviderForRuntime({ providerKey: 'route-test-provider' })).apiKey, replacementKey);
 
+      const backupResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Cookie: 'kues_session=admin-session', Origin: origin, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, providerKey: 'route-test-backup', displayName: 'Approved backup', enabled: true, isPrimary: false, isFallback: true }),
+      });
+      assert.equal(backupResponse.status, 201);
+      const backupBody = await backupResponse.json();
+      assert.equal(backupBody.provider.isFallback, true);
+      assert.equal(Object.hasOwn(backupBody.provider, 'apiKey'), false);
+
       const methodNotAllowed = await fetch(endpoint, {
         method: 'PATCH',
         headers: { Cookie: 'kues_session=admin-session' },
@@ -150,6 +160,11 @@ test('AI provider creation route is same-origin, WorkOS-session and admin-allowl
       });
       assert.equal(deletedResponse.status, 200);
       assert.deepEqual(await deletedResponse.json(), { deleted: true });
+      const deletedBackup = await fetch(`${endpoint}/${encodeURIComponent(backupBody.provider.id)}`, {
+        method: 'DELETE',
+        headers: { Cookie: 'kues_session=admin-session', Origin: origin },
+      });
+      assert.equal(deletedBackup.status, 200);
       assert.deepEqual((await aiProviderService.listProviders()), []);
     });
   } finally {
