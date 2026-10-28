@@ -32,7 +32,7 @@ async function withServer(dependencies, run) {
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-function testDependencies({ enabled = true, complete, stream } = {}) {
+function testDependencies({ enabled = true, complete, stream, agentAvatar = 'bulb', providers } = {}) {
   const usageCalls = { reserve: [], settle: [], release: [] };
   const aiCalls = [];
   const streamCalls = [];
@@ -52,8 +52,18 @@ function testDependencies({ enabled = true, complete, stream } = {}) {
       async getBootstrap({ userId }) {
         return {
           workspace: { id: `workspace-${userId}`, status: 'active' },
-          agents: [{ id: 'agent-1', name: 'Desk helper', role: 'Organize my workspace', status: 'paused' }],
+          agents: [{ id: 'agent-1', name: 'Desk helper', role: 'Organize my workspace', avatar: agentAvatar, status: 'paused' }],
         };
+      },
+    },
+    aiProviderService: {
+      async listProviders() {
+        return providers || [
+          { providerKey: 'internal-provider-key', displayName: 'Configured Primary', modelId: 'hidden-model-id', enabled: true, isPrimary: true, isFallback: false },
+          { providerKey: 'approved-backup', displayName: 'Approved Backup', modelId: 'backup-model-id', enabled: true, isPrimary: false, isFallback: true },
+          { providerKey: 'manual-target', displayName: 'Manual Target', modelId: 'manual-model-id', enabled: true, isPrimary: false, isFallback: false },
+          { providerKey: 'disabled-target', displayName: 'Disabled Target', modelId: 'disabled-model-id', enabled: false, isPrimary: false, isFallback: false },
+        ];
       },
     },
     aiChatService: {
@@ -61,13 +71,13 @@ function testDependencies({ enabled = true, complete, stream } = {}) {
       async complete(input) {
         aiCalls.push(input);
         if (complete) return complete(input);
-        return { text: 'Keep daily-use items close by.', provider: 'internal-provider-key', model: 'hidden-model-id', inputTokens: 12, outputTokens: 7 };
+        return { text: 'Keep daily-use items close by.', provider: 'internal-provider-key', providerDisplayName: 'Configured Primary', model: 'hidden-model-id', inputTokens: 12, outputTokens: 7 };
       },
       async stream(input) {
         streamCalls.push(input);
         if (stream) return stream(input);
         await input.onDelta('Keep daily-use items close by.');
-        return { text: 'Keep daily-use items close by.', provider: 'internal-provider-key', model: 'hidden-model-id', inputTokens: 12, outputTokens: 7 };
+        return { text: 'Keep daily-use items close by.', provider: 'internal-provider-key', providerDisplayName: 'Configured Primary', model: 'hidden-model-id', inputTokens: 12, outputTokens: 7 };
       },
     },
     aiChatHistoryService: {
@@ -104,12 +114,20 @@ const messagePayload = {
   message: 'How should I organize my desk?',
 };
 
-test('desktop chat status and replies do not reveal provider or model; history is saved for the signed-in workspace', async () => {
+test('admin desktop chat status exposes enabled choices and replies include verified attribution', async () => {
   const { dependencies, usageCalls, aiCalls, historyCalls } = testDependencies();
   await withServer(dependencies, async (base) => {
     const status = await fetch(`${base}/api/chat/status`, { headers: { Cookie: 'kues_session=admin-session' } });
     assert.equal(status.status, 200);
-    assert.deepEqual(await status.json(), { available: true });
+    const statusData = await status.json();
+    assert.equal(statusData.available, true);
+    assert.equal(statusData.adminControls, true);
+    assert.deepEqual(statusData.providers.map(({ providerKey, isPrimary, isFallback }) => ({ providerKey, isPrimary, isFallback })), [
+      { providerKey: 'internal-provider-key', isPrimary: true, isFallback: false },
+      { providerKey: 'approved-backup', isPrimary: false, isFallback: true },
+      { providerKey: 'manual-target', isPrimary: false, isFallback: false },
+    ]);
+    assert.equal(JSON.stringify(statusData).includes('apiKey'), false);
 
     const response = await fetch(`${base}/api/chat`, {
       method: 'POST',
@@ -124,8 +142,9 @@ test('desktop chat status and replies do not reveal provider or model; history i
     const data = await response.json();
     assert.equal(data.reply, 'Keep daily-use items close by.');
     assert.match(data.requestId, /^[0-9a-f-]{36}$/i);
-    assert.equal(JSON.stringify(data).includes('hidden-model-id'), false);
-    assert.equal(JSON.stringify(data).includes('internal-provider-key'), false);
+    assert.deepEqual(data.attribution, { provider: 'internal-provider-key', providerDisplayName: 'Configured Primary', model: 'hidden-model-id' });
+    assert.equal(JSON.stringify(data).includes('internal-provider-key'), true);
+    assert.equal(JSON.stringify(data).includes('apiKey'), false);
     assert.equal(aiCalls.length, 1);
     assert.equal(aiCalls[0].agent.name, 'Desk helper');
     assert.deepEqual(aiCalls[0].messages, [{ role: 'user', content: messagePayload.message }]);
@@ -149,6 +168,43 @@ test('desktop chat status and replies do not reveal provider or model; history i
       { role: 'user', content: messagePayload.message },
       { role: 'assistant', content: 'Keep daily-use items close by.' },
     ]);
+  });
+});
+
+test('admin can override provider and model for one request without changing the configured primary', async () => {
+  const fixture = testDependencies({
+    complete: async ({ providerKey, modelId }) => ({
+      text: 'One-request test reply.',
+      provider: providerKey || 'internal-provider-key',
+      providerDisplayName: providerKey ? 'Manual Target' : 'Configured Primary',
+      model: modelId || 'hidden-model-id',
+      inputTokens: 12,
+      outputTokens: 7,
+    }),
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, providerKey: 'manual-target', modelId: 'custom-test-model' }),
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.deepEqual(data.attribution, { provider: 'manual-target', providerDisplayName: 'Manual Target', model: 'custom-test-model' });
+    assert.equal(fixture.aiCalls[0].providerKey, 'manual-target');
+    assert.equal(fixture.aiCalls[0].modelId, 'custom-test-model');
+    assert.equal(fixture.usageCalls.settle[0].provider, 'manual-target');
+    assert.equal(fixture.usageCalls.settle[0].model, 'custom-test-model');
+    assert.equal(fixture.historyCalls.append.length, 1);
+
+    const configuredRequest = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify(messagePayload),
+    });
+    assert.equal(configuredRequest.status, 200);
+    assert.equal(Object.hasOwn(fixture.aiCalls[1], 'providerKey'), false);
+    assert.equal(Object.hasOwn(fixture.aiCalls[1], 'modelId'), false);
   });
 });
 
@@ -179,15 +235,29 @@ test('desktop chat stays disabled for non-admin users and when the staging test 
   const nonAdmin = testDependencies();
   await withServer(nonAdmin.dependencies, async (base) => {
     const status = await fetch(`${base}/api/chat/status`, { headers: { Cookie: 'kues_session=member-session' } });
-    assert.deepEqual(await status.json(), { available: false });
+    const statusBody = await status.json();
+    assert.deepEqual(statusBody, { available: false });
+    assert.equal(Object.hasOwn(statusBody, 'providers'), false);
+    assert.equal(Object.hasOwn(statusBody, 'adminControls'), false);
     const response = await fetch(`${base}/api/chat`, {
       method: 'POST',
-      headers: { Cookie: 'kues_session=member-session', Origin: base, 'Content-Type': 'application/json' },
-      body: JSON.stringify(messagePayload),
+      headers: { Cookie: 'kues_session=member-session', Origin: base, 'X-Admin': 'true', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, admin: true, isAdmin: true, providerKey: 'spoofed-provider', modelId: 'spoofed-model' }),
     });
     assert.equal(response.status, 503);
     assert.deepEqual(await response.json(), { error: 'ai_chat_unavailable' });
     assert.equal(nonAdmin.aiCalls.length, 0);
+    assert.equal(nonAdmin.streamCalls.length, 0);
+
+    const streamResponse = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=member-session', Origin: base, Accept: 'text/event-stream', 'X-Admin': 'true', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, admin: true, isAdmin: true }),
+    });
+    const streamBody = await streamResponse.text();
+    assert.equal(streamResponse.status, 503);
+    assert.doesNotMatch(streamBody, /provider|model|Configured Primary|hidden-model-id/i);
+    assert.equal(nonAdmin.streamCalls.length, 0);
   });
 
   const disabled = testDependencies({ enabled: false });
@@ -239,6 +309,9 @@ test('desktop chat releases reserved usage on provider failure and rejects clien
     complete: async () => {
       const error = new AiProviderError('ai_provider_upstream_failed', 502);
       error.upstreamStatus = 429;
+      error.providerContext = { providerKey: 'internal-provider-key', providerDisplayName: 'Configured Primary', model: 'hidden-model-id' };
+      error.attempts = [{ providerKey: 'internal-provider-key', providerDisplayName: 'Configured Primary', model: 'hidden-model-id', code: 'ai_provider_upstream_failed', upstreamStatus: 429, retryable: true }];
+      error.retryable = true;
       throw error;
     },
   });
@@ -256,6 +329,14 @@ test('desktop chat releases reserved usage on provider failure and rejects clien
     const failure = await response.json();
     assert.equal(failure.error, 'ai_chat_unavailable');
     assert.match(failure.requestId, /^[0-9a-f-]{36}$/i);
+    assert.equal(failure.adminDiagnostics.requestId, failure.requestId);
+    assert.equal(failure.adminDiagnostics.code, 'ai_provider_upstream_failed');
+    assert.equal(failure.adminDiagnostics.provider.name, 'Configured Primary');
+    assert.equal(failure.adminDiagnostics.provider.model, 'hidden-model-id');
+    assert.equal(failure.adminDiagnostics.upstreamStatus, 429);
+    assert.equal(failure.adminDiagnostics.retryable, true);
+    assert.equal(failure.adminDiagnostics.attempts.length, 1);
+    assert.doesNotMatch(JSON.stringify(failure.adminDiagnostics), /How should I organize|local_chat_test_key_not_real|apiKey|body/i);
     assert.equal(brokenProvider.usageCalls.reserve.length, 1);
     assert.equal(brokenProvider.usageCalls.release.length, 1);
     assert.equal(brokenProvider.usageCalls.settle.length, 0);
@@ -281,20 +362,23 @@ test('desktop chat releases reserved usage on provider failure and rejects clien
   });
 });
 
-test('desktop chat streams answer deltas before settlement and keeps provider identity server-side', async () => {
+test('admin streaming chat reveals attribution only in the final done event', async () => {
   let releaseSecondChunk;
   const waitForSecondChunk = new Promise((resolve) => { releaseSecondChunk = resolve; });
   let firstChunkReady;
   const firstChunkSent = new Promise((resolve) => { firstChunkReady = resolve; });
   const fixture = testDependencies({
-    stream: async ({ onDelta }) => {
+    agentAvatar: 'magnifier',
+    stream: async ({ onDelta, onAvatarCue }) => {
       await onDelta('Progress ');
+      await onAvatarCue('search');
+      await onAvatarCue('not-allowed');
       firstChunkReady();
       await waitForSecondChunk;
       await onDelta('arrived.');
       return {
-        text: 'Progress arrived.', provider: 'internal-provider-key', model: 'hidden-model-id',
-        inputTokens: 12, outputTokens: 7, fallbackUsed: false, fallbackAttempts: 0,
+        text: 'Progress arrived.', provider: 'internal-provider-key', providerDisplayName: 'Approved backup', model: 'hidden-model-id',
+        inputTokens: 12, outputTokens: 7, fallbackUsed: true, fallbackAttempts: 1,
       };
     },
   });
@@ -313,10 +397,16 @@ test('desktop chat streams answer deltas before settlement and keeps provider id
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    const first = await reader.read();
-    const firstText = decoder.decode(first.value || new Uint8Array(), { stream: true });
+    let firstText = '';
+    while (!firstText.includes('event: avatar_cue')) {
+      const first = await reader.read();
+      if (first.done) break;
+      firstText += decoder.decode(first.value || new Uint8Array(), { stream: true });
+    }
     assert.match(firstText, /event: delta/);
     assert.match(firstText, /Progress /);
+    assert.match(firstText, /event: avatar_cue\ndata: \{"avatar":"magnifier","cue":"search"\}/);
+    assert.doesNotMatch(firstText, /not-allowed/);
     assert.equal(fixture.usageCalls.settle.length, 0);
     assert.equal(fixture.historyCalls.append.length, 0);
     releaseSecondChunk();
@@ -329,12 +419,48 @@ test('desktop chat streams answer deltas before settlement and keeps provider id
     }
     const wire = firstText + rest + decoder.decode();
     assert.match(wire, /arrived\./);
+    assert.match(wire, /event: avatar_cue/);
     assert.match(wire, /event: done/);
-    assert.doesNotMatch(wire, /hidden-model-id|internal-provider-key|reasoning|chain.of.thought/i);
+    assert.equal([...wire.matchAll(/event: avatar_cue\ndata: ([^\n]+)/g)].length, 1);
+    assert.doesNotMatch(firstText, /Approved backup|hidden-model-id|internal-provider-key/);
+    const doneMatch = wire.match(/event: done\ndata: ([^\n]+)/);
+    assert.ok(doneMatch);
+    assert.deepEqual(JSON.parse(doneMatch[1]).attribution, { provider: 'internal-provider-key', providerDisplayName: 'Approved backup', model: 'hidden-model-id' });
+    assert.doesNotMatch(wire, /apiKey|reasoning|chain.of.thought/i);
     assert.equal(fixture.streamCalls.length, 1);
     assert.equal(fixture.usageCalls.settle.length, 1);
     assert.equal(fixture.usageCalls.settle[0].provider, 'internal-provider-key');
     assert.equal(fixture.historyCalls.append[0].assistantMessage, 'Progress arrived.');
+  });
+});
+
+
+test('chat route drops even allowlisted cue requests for agents without Scout avatar support', async () => {
+  const fixture = testDependencies({
+    agentAvatar: 'bulb',
+    stream: async ({ onDelta, onAvatarCue }) => {
+      await onAvatarCue('search');
+      await onDelta('A plain answer.');
+      return {
+        text: 'A plain answer.', provider: 'internal-provider-key', model: 'test-model', inputTokens: 8, outputTokens: 4,
+      };
+    },
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messagePayload),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /event: delta/);
+    assert.match(wire, /A plain answer\./);
+    assert.doesNotMatch(wire, /event: avatar_cue/);
+    assert.match(wire, /event: done/);
   });
 });
 
@@ -388,7 +514,12 @@ test('desktop chat releases usage when a streaming provider fails before the fir
     const wire = await response.text();
     assert.equal(response.status, 200);
     assert.match(wire, /event: error/);
-    assert.doesNotMatch(wire, /event: delta|event: done/);
+    const errorEvent = wire.match(/event: error\ndata: ([^\n]+)/);
+    assert.ok(errorEvent);
+    const errorPayload = JSON.parse(errorEvent[1]);
+    assert.equal(errorPayload.adminDiagnostics.code, 'ai_provider_unavailable');
+    assert.equal(errorPayload.adminDiagnostics.retryable, true);
+    assert.doesNotMatch(wire, /event: delta|event: done|internal-provider-key|hidden-model-id/);
     assert.equal(fixture.usageCalls.settle.length, 0);
     assert.equal(fixture.usageCalls.release.length, 1);
     assert.equal(fixture.historyCalls.append.length, 0);
