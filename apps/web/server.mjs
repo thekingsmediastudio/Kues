@@ -15,6 +15,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
+import { WorkspaceToolError, parseWorkspaceToolCall, prepareWorkspaceToolCall, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -90,6 +91,202 @@ function explicitAvatarEmotionCue(message) {
   const word = String(message || '').normalize('NFKC').trim().toLowerCase().replace(/[.!?]+$/, '');
   if (!/^[a-z_]{1,32}$/.test(word)) return null;
   return normalizeAiChatAvatarEmotionCue(word);
+}
+
+const WORKSPACE_TOOL_APPROVAL_TTL_MS = 10 * 60 * 1000;
+const WORKSPACE_TOOL_APPROVAL_LIMIT = 500;
+
+function pruneWorkspaceToolApprovals(pendingApprovals, now = Date.now()) {
+  for (const [actionId, approval] of pendingApprovals) {
+    if (!approval || approval.expiresAt <= now) pendingApprovals.delete(actionId);
+  }
+}
+
+function safeWorkspaceApprovalDisplay(display) {
+  const safeText = (value, maxLength = 240) => typeof value === 'string'
+    ? value.normalize('NFKC').replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, maxLength)
+    : '';
+  const fields = Array.isArray(display?.fields) ? display.fields.slice(0, 20).map((field) => ({
+    label: safeText(field?.label, 60),
+    ...(typeof field?.before === 'string' ? { before: safeText(field.before, 160) } : {}),
+    value: safeText(field?.value, 240),
+  })).filter((field) => field.label && field.value) : [];
+  return {
+    title: safeText(display?.title, 80) || 'Workspace change',
+    summary: safeText(display?.summary, 240) || 'Review this workspace change before it is applied.',
+    fields,
+  };
+}
+
+function createPendingWorkspaceToolApproval(pendingApprovals, { userId, workspaceId, chatAgentId, prepared }) {
+  pruneWorkspaceToolApprovals(pendingApprovals);
+  if (pendingApprovals.size >= WORKSPACE_TOOL_APPROVAL_LIMIT) {
+    throw new RequestError('workspace_tool_approval_limit', 429);
+  }
+  const actionId = crypto.randomBytes(24).toString('base64url');
+  const expiresAt = Date.now() + WORKSPACE_TOOL_APPROVAL_TTL_MS;
+  const display = safeWorkspaceApprovalDisplay(prepared.display);
+  pendingApprovals.set(actionId, {
+    actionId,
+    userId: String(userId),
+    workspaceId: String(workspaceId),
+    chatAgentId: String(chatAgentId),
+    type: prepared.type,
+    payload: prepared.payload,
+    display,
+    expiresAt,
+    status: 'pending',
+  });
+  return { actionId, expiresAt, action: display };
+}
+
+function pendingWorkspaceToolApprovalViews(pendingApprovals, { userId, workspaceId, chatAgentId }) {
+  pruneWorkspaceToolApprovals(pendingApprovals);
+  const views = [];
+  for (const approval of pendingApprovals.values()) {
+    if (approval.status !== 'pending'
+        || approval.userId !== String(userId)
+        || approval.workspaceId !== String(workspaceId)
+        || approval.chatAgentId !== String(chatAgentId)) continue;
+    views.push({ actionId: approval.actionId, expiresAt: approval.expiresAt, action: approval.display });
+  }
+  return views.slice(-20);
+}
+
+function workspaceToolFailureMessage(error) {
+  const code = error instanceof WorkspaceToolError ? error.code : '';
+  const messages = {
+    workspace_unavailable: 'I could not access your active workspace, so nothing was changed.',
+    agent_not_found: 'I could not find that agent in your workspace, so nothing was changed.',
+    agent_name_conflict: 'An agent with that name already exists. Choose a different name.',
+    workspace_tool_no_change: 'That workspace name is already set; nothing needed changing.',
+    invalid_agent_name: 'The proposed agent name is invalid. Nothing was changed.',
+    invalid_agent_role: 'The proposed agent role is invalid. Nothing was changed.',
+    invalid_agent_avatar: 'That avatar is not available. Nothing was changed.',
+    invalid_agent_color: 'That color is not available. Nothing was changed.',
+    invalid_approval_path: 'That approval path is not available. Nothing was changed.',
+    invalid_order_cap: 'The proposed per-order cap is outside the allowed range. Nothing was changed.',
+    invalid_daily_spend_cap: 'The proposed daily cap is outside the allowed range. Nothing was changed.',
+    invalid_apps: 'One or more proposed apps are not available. Nothing was changed.',
+    invalid_memory_pills: 'The proposed memory preferences are invalid. Nothing was changed.',
+    invalid_workspace_name: 'The proposed workspace name is invalid. Nothing was changed.',
+  };
+  return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
+}
+
+async function handleWorkspaceToolApprovalRequest(req, res, {
+  user,
+  workspaceService,
+  aiChatHistoryService,
+  pendingApprovals,
+}) {
+  let body;
+  try { body = await readJsonBody(req, 4096); }
+  catch { sendJson(res, 400, { error: 'workspace_tool_approval_invalid' }); return; }
+  if (Object.keys(body).some((key) => !['actionId', 'decision'].includes(key))
+      || typeof body.actionId !== 'string' || !/^[A-Za-z0-9_-]{32,64}$/.test(body.actionId)
+      || !['approve', 'reject'].includes(body.decision)) {
+    sendJson(res, 400, { error: 'workspace_tool_approval_invalid' });
+    return;
+  }
+  const approval = pendingApprovals.get(body.actionId);
+  if (!approval || approval.userId !== String(user.id)) {
+    sendJson(res, 404, { error: 'workspace_tool_approval_not_found' });
+    return;
+  }
+  if (approval.expiresAt <= Date.now()) {
+    pendingApprovals.delete(body.actionId);
+    sendJson(res, 410, { error: 'workspace_tool_approval_expired' });
+    return;
+  }
+  if (approval.status === 'completed') {
+    if (approval.decision === body.decision) sendJson(res, 200, approval.result);
+    else sendJson(res, 409, { error: 'workspace_tool_approval_already_used' });
+    return;
+  }
+  if (approval.status === 'processing') {
+    sendJson(res, 409, { error: 'workspace_tool_approval_processing' });
+    return;
+  }
+  approval.status = 'processing';
+  approval.decision = body.decision;
+  try {
+    let message;
+    if (body.decision === 'reject') {
+      message = 'Cancelled the proposed change. Nothing was changed.';
+    } else {
+      const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+      const workspace = bootstrap?.workspace;
+      if (!workspace || workspace.id !== approval.workspaceId || workspace.status !== 'active') {
+        throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+      }
+      const currentAgents = Array.isArray(bootstrap.agents) ? [...bootstrap.agents] : [];
+      if (bootstrap.onboarding?.agent && !currentAgents.some((agent) => agent?.id === bootstrap.onboarding.agent.id)) {
+        currentAgents.push(bootstrap.onboarding.agent);
+      }
+      if (!currentAgents.some((agent) => String(agent?.id) === approval.chatAgentId && agent.status !== 'archived')) {
+        throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+      }
+      if (approval.type === 'create_agent') {
+        const input = approval.payload?.input;
+        const duplicate = currentAgents.some((agent) => String(agent?.name || '').trim().toLowerCase() === String(input?.name || '').toLowerCase());
+        if (duplicate) throw new WorkspaceError('agent_name_conflict', 409);
+        await workspaceService.createAgent({ userId: user.id, input });
+        message = `Created “${String(input.name).slice(0, 80)}”. The agent is paused and preview-only.`;
+      } else if (approval.type === 'update_agent') {
+        const agent = currentAgents.find((entry) => String(entry?.id) === String(approval.payload?.agentId));
+        if (!agent || workspaceAgentFingerprint(agent) !== approval.payload?.expectedFingerprint) {
+          throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+        }
+        await workspaceService.updateAgent({ userId: user.id, agentId: agent.id, input: approval.payload.input });
+        message = `Updated “${String(agent.name || '').slice(0, 80)}”.`;
+      } else if (approval.type === 'rename_workspace') {
+        if (workspaceNameFingerprint(workspace) !== approval.payload?.expectedFingerprint) {
+          throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+        }
+        await workspaceService.updateWorkspaceName({ userId: user.id, name: approval.payload.name });
+        message = `Renamed the workspace to “${String(approval.payload.name).slice(0, 100)}”.`;
+      } else {
+        throw new WorkspaceError('workspace_tool_not_allowed', 400);
+      }
+    }
+
+    const historyUserMessage = `${body.decision === 'approve' ? 'Approved' : 'Declined'} workspace change: ${approval.display.summary}`.slice(0, 800);
+    const result = {
+      actionId: approval.actionId,
+      status: body.decision === 'approve' ? 'approved' : 'rejected',
+      message,
+      historyUserMessage,
+    };
+    approval.status = 'completed';
+    approval.result = result;
+    approval.completedAt = Date.now();
+    try {
+      await aiChatHistoryService.appendExchange({
+        workspaceId: approval.workspaceId,
+        userId: user.id,
+        agentId: approval.chatAgentId,
+        userMessage: historyUserMessage,
+        assistantMessage: message,
+      });
+    } catch (error) {
+      console.error('Workspace tool approval history persistence failed:', JSON.stringify({ error: error?.name || 'Error' }));
+    }
+    sendJson(res, 200, result);
+  } catch (error) {
+    const stale = error instanceof WorkspaceError && error.code === 'workspace_tool_proposal_stale';
+    const duplicate = error instanceof WorkspaceError && error.code === 'agent_name_conflict';
+    const message = stale
+      ? 'This proposal is out of date. Nothing was changed; ask the agent to prepare it again.'
+      : duplicate
+        ? 'An agent with that name already exists. Nothing was changed.'
+        : 'The change could not be applied. Nothing was changed; review the workspace and try again.';
+    const result = { actionId: approval.actionId, status: stale ? 'stale' : 'failed', message };
+    approval.status = 'completed';
+    approval.result = result;
+    approval.completedAt = Date.now();
+    sendJson(res, 200, result);
+  }
 }
 
 function requestOrigin(req) {
@@ -635,6 +832,64 @@ function adminChatErrorDiagnostics(config, user, requestId, error) {
   };
 }
 
+function createWorkspaceToolStreamGate(onText) {
+  const markerPrefix = '[[KEUS_WORKSPACE_TOOL:';
+  let pending = '';
+  let visibleText = '';
+  let markerDetected = false;
+  const emit = async (text) => {
+    if (!text) return;
+    visibleText += text;
+    await onText(text);
+  };
+  const suffixPrefixLength = (value) => {
+    const limit = Math.min(value.length, markerPrefix.length - 1);
+    for (let length = limit; length > 0; length -= 1) {
+      if (value.endsWith(markerPrefix.slice(0, length))) return length;
+    }
+    return 0;
+  };
+  return {
+    async push(value) {
+      const text = typeof value === 'string' ? value : '';
+      if (!text) return;
+      if (markerDetected) {
+        pending += text;
+        return;
+      }
+      pending += text;
+      const markerIndex = pending.indexOf(markerPrefix);
+      if (markerIndex >= 0) {
+        const preceding = pending.slice(0, markerIndex);
+        if (visibleText || preceding.trim()) await emit(preceding);
+        pending = pending.slice(markerIndex);
+        markerDetected = true;
+        return;
+      }
+      const holdLength = suffixPrefixLength(pending);
+      const safeLength = pending.length - holdLength;
+      if (!safeLength) return;
+      const safeText = pending.slice(0, safeLength);
+      if (visibleText || safeText.trim()) {
+        pending = pending.slice(safeLength);
+        await emit(safeText);
+      }
+    },
+    async flush() {
+      if (markerDetected || !pending) return;
+      if (suffixPrefixLength(pending) > 0) {
+        markerDetected = true;
+        return;
+      }
+      const remaining = pending;
+      pending = '';
+      if (visibleText || remaining.trim()) await emit(remaining);
+    },
+    visibleText() { return visibleText; },
+    hasMarkerCandidate() { return markerDetected || suffixPrefixLength(pending) > 0; },
+  };
+}
+
 async function handleDesktopAiChatRequest(req, res, url, {
   config,
   authService,
@@ -644,14 +899,16 @@ async function handleDesktopAiChatRequest(req, res, url, {
   aiProviderService,
   usageService,
   rateWindows,
+  pendingToolApprovals,
 }) {
   const statusRoute = url.pathname === '/api/chat/status';
   const historyRoute = url.pathname === '/api/chat/history';
   const modelCatalogRoute = url.pathname === '/api/chat/models';
+  const toolApprovalRoute = url.pathname === '/api/chat/tool-approval';
   const chatRoute = url.pathname === '/api/chat';
   const streamingRequest = chatRoute && String(req.headers.accept || '').split(',')
     .some((entry) => /^\s*text\/event-stream(?:\s*;|\s*$)/i.test(entry));
-  if (!statusRoute && !historyRoute && !modelCatalogRoute && !chatRoute) return false;
+  if (!statusRoute && !historyRoute && !modelCatalogRoute && !toolApprovalRoute && !chatRoute) return false;
 
   const expectedMethod = statusRoute || historyRoute || modelCatalogRoute ? 'GET' : 'POST';
   if (req.method !== expectedMethod) {
@@ -659,7 +916,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     sendJson(res, 405, { error: 'method_not_allowed' });
     return true;
   }
-  if (chatRoute || ((historyRoute || modelCatalogRoute) && requestOrigin(req).present)) {
+  if (chatRoute || toolApprovalRoute || ((historyRoute || modelCatalogRoute) && requestOrigin(req).present)) {
     try { requireSameOrigin(req); } catch (error) {
       sendJson(res, error.status || 403, { error: error.code || 'same_origin_required' });
       return true;
@@ -768,6 +1025,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
   }
 
   if (!enabledForAdmin || !workspaceService || !aiChatHistoryService
+      || !(pendingToolApprovals instanceof Map)
+      || typeof aiChatService.complete !== 'function'
       || (streamingRequest && typeof aiChatService.stream !== 'function')) {
     sendJson(res, 503, { error: 'ai_chat_unavailable' });
     return true;
@@ -799,7 +1058,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
       const agentId = agentIdFromUrl();
       const { workspace } = await loadOwnedAgent(agentId);
       const history = await aiChatHistoryService.getHistory({ workspaceId: workspace.id, userId: user.id, agentId });
-      sendJson(res, 200, { messages: history.messages });
+      const pendingActions = pendingWorkspaceToolApprovalViews(pendingToolApprovals, {
+        userId: user.id, workspaceId: workspace.id, chatAgentId: agentId,
+      });
+      sendJson(res, 200, { messages: history.messages, pendingActions });
     } catch (error) {
       if (error instanceof RequestError) {
         sendJson(res, error.status, { error: error.code });
@@ -814,6 +1076,13 @@ async function handleDesktopAiChatRequest(req, res, url, {
         });
       }
     }
+    return true;
+  }
+
+  if (toolApprovalRoute) {
+    await handleWorkspaceToolApprovalRequest(req, res, {
+      user, workspaceService, aiChatHistoryService, pendingApprovals: pendingToolApprovals,
+    });
     return true;
   }
 
@@ -833,6 +1102,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
   let streamAvatarCueCount = 0;
   let streamAvatarEmotionCount = 0;
   let streamHistoryAttempted = false;
+  let streamHistoryPersisted = false;
+  let pendingApprovalView = null;
+  let streamWorkspaceGate = null;
   let workspace = null;
   let agent = null;
   let agentId = '';
@@ -843,9 +1115,13 @@ async function handleDesktopAiChatRequest(req, res, url, {
   try {
     consumeAiChatRateLimit(rateWindows, String(user.id || ''));
     const input = await readJsonBody(req, 16 * 1024);
-    if (Object.keys(input).some((key) => !['agentId', 'message', 'providerKey', 'modelId'].includes(key))) {
+    if (Object.keys(input).some((key) => !['agentId', 'message', 'providerKey', 'modelId', 'agentMode'].includes(key))) {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
+    if (input.agentMode !== undefined && typeof input.agentMode !== 'boolean') {
+      throw new RequestError('ai_chat_request_invalid', 400);
+    }
+    // Older clients may still send agentMode; the workspace agent is always enabled regardless of its value.
     if (input.providerKey !== undefined) {
       if (typeof input.providerKey !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(input.providerKey.trim())) {
         throw new AiProviderError('ai_provider_key_invalid');
@@ -887,7 +1163,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + 600;
-    const estimatedTokens = Math.ceil((messageCharacters + profileCharacters) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
+    const estimatedTokens = Math.ceil((messageCharacters + profileCharacters + 1_000) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
     idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
       workspaceId: workspace.id,
@@ -921,13 +1197,15 @@ async function handleDesktopAiChatRequest(req, res, url, {
           streamAvatarEmotionCount += 1;
           await writeSseEvent(res, 'avatar_cue', { avatar: 'emotion', cue: requestedMoodCue }, streamController.signal);
         }
-        streamCompletion = await aiChatService.stream({
+        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => writeSseEvent(res, 'delta', { text }, streamController.signal));
+        const completion = await aiChatService.stream({
           agent,
           messages,
+          workspaceTools: true,
           ...(requestProviderKey ? { providerKey: requestProviderKey } : {}),
           ...(requestModelId ? { modelId: requestModelId } : {}),
           signal: streamController.signal,
-          onDelta: (text) => writeSseEvent(res, 'delta', { text }, streamController.signal),
+          onDelta: (text) => streamWorkspaceGate.push(text),
           onAvatarCue: (cue) => {
             const isScoutCue = String(agent?.avatar || '').trim().toLowerCase() === 'magnifier'
               && AI_CHAT_AVATAR_CUES.includes(cue);
@@ -943,6 +1221,60 @@ async function handleDesktopAiChatRequest(req, res, url, {
             }, streamController.signal);
           },
         });
+        await streamWorkspaceGate.flush();
+        const parsedToolCall = parseWorkspaceToolCall(completion.text);
+        const toolCall = parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
+          ? { kind: 'invalid' }
+          : parsedToolCall;
+        const safePrefix = streamWorkspaceGate.visibleText();
+        let visibleReply = typeof completion.text === 'string' ? completion.text : '';
+        streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
+        if (toolCall.kind === 'invalid') {
+          visibleReply = safePrefix.trim()
+            ? safePrefix
+            : 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
+          streamCompletion = { ...completion, text: visibleReply };
+          if (!safePrefix.trim()) await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
+        } else if (toolCall.kind === 'tool') {
+          visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
+          streamCompletion = { ...completion, text: visibleReply };
+          const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+          let prepared;
+          if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
+            visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
+          } else {
+            try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); }
+            catch (error) {
+              if (!(error instanceof WorkspaceToolError)) throw error;
+              visibleReply = workspaceToolFailureMessage(error);
+            }
+          }
+          if (prepared?.kind === 'read') {
+            visibleReply = prepared.text;
+          } else if (prepared?.kind === 'proposal') {
+            pendingApprovalView = createPendingWorkspaceToolApproval(pendingToolApprovals, {
+              userId: user.id,
+              workspaceId: workspace.id,
+              chatAgentId: agentId,
+              prepared,
+            });
+            visibleReply = 'I prepared a workspace change for your review. Nothing will be changed unless you approve it below.';
+          }
+          if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
+          streamCompletion = { ...completion, text: visibleReply };
+          await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
+        } else {
+          if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
+          streamCompletion = { ...completion, text: visibleReply };
+          const alreadySent = streamWorkspaceGate.visibleText();
+          if (visibleReply.startsWith(alreadySent)) {
+            const remainder = visibleReply.slice(alreadySent.length);
+            if (remainder) await writeSseEvent(res, 'delta', { text: remainder }, streamController.signal);
+          } else if (!alreadySent.trim()) {
+            await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
+          }
+        }
+        streamCompletion = { ...completion, text: visibleReply };
         if (streamCompletion.fallbackUsed === true) {
           const fallbackAttempts = Number.isSafeInteger(streamCompletion.fallbackAttempts) ? streamCompletion.fallbackAttempts : 0;
           console.info('Desktop AI chat used an approved fallback:', JSON.stringify({ requestId, fallbackAttempts }));
@@ -964,6 +1296,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
           userMessage: newUserMessage.content,
           assistantMessage: streamCompletion.text,
         });
+        streamHistoryPersisted = true;
+        if (pendingApprovalView) {
+          await writeSseEvent(res, 'tool_approval_required', pendingApprovalView, streamController.signal);
+        }
         const attribution = adminProviderAttribution(config, user, streamCompletion);
         await writeSseEvent(res, 'done', { requestId, ...(attribution ? { attribution } : {}) }, streamController.signal);
         res.end();
@@ -979,13 +1315,45 @@ async function handleDesktopAiChatRequest(req, res, url, {
       completion = await aiChatService.complete({
         agent,
         messages,
+        workspaceTools: true,
         ...(requestProviderKey ? { providerKey: requestProviderKey } : {}),
         ...(requestModelId ? { modelId: requestModelId } : {}),
       });
     } catch (error) {
-      try { await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey }); } catch {}
+      try {
+        await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey });
+        tokenReservationHeld = false;
+      } catch {}
       throw error;
     }
+
+    const toolCall = parseWorkspaceToolCall(completion.text);
+    let visibleReply = typeof completion.text === 'string' ? completion.text : '';
+    let preparedWorkspaceProposal = null;
+    if (toolCall.kind === 'invalid') {
+      visibleReply = 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
+    } else if (toolCall.kind === 'tool') {
+      visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
+      const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+      if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
+        visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
+      } else {
+        let prepared;
+        try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); }
+        catch (error) {
+          if (!(error instanceof WorkspaceToolError)) throw error;
+          visibleReply = workspaceToolFailureMessage(error);
+        }
+        if (prepared?.kind === 'read') {
+          visibleReply = prepared.text;
+        } else if (prepared?.kind === 'proposal') {
+          preparedWorkspaceProposal = { workspaceId: workspace.id, prepared };
+          visibleReply = 'I prepared a workspace change for your review. Nothing will be changed unless you approve it.';
+        }
+      }
+    }
+    if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
+    completion = { ...completion, text: visibleReply };
 
     try {
       await usageService.settleTokenReservation({
@@ -996,6 +1364,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         inputTokens: completion.inputTokens,
         outputTokens: completion.outputTokens,
       });
+      tokenReservationHeld = false;
     } catch (error) {
       console.error('AI chat usage settlement failed:', JSON.stringify({ requestId, error: error?.name || 'Error' }));
       sendJson(res, 503, { error: 'ai_chat_unavailable', requestId });
@@ -1006,6 +1375,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
       const fallbackAttempts = Number.isSafeInteger(completion.fallbackAttempts) ? completion.fallbackAttempts : 0;
       console.info('Desktop AI chat used an approved fallback:', JSON.stringify({ requestId, fallbackAttempts }));
     }
+    if (preparedWorkspaceProposal) {
+      pendingApprovalView = createPendingWorkspaceToolApproval(pendingToolApprovals, {
+        userId: user.id,
+        workspaceId: preparedWorkspaceProposal.workspaceId,
+        chatAgentId: agentId,
+        prepared: preparedWorkspaceProposal.prepared,
+      });
+    }
     await aiChatHistoryService.appendExchange({
       workspaceId: workspace.id,
       userId: user.id,
@@ -1013,8 +1390,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
       userMessage: newUserMessage.content,
       assistantMessage: completion.text,
     });
+    streamHistoryPersisted = true;
     const attribution = adminProviderAttribution(config, user, completion);
-    sendJson(res, 200, { reply: completion.text, requestId, ...(attribution ? { attribution } : {}) });
+    sendJson(res, 200, {
+      reply: completion.text,
+      requestId,
+      ...(attribution ? { attribution } : {}),
+      ...(pendingApprovalView ? { pendingAction: pendingApprovalView } : {}),
+    });
   } catch (error) {
     const safeCode = error instanceof UsageLimitError || error instanceof UsageReservationError
       || error instanceof RequestError || error instanceof AiProviderError || error instanceof AiChatHistoryError
@@ -1036,11 +1419,28 @@ async function handleDesktopAiChatRequest(req, res, url, {
       ...(fallbackAttempts !== undefined ? { fallbackAttempts } : {}),
     }));
 
+    if (!streamingRequest && tokenReservationHeld && workspace && idempotencyKey) {
+      try {
+        await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey });
+        tokenReservationHeld = false;
+      } catch (releaseError) {
+        console.error('AI chat usage reservation release failed:', JSON.stringify({ requestId, error: releaseError?.name || 'Error' }));
+      }
+    }
+    if (pendingApprovalView && !streamHistoryPersisted) pendingToolApprovals.delete(pendingApprovalView.actionId);
     if (streamingRequest && streamResponseStarted) {
       const partialCompletion = error?.partialCompletion && typeof error.partialCompletion === 'object'
         ? error.partialCompletion
         : null;
-      const completionToSave = streamCompletion || partialCompletion;
+      let completionToSave = streamCompletion || partialCompletion;
+      if (!streamCompletion && partialCompletion && streamWorkspaceGate
+          && (streamWorkspaceGate.hasMarkerCandidate() || parseWorkspaceToolCall(partialCompletion.text).kind !== 'none')) {
+        const safePrefix = streamWorkspaceGate.visibleText();
+        completionToSave = {
+          ...partialCompletion,
+          text: safePrefix.trim() ? safePrefix : 'I could not safely interpret that workspace operation, so nothing was changed. Please try again.',
+        };
+      }
       let streamFailure = error;
 
       if (tokenReservationHeld && completionToSave) {
@@ -1548,6 +1948,7 @@ export function createServer({
     workosAuth,
   };
   const aiChatRateWindows = new Map();
+  const aiChatPendingToolApprovals = new Map();
 
   return http.createServer((req, res) => {
     void (async () => {
@@ -1685,7 +2086,7 @@ export function createServer({
         if (handled) return;
       }
 
-      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status' || url.pathname === '/api/chat/history' || url.pathname === '/api/chat/models') {
+      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status' || url.pathname === '/api/chat/history' || url.pathname === '/api/chat/models' || url.pathname === '/api/chat/tool-approval') {
         await handleDesktopAiChatRequest(req, res, url, {
           config: activeConfig,
           authService,
@@ -1695,6 +2096,7 @@ export function createServer({
           aiProviderService,
           usageService,
           rateWindows: aiChatRateWindows,
+          pendingToolApprovals: aiChatPendingToolApprovals,
         });
         return;
       }
