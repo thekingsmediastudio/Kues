@@ -34,6 +34,11 @@ test('desktop chat progressively renders answers, removes the completed progress
   assert.match(desktopHtml, /chat-streaming \.chat-answer-text::after/);
   assert.match(desktopHtml, /function playScoutAvatarCue\(cue, requestAgentId\)/);
   assert.match(desktopHtml, /function playAvatarEmotion\(cue, requestAgentId, replyRow\)/);
+  assert.match(desktopHtml, /function launchAvatarMoodIcon\(svg, cue\)/);
+  assert.match(desktopHtml, /launchAvatarMoodIcon\(replyAvatar, cue\)/);
+  assert.match(desktopHtml, /\.avatar-mood-burst \{ position:fixed; z-index:9999/);
+  assert.match(desktopHtml, /@keyframes avatarMoodBurstLift/);
+  assert.match(desktopHtml, /\.avatar-mood-burst-static \{ animation:avatarMoodBurstFade 650ms/);
   assert.match(desktopHtml, /payload\?\.avatar === 'emotion'/);
   assert.match(desktopHtml, /playAvatarEmotion\(payload\.cue, requestAgentId, assistantRow \|\| pendingRow\)/);
   assert.match(desktopHtml, /\.agent-avatar-art\.avatar-mood-curious/);
@@ -114,7 +119,7 @@ test('pending assistant messages render three decorative bouncing dots and an ac
 });
 
 
-test('allowlisted mood cues animate the reply, sidebar, and header avatars with fixed local classes', () => {
+test('allowlisted mood cues animate only the avatar attached to the message', () => {
   const start = desktopHtml.indexOf('  function runAvatarEmotionQueue');
   const end = desktopHtml.indexOf('  function setChatLiveStatus', start);
   assert.ok(start >= 0 && end > start);
@@ -137,10 +142,7 @@ test('allowlisted mood cues animate the reply, sidebar, and header avatars with 
   const sidebarAvatar = makeAvatar();
   const headerAvatar = makeAvatar();
   const document = {
-    getElementById(id) {
-      const avatar = id === 'savedAgentAvatar' ? sidebarAvatar.svg : id === 'hdrAvatar' ? headerAvatar.svg : null;
-      return avatar ? { querySelector(selector) { assert.equal(selector, '.agent-avatar-art'); return avatar; } } : null;
-    },
+    getElementById(id) { throw new Error(`Mood cues must not look up non-message avatar ${id}`); },
   };
   const timers = [];
   let reducedMotion = false;
@@ -149,7 +151,8 @@ test('allowlisted mood cues animate the reply, sidebar, and header avatars with 
     setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; },
   };
   const selectedAgent = { id: 'agent-1', avatar: 'bulb' };
-  const playAvatarEmotion = new Function('window', 'document', 'findSelectedChatAgent', 'emotionDurations', `
+  const launchedIcons = [];
+  const playAvatarEmotion = new Function('window', 'document', 'findSelectedChatAgent', 'emotionDurations', 'launchAvatarMoodIcon', `
     const AVATAR_EMOTION_DURATIONS = emotionDurations;
     const AVATAR_EMOTION_IDS = new Set(Object.keys(AVATAR_EMOTION_DURATIONS));
     const AVATAR_EMOTION_CLASSES = Object.keys(AVATAR_EMOTION_DURATIONS).map((cue) => 'avatar-mood-' + cue);
@@ -159,29 +162,128 @@ test('allowlisted mood cues animate the reply, sidebar, and header avatars with 
     return playAvatarEmotion;
   `)(window, document, () => selectedAgent, {
     happy: 1280, curious: 1200, thoughtful: 1300, empathetic: 1200, excited: 1300, concerned: 1100,
-  });
+  }, (svg, cue) => launchedIcons.push({ svg, cue }));
   const row = {
     querySelector(selector) {
       assert.equal(selector, '.chat-reply-avatar .agent-avatar-art');
       return replyAvatar.svg;
     },
   };
-  const targets = [replyAvatar, sidebarAvatar, headerAvatar];
   playAvatarEmotion('curious', 'agent-1', row);
-  assert.ok(targets.every(({ classes }) => classes.has('avatar-mood-curious')));
-  assert.deepEqual(timers.map((timer) => timer.delay), [1280, 1280, 1280]);
-  timers.slice(0, 3).forEach(({ callback }) => callback());
-  assert.ok(targets.every(({ classes }) => !classes.has('avatar-mood-curious')));
+  assert.equal(launchedIcons.length, 1);
+  assert.equal(launchedIcons[0].svg, replyAvatar.svg);
+  assert.equal(launchedIcons[0].cue, 'curious');
+  assert.ok(replyAvatar.classes.has('avatar-mood-curious'));
+  assert.equal(sidebarAvatar.classes.size, 0);
+  assert.equal(headerAvatar.classes.size, 0);
+  assert.deepEqual(timers.map((timer) => timer.delay), [1280]);
+  timers[0].callback();
+  assert.equal(replyAvatar.classes.size, 0);
   reducedMotion = true;
   playAvatarEmotion('excited', 'agent-1', row);
-  assert.ok(targets.every(({ classes }) => classes.has('avatar-mood-excited')));
-  assert.deepEqual(timers.slice(3).map((timer) => timer.delay), [850, 850, 850]);
-  timers.slice(3).forEach(({ callback }) => callback());
-  assert.ok(targets.every(({ classes }) => classes.size === 0));
+  assert.equal(launchedIcons.length, 2);
+  assert.equal(launchedIcons[1].cue, 'excited');
+  assert.ok(replyAvatar.classes.has('avatar-mood-excited'));
+  assert.equal(sidebarAvatar.classes.size, 0);
+  assert.equal(headerAvatar.classes.size, 0);
+  assert.deepEqual(timers.slice(1).map((timer) => timer.delay), [850]);
+  timers[1].callback();
+  assert.equal(replyAvatar.classes.size, 0);
+  playAvatarEmotion('happy', 'agent-1', null);
   playAvatarEmotion('not-allowlisted', 'agent-1', row);
   playAvatarEmotion('happy', 'different-agent', row);
-  assert.ok(targets.every(({ classes }) => classes.size === 0));
-  assert.equal(timers.length, 6, 'invalid or stale cues do not animate');
+  assert.equal(launchedIcons.length, 2, 'missing, invalid, or stale message cues do not animate');
+  assert.equal(timers.length, 2, 'only the message avatar receives an animation timer');
+});
+
+test('mood SVG follows the bouncing avatar as it rises and fades, with a reduced-motion static fallback', () => {
+  const iconsStart = desktopHtml.indexOf('  const AVATAR_EMOTION_ICON_SVGS = Object.freeze({');
+  const iconsClose = desktopHtml.indexOf('\n  });', iconsStart);
+  const launchStart = desktopHtml.indexOf('  function launchAvatarMoodIcon', iconsClose);
+  const launchEnd = desktopHtml.indexOf('  function runAvatarEmotionQueue', launchStart);
+  assert.ok(iconsStart >= 0 && iconsClose > iconsStart && launchStart > iconsClose && launchEnd > launchStart);
+  const iconsSource = desktopHtml.slice(iconsStart, iconsClose + 6);
+  const launchSource = desktopHtml.slice(launchStart, launchEnd);
+  const created = [];
+  const removedTimers = [];
+  const document = {
+    documentElement: { clientWidth: 800, clientHeight: 600 },
+    body: { children: [], append(node) { this.children.push(node); } },
+    createElement(tag) {
+      assert.equal(tag, 'div');
+      const node = {
+        attributes: {},
+        removed: false,
+        style: { values: {}, setProperty(name, value) { this.values[name] = String(value); } },
+        setAttribute(name, value) { this.attributes[name] = String(value); },
+        remove() {
+          this.removed = true;
+          const index = document.body.children.indexOf(this);
+          if (index >= 0) document.body.children.splice(index, 1);
+        },
+      };
+      created.push(node);
+      return node;
+    },
+  };
+  let reducedMotion = false;
+  let currentRect = { left: 40, top: 60, width: 40, height: 40 };
+  let frameCallback = null;
+  let frameId = 0;
+  const cancelledFrames = [];
+  const timers = [];
+  const window = {
+    matchMedia() { return { matches: reducedMotion }; },
+    setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; },
+    clearTimeout(id) { removedTimers.push(id); },
+    requestAnimationFrame(callback) { frameCallback = callback; frameId += 1; return frameId; },
+    cancelAnimationFrame(id) { cancelledFrames.push(id); },
+  };
+  const launch = new Function('window', 'document', `
+    ${iconsSource}
+    let activeAvatarMoodBurst = null;
+    let activeAvatarMoodBurstTimer = null;
+    let activeAvatarMoodBurstFrame = null;
+    ${launchSource}
+    return { launchAvatarMoodIcon, AVATAR_EMOTION_ICON_SVGS };
+  `)(window, document);
+  assert.deepEqual(Object.keys(launch.AVATAR_EMOTION_ICON_SVGS), [
+    'happy', 'curious', 'thoughtful', 'empathetic', 'excited', 'concerned',
+  ]);
+  const avatar = { getBoundingClientRect: () => currentRect };
+  launch.launchAvatarMoodIcon(avatar, 'excited');
+  const flying = created[0];
+  assert.equal(flying.className, 'avatar-mood-burst');
+  assert.equal(flying.attributes['aria-hidden'], 'true');
+  assert.match(flying.innerHTML, /^<svg /);
+  assert.equal(flying.style.left, '42px');
+  assert.equal(flying.style.top, '62px');
+  assert.equal(flying.style.values['--mood-drift-mid-x'], '3px');
+  assert.equal(flying.style.values['--mood-rise-mid-y'], '-14px');
+  assert.equal(flying.style.values['--mood-drift-x'], '8px');
+  assert.equal(flying.style.values['--mood-rise-y'], '-38px');
+  assert.equal(flying.style.values['--mood-flight-x'], undefined, 'the icon stays beside the avatar rather than crossing to screen center');
+  assert.equal(timers[0].delay, 1040);
+  currentRect = { left: 44, top: 59, width: 40, height: 40 };
+  frameCallback();
+  assert.equal(flying.style.left, '46px', 'the burst follows the animated avatar horizontally');
+  assert.equal(flying.style.top, '61px', 'the burst follows the animated avatar vertically');
+  timers[0].callback();
+  assert.deepEqual(cancelledFrames, [2], 'avatar-follow animation is cleaned up when the burst fades');
+  assert.equal(flying.removed, true);
+  assert.equal(document.body.children.length, 0);
+
+  reducedMotion = true;
+  launch.launchAvatarMoodIcon(avatar, 'happy');
+  const staticIcon = created[1];
+  assert.equal(staticIcon.className, 'avatar-mood-burst avatar-mood-burst-static');
+  assert.equal(staticIcon.style.values['--mood-rise-y'], undefined, 'reduced motion keeps the icon still');
+  assert.equal(timers[1].delay, 650);
+  timers[1].callback();
+  assert.equal(staticIcon.removed, true);
+  assert.equal(removedTimers.length, 0);
+  launch.launchAvatarMoodIcon(avatar, 'unsupported');
+  assert.equal(created.length, 2, 'unallowlisted cues cannot create SVG overlays');
 });
 
 test('assistant Markdown renders common blocks safely and rejects executable links or raw HTML', () => {
