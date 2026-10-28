@@ -12,7 +12,7 @@ import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
 import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
 import { AiProviderError, createAiProviderService } from './lib/ai-providers/service.mjs';
 import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-providers/history.mjs';
-import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
+import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
 import { WorkOS } from '@workos-inc/node';
@@ -84,6 +84,12 @@ function writeSseEvent(res, event, payload, signal) {
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) onAbort();
   });
+}
+
+function explicitAvatarEmotionCue(message) {
+  const word = String(message || '').normalize('NFKC').trim().toLowerCase().replace(/[.!?]+$/, '');
+  if (!/^[a-z_]{1,32}$/.test(word)) return null;
+  return normalizeAiChatAvatarEmotionCue(word);
 }
 
 function requestOrigin(req) {
@@ -909,6 +915,12 @@ async function handleDesktopAiChatRequest(req, res, url, {
       });
       res.flushHeaders?.();
       try {
+        const requestedMoodCue = explicitAvatarEmotionCue(newUserMessage?.content);
+        if (requestedMoodCue) {
+          streamAvatarCueCount += 1;
+          streamAvatarEmotionCount += 1;
+          await writeSseEvent(res, 'avatar_cue', { avatar: 'emotion', cue: requestedMoodCue }, streamController.signal);
+        }
         streamCompletion = await aiChatService.stream({
           agent,
           messages,
