@@ -541,36 +541,28 @@
     overflow-wrap: anywhere;
   }
   .msg-text strong { color: #fff; font-weight: 600; }
-  .chat-progress { width:fit-content; max-width:min(100%,360px); margin:0 0 10px; color:var(--text-sec); }
-  .chat-progress summary { box-sizing:border-box; display:inline-flex; align-items:center; gap:9px; min-height:30px; padding:6px 10px; border:1px solid rgba(255,255,255,.09); border-radius:999px; background:rgba(255,255,255,.035); cursor:pointer; list-style:none; color:var(--text-sec); font-size:12px; line-height:1; transition:background .16s ease,border-color .16s ease; }
-  .chat-progress summary::-webkit-details-marker { display:none; }
-  .chat-progress summary::before { content:''; display:block; flex:0 0 6px; width:6px; height:6px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; color:var(--text-dim); transform:rotate(-45deg); transition:transform .16s ease; }
-  .chat-progress:not([open]) summary:hover { border-color:rgba(255,255,255,.16); background:rgba(255,255,255,.055); }
-  .chat-progress[open] { display:block; width:min(100%,340px); max-width:100%; overflow:hidden; border:1px solid rgba(255,255,255,.09); border-radius:12px; background:linear-gradient(145deg,rgba(28,30,35,.92),rgba(19,20,24,.94)); box-shadow:inset 0 1px 0 rgba(255,255,255,.025); }
-  .chat-progress[open] summary { display:flex; width:100%; min-height:35px; padding:8px 11px; border:0; border-bottom:1px solid rgba(255,255,255,.065); border-radius:0; background:rgba(255,255,255,.018); }
-  .chat-progress[open] summary::before { transform:rotate(45deg); }
-  .chat-progress-label { color:#c9cbd1; font-size:12px; font-weight:500; }
-  .chat-progress-steps { position:relative; display:grid; gap:0; margin:0; padding:7px 13px 9px; list-style:none; }
-  .chat-progress-steps::before { content:''; position:absolute; left:19px; top:21px; bottom:23px; width:1px; background:rgba(255,255,255,.11); }
-  .chat-progress-steps li { position:relative; display:flex; align-items:center; gap:10px; min-height:28px; color:rgba(200,202,210,.58); font-size:12px; line-height:1.35; }
-  .chat-progress-steps li::before { content:''; position:relative; z-index:1; left:auto; top:auto; display:block; flex:0 0 12px; width:12px; height:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,.24); border-radius:50%; background:#1b1d21; }
-  .chat-progress-steps li.is-complete { color:rgba(228,233,231,.86); }
-  .chat-progress-steps li.is-complete::before { width:12px; height:12px; border:0; border-radius:0; background:transparent; border-right:1.6px solid #57c98c; border-bottom:1.6px solid #57c98c; transform:scale(.8) rotate(45deg); }
-  .chat-progress-steps li.is-active { color:#eeeadf; }
-  .chat-progress-steps li.is-active::before { border-color:#e9b95d; background:#e9b95d; box-shadow:0 0 0 3px rgba(233,185,93,.12); animation:chatThinkingPulse 1.08s ease-in-out infinite; }
-  .chat-progress-steps li.is-interrupted { color:#e7ae73; }
-  .chat-progress-steps li.is-interrupted::before { content:'!'; width:12px; height:12px; border:1px solid rgba(231,174,115,.55); border-radius:50%; background:rgba(231,174,115,.08); color:#e7ae73; font-size:9px; font-weight:700; line-height:10px; text-align:center; }
-  .chat-thinking-dots { display:inline-flex; align-items:center; gap:3px; margin-left:2px; height:1em; vertical-align:middle; }
-  .chat-thinking-dots[hidden] { display:none !important; }
-  .chat-thinking-dots span { width:4px; height:4px; border-radius:50%; background:currentColor; opacity:.34; animation:chatThinkingPulse 1.08s ease-in-out infinite; }
-  .chat-thinking-dots span:nth-child(2) { animation-delay:.16s; }
-  .chat-thinking-dots span:nth-child(3) { animation-delay:.32s; }
-  @keyframes chatThinkingPulse { 0%,60%,100% { opacity:.3; transform:translateY(0); } 30% { opacity:1; transform:translateY(-3px); } }
+  .chat-provider-attribution { margin-top:8px; color:var(--text-dim); font-size:10.5px; line-height:1.45; overflow-wrap:anywhere; }
+  .chat-live-status { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+  .chat-answer-text { color:inherit; white-space:normal; overflow-wrap:anywhere; }
+  .chat-answer-text p { margin:0 0 .72em; }
+  .chat-answer-text p:last-child { margin-bottom:0; }
+  .chat-answer-text h1,.chat-answer-text h2,.chat-answer-text h3,.chat-answer-text h4,.chat-answer-text h5,.chat-answer-text h6 { margin:.75em 0 .35em; color:var(--text-main); line-height:1.3; font-weight:650; }
+  .chat-answer-text h1 { font-size:1.45em; }.chat-answer-text h2 { font-size:1.3em; }.chat-answer-text h3 { font-size:1.16em; }
+  .chat-answer-text ul,.chat-answer-text ol { margin:.35em 0 .72em 1.15em; padding-left:.55em; }
+  .chat-answer-text li+li { margin-top:.22em; }
+  .chat-answer-text blockquote { margin:.5em 0 .75em; padding:.1em 0 .1em .8em; border-left:2px solid var(--cue-gold); color:var(--text-sec); }
+  .chat-answer-text pre { max-width:100%; margin:.55em 0 .75em; padding:10px 12px; overflow-x:auto; border:1px solid var(--border); border-radius:9px; background:var(--bg-card-inner); white-space:pre; }
+  .chat-answer-text code { padding:.1em .32em; border-radius:4px; background:rgba(255,255,255,.08); color:#f3d69a; font: .92em var(--mono); }
+  .chat-answer-text pre code { padding:0; background:transparent; color:inherit; font:inherit; }
+  .chat-answer-text a { color:var(--cue-blue); text-decoration:underline; text-underline-offset:2px; }
+  .chat-answer-text hr { margin:.8em 0; border:0; border-top:1px solid var(--border-strong); }
+  .chat-answer-text table { display:block; width:max-content; max-width:100%; margin:.5em 0 .75em; overflow-x:auto; border-collapse:collapse; }
+  .chat-answer-text th,.chat-answer-text td { padding:5px 8px; border:1px solid var(--border-strong); text-align:left; vertical-align:top; }
+  .chat-answer-text [data-chat-align="center"] { text-align:center; }.chat-answer-text [data-chat-align="right"] { text-align:right; }
   .chat-streaming .chat-answer-text::after { content:'▍'; display:inline-block; margin-left:2px; color:var(--cue-gold); animation:chatStreamCaret 1s steps(2,start) infinite; }
   @keyframes chatStreamCaret { to { visibility:hidden; } }
   @media (prefers-reduced-motion: reduce) {
-    .chat-thinking-dots span, .chat-progress-steps li.is-active::before, .chat-streaming .chat-answer-text::after { animation:none; }
-    .chat-thinking-dots span { opacity:.72; }
+    .chat-streaming .chat-answer-text::after { animation:none; }
   }
 
   /* =========================================================
@@ -1446,7 +1438,8 @@
   .app-settings-footer{width:calc(100% - 18px);margin:0 9px 8px;padding:10px 12px;justify-content:flex-start;gap:10px;text-align:left;color:var(--text-sec);font:600 11px var(--font)}
   .app-settings-footer:hover{color:var(--text-main);background:rgba(233,185,93,.065);border-color:rgba(233,185,93,.2)}
   .app-settings-icon{width:16px;height:16px;flex:none}
-  .saved-agent-list-row{cursor:default;pointer-events:none}
+  html[data-review-fixture="true"] .saved-agent-list-row{cursor:default;pointer-events:none}
+  html:not([data-review-fixture="true"]) .saved-agent-list-row{cursor:pointer;pointer-events:auto}
   .saved-agent-avatar{width:38px;height:38px;display:grid;place-items:center;flex:none}
   .saved-agent-avatar .agent-avatar-art{width:34px;height:34px;display:block;animation:none}
   .sample-prompt-label{display:inline-block;margin-bottom:5px;color:#e9b95d;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
@@ -1526,7 +1519,93 @@
   .header-agent-avatar{width:42px;height:42px;background:transparent;border:0;border-radius:0}
   .header-agent-avatar .agent-avatar-art{width:41px;height:41px;display:block;animation:none}
   .saved-agent-avatar .agent-avatar-art{width:50px;height:50px;display:block;animation:none}
-  .saved-agent-list-row{cursor:default;pointer-events:none}
+  .agent-avatar-art { transform-box:fill-box; transform-origin:center; }
+  .scout-handle,.scout-lens,.scout-lens-glass,.scout-eyes,.scout-mouth,.scout-cue-mark,.scout-search-reticle,.scout-inspect-ring,.scout-compare-a,.scout-compare-b,.scout-pencil,.scout-organize-row,.scout-verify-check,.scout-explain-bubble,.scout-explain-lines,.scout-clock-hands,.scout-success-star,.scout-recover-arrow { transform-box:fill-box; transform-origin:center; }
+  .scout-cue-mark { opacity:0; }
+  .scout-mark-glyph { fill:#b57cff; font:900 12px/1 sans-serif; text-anchor:middle; dominant-baseline:middle; stroke:#111113; stroke-width:.8px; paint-order:stroke; }
+  .scout-compare-label { fill:#111113; font:900 5px/1 sans-serif; text-anchor:middle; dominant-baseline:middle; }
+  @keyframes scoutCueNotice { 0%,100%{transform:translateY(0) rotate(0)} 24%{transform:translateY(-3px) rotate(-8deg)} 53%{transform:translateY(-1px) rotate(6deg)} }
+  @keyframes scoutCueHandleSearch { 0%,100%{transform:rotate(0)} 28%{transform:rotate(-10deg)} 62%{transform:rotate(8deg)} }
+  @keyframes scoutCueLensInspect { 0%,100%{transform:scale(1);opacity:.22} 44%{transform:scale(1.2);opacity:.48} }
+  @keyframes scoutCueCompare { 0%,100%{transform:translateX(0)} 28%{transform:translateX(-2.2px)} 62%{transform:translateX(2.2px)} }
+  @keyframes scoutCueDraft { 0%,100%{transform:scaleX(1)} 25%,70%{transform:scaleX(1.32)} 45%,88%{transform:scaleX(.82)} }
+  @keyframes scoutCueOrganize { 0%,100%{transform:translateY(0) rotate(0)} 30%{transform:translateY(-2px) rotate(-5deg)} 68%{transform:translateY(1px) rotate(4deg)} }
+  @keyframes scoutCueExplain { 0%,100%{transform:translateY(0) scale(1)} 32%{transform:translateY(-2px) scale(1.06)} 65%{transform:translateY(1px) scale(.98)} }
+  @keyframes scoutCueMarkPop { 0%,100%{opacity:0;transform:scale(.55)} 18%,68%{opacity:1;transform:scale(1)} 28%{transform:scale(1.14)} }
+  @keyframes scoutCueNoticeMark { 0%,100%{opacity:0;transform:scale(.45) rotate(-16deg)} 18%{opacity:1;transform:scale(1.2) rotate(0)} 34%,68%{opacity:1;transform:scale(1)} }
+  @keyframes scoutCueSearchSweep { 0%{opacity:0;transform:translateX(0)} 12%,82%{opacity:1} 56%{transform:translateX(16px)} 100%{opacity:0;transform:translateX(26px)} }
+  @keyframes scoutCueInspectTarget { 0%,100%{opacity:0;transform:scale(.55)} 22%,70%{opacity:1;transform:scale(1)} 45%{transform:scale(1.42)} }
+  @keyframes scoutCueCompareA { 0%,100%{transform:translateX(2px)} 28%,68%{transform:translateX(-1px)} }
+  @keyframes scoutCueCompareB { 0%,100%{transform:translateX(-2px)} 28%,68%{transform:translateX(1px)} }
+  @keyframes scoutCuePencilMove { 0%,100%{transform:rotate(0) translate(0,0)} 30%,65%{transform:rotate(-12deg) translate(-1px,1px)} }
+  @keyframes scoutCueWriteOne { 0%,18%{stroke-dashoffset:11} 48%,100%{stroke-dashoffset:0} }
+  @keyframes scoutCueWriteTwo { 0%,42%{stroke-dashoffset:15} 72%,100%{stroke-dashoffset:0} }
+  @keyframes scoutCueOrganizeRowA { 0%,100%{transform:translateX(-3px)} 30%,72%{transform:translateX(0)} }
+  @keyframes scoutCueOrganizeRowB { 0%,100%{transform:translateX(3px)} 30%,72%{transform:translateX(0)} }
+  @keyframes scoutCueOrganizeRowC { 0%,100%{transform:translateX(-2px)} 30%,72%{transform:translateX(0)} }
+  @keyframes scoutCueVerifyStamp { 0%,100%{opacity:0;transform:scale(1.7) rotate(-12deg)} 18%{opacity:1;transform:scale(.86) rotate(3deg)} 30%,70%{opacity:1;transform:scale(1) rotate(0)} }
+  @keyframes scoutCueExplainBubble { 0%,100%{opacity:0;transform:scale(.55) translateY(2px)} 20%,70%{opacity:1;transform:scale(1) translateY(0)} }
+  @keyframes scoutCueAskMark { 0%,100%{opacity:0;transform:translateY(3px) scale(.5)} 23%{opacity:1;transform:translateY(-1px) scale(1.2)} 45%,70%{opacity:1;transform:translateY(0) scale(1)} }
+  @keyframes scoutCueClockHands { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+  @keyframes scoutCueWait { 0%,100%{transform:translateY(0) rotate(0)} 50%{transform:translateY(-1.5px) rotate(3deg)} }
+  @keyframes scoutCueSuccessStar { 0%,100%{opacity:0;transform:scale(.5) rotate(-25deg)} 22%{opacity:1;transform:scale(1.18) rotate(8deg)} 45%,72%{opacity:1;transform:scale(1) rotate(0)} }
+  @keyframes scoutCueRecoverSpin { 0%{transform:rotate(0)} 100%{transform:rotate(360deg)} }
+  @keyframes scoutCueSuccess { 0%,100%{transform:translateY(0) scale(1)} 35%{transform:translateY(-6px) scale(1.04)} 67%{transform:translateY(1px) scale(.98)} }
+  @keyframes scoutCueRecover { 0%,100%{transform:translateX(0) rotate(0)} 18%{transform:translateX(-3px) rotate(-4deg)} 38%{transform:translateX(3px) rotate(4deg)} 58%{transform:translateX(-1.5px) rotate(-2deg)} 78%{transform:translateX(1px) rotate(1deg)} }
+  .agent-avatar-art.scout-cue-notice { animation:scoutCueNotice 720ms cubic-bezier(.2,.75,.3,1) 4 both!important; }
+  .agent-avatar-art.scout-cue-notice .scout-mark-notice { animation:scoutCueNoticeMark 720ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-search .scout-handle { animation:scoutCueHandleSearch 820ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-search .scout-mark-search { animation:scoutCueMarkPop 820ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-search .scout-search-reticle { animation:scoutCueSearchSweep 820ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-inspect .scout-lens-glass { animation:scoutCueLensInspect 780ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-inspect .scout-mark-inspect { animation:scoutCueInspectTarget 780ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-compare .scout-eyes { animation:scoutCueCompare 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-compare .scout-mark-compare { animation:scoutCueMarkPop 760ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-compare .scout-compare-a { animation:scoutCueCompareA 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-compare .scout-compare-b { animation:scoutCueCompareB 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-draft .scout-mouth { animation:scoutCueDraft 720ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-draft .scout-mark-draft { animation:scoutCueMarkPop 720ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-draft .scout-pencil { animation:scoutCuePencilMove 720ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-draft .scout-draft-line-one { animation:scoutCueWriteOne 720ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-draft .scout-draft-line-two { animation:scoutCueWriteTwo 720ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-organize .scout-lens { animation:scoutCueOrganize 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-organize .scout-mark-organize { animation:scoutCueMarkPop 760ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-organize .scout-organize-row-a { animation:scoutCueOrganizeRowA 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-organize .scout-organize-row-b { animation:scoutCueOrganizeRowB 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-organize .scout-organize-row-c { animation:scoutCueOrganizeRowC 760ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-verify .scout-mark-verify { animation:scoutCueMarkPop 760ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-verify .scout-verify-check { animation:scoutCueVerifyStamp 760ms cubic-bezier(.2,.75,.3,1) 4 both; }
+  .agent-avatar-art.scout-cue-explain .scout-lens { animation:scoutCueExplain 780ms ease-in-out 4 both; }
+  .agent-avatar-art.scout-cue-explain .scout-mark-explain { animation:scoutCueExplainBubble 780ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-explain .scout-explain-lines { animation:scoutCueMarkPop 780ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-ask .scout-mark-ask { animation:scoutCueAskMark 700ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-wait { animation:scoutCueWait 950ms ease-in-out 4 both!important; }
+  .agent-avatar-art.scout-cue-wait .scout-mark-wait { animation:scoutCueMarkPop 950ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-wait .scout-clock-hands { animation:scoutCueClockHands 950ms linear 4 both; }
+  .agent-avatar-art.scout-cue-success { animation:scoutCueSuccess 900ms cubic-bezier(.2,.75,.3,1) 4 both!important; }
+  .agent-avatar-art.scout-cue-success .scout-mark-success { animation:scoutCueMarkPop 900ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-success .scout-success-star { animation:scoutCueSuccessStar 900ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-recover { animation:scoutCueRecover 760ms ease-in-out 4 both!important; }
+  .agent-avatar-art.scout-cue-recover .scout-mark-recover { animation:scoutCueMarkPop 760ms ease-out 4 both; }
+  .agent-avatar-art.scout-cue-recover .scout-recover-arrow { animation:scoutCueRecoverSpin 760ms linear 4 both; }
+  @media (prefers-reduced-motion:reduce) {
+    .agent-avatar-art[class*="scout-cue-"],.agent-avatar-art[class*="scout-cue-"] * { animation:none!important; }
+    .agent-avatar-art[class*="scout-cue-"] { filter:brightness(1.1); }
+    .agent-avatar-art.scout-cue-notice .scout-mark-notice,
+    .agent-avatar-art.scout-cue-search .scout-mark-search,
+    .agent-avatar-art.scout-cue-inspect .scout-mark-inspect,
+    .agent-avatar-art.scout-cue-compare .scout-mark-compare,
+    .agent-avatar-art.scout-cue-draft .scout-mark-draft,
+    .agent-avatar-art.scout-cue-organize .scout-mark-organize,
+    .agent-avatar-art.scout-cue-verify .scout-mark-verify,
+    .agent-avatar-art.scout-cue-explain .scout-mark-explain,
+    .agent-avatar-art.scout-cue-ask .scout-mark-ask,
+    .agent-avatar-art.scout-cue-wait .scout-mark-wait,
+    .agent-avatar-art.scout-cue-success .scout-mark-success,
+    .agent-avatar-art.scout-cue-recover .scout-mark-recover { opacity:1!important; transform:none!important; }
+  }
+  html[data-review-fixture="true"] .saved-agent-list-row{cursor:default;pointer-events:none}
+  html:not([data-review-fixture="true"]) .saved-agent-list-row{cursor:pointer;pointer-events:auto}
   .saved-agent-list-row[hidden]{display:none!important}
   .composer-icon-btn{width:28px;height:32px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-sec);padding:0}
   .composer-icon-btn svg{width:16px;height:16px;display:block}
@@ -1557,6 +1636,20 @@
   .sidebar .sidebar-bottom-tile:hover{background:rgba(255,255,255,.06)!important;background-image:none!important;border-color:rgba(255,255,255,.13)!important}
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile{background:rgba(255,255,255,.58)!important;background-image:none!important;border-color:#dce5dc!important;color:#5e7064!important}
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile:hover{background:#fff!important;border-color:#cbd7cc!important}
+  .admin-chat-controls[hidden],.admin-chat-diagnostics[hidden]{display:none!important}
+  .admin-chat-controls{max-width:740px;margin:0 auto 8px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;border:1px solid rgba(50,213,131,.18);border-radius:10px;background:rgba(18,23,23,.82)}
+  .admin-chat-controls label{display:grid;gap:4px;color:var(--text-sec);font-size:10px;font-weight:650}
+  .admin-chat-controls select,.admin-chat-controls input{width:100%;min-width:0;min-height:34px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#111517;color:var(--text-main);font:11px var(--font)}
+  .admin-chat-controls select:disabled,.admin-chat-controls input:disabled{opacity:.65}
+  .admin-chat-controls p{grid-column:1/-1;margin:0;color:var(--text-dim);font-size:9px;line-height:1.45}
+  .admin-chat-diagnostics{max-width:740px;margin:0 auto 8px;padding:8px 11px;border:1px solid rgba(255,155,145,.3);border-radius:9px;background:rgba(255,155,145,.06);color:var(--text-sec);font-size:10px}
+  .admin-chat-diagnostics summary{cursor:pointer;color:#ffb7ae;font-weight:700}
+  .admin-chat-diagnostics pre{max-height:220px;overflow:auto;margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-sec);font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  :root[data-theme="light"] .admin-chat-controls{background:#f7faf6;border-color:#cce5d1}
+  :root[data-theme="light"] .admin-chat-controls select,:root[data-theme="light"] .admin-chat-controls input{background:#fff;color:#243629;border-color:#d4e0d5}
+  :root[data-theme="light"] .admin-chat-diagnostics{background:#fff5f3;border-color:#efd0cb}
+  :root[data-theme="light"] .admin-chat-diagnostics summary{color:#9b463c}
+  @media(max-width:640px){.admin-chat-controls{grid-template-columns:1fr;gap:6px}.admin-chat-controls p{grid-column:1}}
   .app-settings-modal{width:min(920px,94vw);height:min(650px,88vh);min-height:430px;max-height:88vh}
   .app-settings-nav{width:225px}
   .app-settings-nav .modal-side-title{margin-bottom:4px}
@@ -1743,7 +1836,7 @@
 </head>
 <body>
 
-<div class="window">
+<div class="window" id="workspaceApp" aria-busy="true">
 
   <!-- =========================================================
        1. LEFT SIDEBAR (Teammates + New Agent '+' + General Identity & Settings)
@@ -1786,7 +1879,7 @@
     <div class="cue-footer account-footer sidebar-bottom-tile">
       <button class="account-menu-trigger" id="accountMenuToggle" type="button" aria-label="Open account menu" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">
         <span class="account-avatar" id="accountAvatar" aria-hidden="true">K</span>
-        <span class="account-trigger-copy"><strong id="accountName">Keus account</strong><small id="accountEmail">Loading account</small></span>
+        <span class="account-trigger-copy"><strong id="accountName">Loading your account</strong><small id="accountEmail">Loading account details</small></span>
         <svg class="account-caret" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
       </button>
       <div class="account-menu" id="accountMenu" aria-label="Account options" hidden>
@@ -1807,8 +1900,8 @@
       <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite">
         <span id="hdrAvatar" class="header-agent-avatar" aria-hidden="true"></span>
         <div class="header-title">
-          <span id="hdrName">Workspace</span>
-          <span class="header-sub" id="hdrSub">No saved agent</span>
+          <span id="hdrName">Loading your workspace…</span>
+          <span class="header-sub" id="hdrSub">Loading your agents…</span>
         </div>
       </div>
       <span class="review-data-badge" id="sampleReviewBadge" role="status" aria-label="Sample review data, not an authenticated account" hidden><span class="review-badge-full">Sample review data</span><span class="review-badge-compact" aria-hidden="true">Sample data</span></span>
@@ -1849,6 +1942,21 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
           </button>
         </div>
+        <div class="admin-chat-controls" id="adminChatControls" hidden>
+          <label for="chatProviderSelect">Provider for this request
+            <select id="chatProviderSelect" disabled aria-describedby="adminChatProviderNotice">
+              <option value="">Configured primary (dynamic)</option>
+            </select>
+          </label>
+          <label for="chatModelId">Model override
+            <input id="chatModelId" type="text" maxlength="160" autocomplete="off" placeholder="Use the configured model" disabled aria-describedby="adminChatProviderNotice" />
+          </label>
+          <p id="adminChatProviderNotice">Overrides apply to the next message only, then reset to the configured primary/model. The selected provider receives the prompt and saved context; on network, HTTP 429, or 5xx failures, explicitly marked backups may receive it too. Retention and costs can differ.</p>
+        </div>
+        <details class="admin-chat-diagnostics" id="adminChatDiagnostics" hidden>
+          <summary>View detailed admin error</summary>
+          <pre id="chatAdminDiagnosticText" role="status" aria-live="polite"></pre>
+        </details>
         <p class="composer-preview-note" id="chatPreviewNote" role="status" aria-live="polite">Checking chat availability...</p>
       </div>
     </footer>
@@ -2153,6 +2261,17 @@
   let chatHistoryLoadVersion = 0;
   let chatNotice = '';
   let chatMessages = [];
+  let chatAdminProviders = [];
+  let chatAdminModelWasEdited = false;
+  const SCOUT_CUE_DURATIONS = Object.freeze({
+    notice: 720, search: 820, inspect: 780, compare: 760, draft: 720, organize: 760,
+    verify: 760, explain: 780, ask: 700, wait: 950, success: 900, recover: 760,
+  });
+  const SCOUT_CUE_REPEAT_COUNT = 4;
+  const SCOUT_CUE_IDS = new Set(Object.keys(SCOUT_CUE_DURATIONS));
+  const SCOUT_CUE_CLASSES = Object.keys(SCOUT_CUE_DURATIONS).map((cue) => `scout-cue-${cue}`);
+  const scoutCueQueues = new WeakMap();
+  const scoutCueTimers = new WeakMap();
   let renderedChatAgentId = null;
   function openOverlay(id) {
     const backdrop = document.getElementById(id);
@@ -2276,7 +2395,22 @@
 <path d="M7 34h5" stroke="#f5b942" stroke-width="2.6" stroke-linecap="round"/><path d="M55 34h3" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="19" cy="43" r="6.1" fill="#f3f3f5"/><circle cx="19" cy="43" r="2.8" fill="{c}"/><circle cx="48" cy="43" r="6.1" fill="#f3f3f5"/><circle cx="48" cy="43" r="2.8" fill="{c}"/>
 </g>`,
       parcel: `<path d="m9 19 23-11 23 11v28L32 58 9 47V19Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/><path d="m9.5 19.5 22.5 11 22.5-11M32 30.5V57" fill="none" stroke="#111113" stroke-width="2.5" stroke-linejoin="round"/><path d="m21 13 22 11v8" fill="none" stroke="#111113" stroke-opacity=".5" stroke-width="2.5" stroke-linejoin="round"/><g><ellipse class="avatar-eye eye-a" cx="25" cy="38" rx="1.9" ry="2.8" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="39" cy="38" rx="1.9" ry="2.8" fill="#111113"/></g><path d="M27 44c1.3 1.5 2.8 2.2 5 2.2s3.7-.7 5-2.2" fill="none" stroke="#111113" stroke-width="2.4" stroke-linecap="round"/><circle cx="20.5" cy="43" r="1.6" fill="#ef927f"/><circle cx="43.5" cy="43" r="1.6" fill="#ef927f"/>`,
-      magnifier: `<path d="m42 42 19 19" fill="none" stroke="#111113" stroke-width="9" stroke-linecap="round"/><path d="m42 42 19 19" fill="none" stroke="#111113" stroke-width="5" stroke-linecap="round"/><circle cx="28" cy="28" r="20" fill="{c}" stroke="#111113" stroke-width="3"/><circle cx="28" cy="28" r="15.2" fill="#fff" opacity=".22"/><path d="M17 18c3-4 7-6 11-6" fill="none" stroke="#111113" stroke-opacity=".65" stroke-width="2.3" stroke-linecap="round"/><g><ellipse class="avatar-eye eye-a" cx="23" cy="27" rx="1.8" ry="2.8" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="34" cy="27" rx="1.8" ry="2.8" fill="#111113"/></g><path d="M24 33c1 1.4 2.3 2 3.8 2s2.8-.6 3.8-2" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="18.5" cy="32" r="1.5" fill="#ef927f"/><circle cx="38" cy="32" r="1.5" fill="#ef927f"/>`,
+      magnifier: `<g class="scout-handle"><path d="m42 42 19 19" fill="none" stroke="#111113" stroke-width="9" stroke-linecap="round"/><path d="m42 42 19 19" fill="none" stroke="#111113" stroke-width="5" stroke-linecap="round"/></g>
+<g class="scout-lens"><circle cx="28" cy="28" r="20" fill="{c}" stroke="#111113" stroke-width="3"/><circle class="scout-lens-glass" cx="28" cy="28" r="15.2" fill="#fff" opacity=".22"/><path d="M17 18c3-4 7-6 11-6" fill="none" stroke="#111113" stroke-opacity=".65" stroke-width="2.3" stroke-linecap="round"/><g class="scout-eyes"><ellipse class="avatar-eye eye-a" cx="23" cy="27" rx="1.8" ry="2.8" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="34" cy="27" rx="1.8" ry="2.8" fill="#111113"/></g><path class="scout-mouth" d="M24 33c1 1.4 2.3 2 3.8 2s2.8-.6 3.8-2" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="18.5" cy="32" r="1.5" fill="#ef927f"/><circle cx="38" cy="32" r="1.5" fill="#ef927f"/>
+<g class="scout-cue-effects" aria-hidden="true">
+<g class="scout-cue-mark scout-mark-notice"><path d="M50 3 52.5 8.5 58 10l-4.5 3.5.5 5.5-4-3.5-4 2.5 1-5-4.5-3.5 5.5-1.5L50 3Z" fill="#f5b942" stroke="#111113" stroke-width="1" stroke-linejoin="round"/><path d="M50 8.2v4.6" stroke="#111113" stroke-width="1.8" stroke-linecap="round"/><circle cx="50" cy="15.4" r=".9" fill="#111113"/></g>
+<g class="scout-cue-mark scout-mark-search"><path d="M13 40h30" fill="none" stroke="#f5b942" stroke-width="1.2" stroke-dasharray="2 2"/><g class="scout-search-reticle"><circle cx="14" cy="40" r="3.4" fill="#111113" stroke="#f5b942" stroke-width="1.4"/><circle cx="14" cy="40" r="1" fill="#fff"/></g></g>
+<g class="scout-cue-mark scout-mark-inspect"><circle class="scout-inspect-ring" cx="28" cy="40" r="6.3" fill="none" stroke="#54d8e8" stroke-width="1.5"/><circle cx="28" cy="40" r="2" fill="#f5b942"/><path d="M28 31v4m0 10v4m-9-9h4m10 0h4" fill="none" stroke="#54d8e8" stroke-width="1.3" stroke-linecap="round"/></g>
+<g class="scout-cue-mark scout-mark-compare"><g class="scout-compare-a"><rect x="16" y="11" width="11" height="9" rx="2" fill="#fff" stroke="#4c8dff" stroke-width="1.2"/><text class="scout-compare-label" x="21.5" y="16">A</text></g><g class="scout-compare-b"><rect x="34" y="11" width="11" height="9" rx="2" fill="#fff" stroke="#b57cff" stroke-width="1.2"/><text class="scout-compare-label" x="39.5" y="16">B</text></g><path d="M28 15.5h5m-2-2 2 2-2 2" fill="none" stroke="#f5b942" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g class="scout-cue-mark scout-mark-draft"><g class="scout-pencil"><path d="m46 25 8-8 3 3-8 8-4 1 1-4Z" fill="#f5b942" stroke="#111113" stroke-width="1.2" stroke-linejoin="round"/><path d="m46 25 3 3" stroke="#111113" stroke-width="1"/></g><path class="scout-draft-line-one" d="M13 40h11" fill="none" stroke="#f5b942" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="11"/><path class="scout-draft-line-two" d="M13 44h15" fill="none" stroke="#f5b942" stroke-width="1.3" stroke-linecap="round" stroke-dasharray="15"/></g>
+<g class="scout-cue-mark scout-mark-organize"><g class="scout-organize-row scout-organize-row-a"><circle cx="17" cy="12.5" r="1" fill="#32d583"/><path d="M21 12.5h17" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></g><g class="scout-organize-row scout-organize-row-b"><circle cx="17" cy="17" r="1" fill="#32d583"/><path d="M21 17h13" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></g><g class="scout-organize-row scout-organize-row-c"><circle cx="17" cy="21.5" r="1" fill="#32d583"/><path d="M21 21.5h16" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></g></g>
+<g class="scout-cue-mark scout-mark-verify"><path class="scout-verify-check" d="m43 19 3.5 3.5 7.5-9" fill="none" stroke="#31c77f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g>
+<g class="scout-cue-mark scout-mark-explain"><path class="scout-explain-bubble" d="M45 6h13.5c1.4 0 2.5 1.1 2.5 2.5v7c0 1.4-1.1 2.5-2.5 2.5h-5.2l-4 3v-3H45c-1.4 0-2.5-1.1-2.5-2.5v-7C42.5 7.1 43.6 6 45 6Z" fill="#b9e9f0" stroke="#111113" stroke-width="1.2" stroke-linejoin="round"/><path class="scout-explain-lines" d="M46 10h10m-10 3h7m-7 3h9" stroke="#111113" stroke-width="1.2" stroke-linecap="round"/></g>
+<g class="scout-cue-mark scout-mark-ask"><text class="scout-mark-glyph scout-ask-glyph" x="50" y="17">?</text></g>
+<g class="scout-cue-mark scout-mark-wait"><circle cx="50" cy="12" r="7" fill="#f3f3f5" stroke="#707985" stroke-width="1.5"/><g class="scout-clock-hands"><path d="M50 7.5v4.8l3.5 2" fill="none" stroke="#30343a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<g class="scout-cue-mark scout-mark-success"><path class="scout-success-star" d="m50 3 2.5 6.5L59 12l-6.5 2.5L50 21l-2.5-6.5L41 12l6.5-2.5L50 3Z" fill="#f5b942" stroke="#fff" stroke-width="1" stroke-linejoin="round"/><circle cx="41" cy="5" r="1.3" fill="#32d583"/><circle cx="59" cy="20" r="1.2" fill="#32d583"/></g>
+<g class="scout-cue-mark scout-mark-recover"><path class="scout-recover-arrow" d="M55 10a7 7 0 1 0 1.4 5M55 6v5h-5" fill="none" stroke="#4c8dff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g>
+</g></g>`,
       tag: `<path d="M9 17c0-2.8 2.2-5 5-5h21l20 20-22 22L9 30V17Z" fill="{c}" stroke="#111113" stroke-width="3" stroke-linejoin="round"/><circle cx="17.5" cy="19.5" r="2.8" fill="#f3f3f5" stroke="#111113" stroke-width="2"/><path d="M24 17c2.5-2.2 5.8-3.5 9-3.5" fill="none" stroke="#111113" stroke-opacity=".5" stroke-width="2.2" stroke-linecap="round"/><g><ellipse class="avatar-eye eye-a" cx="30" cy="31" rx="1.8" ry="2.7" fill="#111113"/><ellipse class="avatar-eye eye-b" cx="41" cy="31" rx="1.8" ry="2.7" fill="#111113"/></g><path d="M31 37c1 1.3 2.1 1.9 3.4 1.9s2.4-.6 3.4-1.9" fill="none" stroke="#111113" stroke-width="2.2" stroke-linecap="round"/><circle cx="25" cy="36" r="1.5" fill="#ef927f"/><circle cx="46" cy="36" r="1.5" fill="#ef927f"/>`,
       wallet: `<g class="avatar-art">
 <path d="M13 17V12c0-2.2 1.8-4 4-4h20l7 8H13Z" fill="#d4b7ff" stroke="#111113" stroke-width="2.5" stroke-linejoin="round"/><path d="M19 11h12" stroke="#111113" stroke-opacity=".55" stroke-width="2" stroke-linecap="round"/>
@@ -2785,6 +2919,7 @@
     const stream = document.getElementById('streamInner');
     const hasVisibleMessages = Boolean(stream && Array.from(stream.children).some((node) => node.id !== 'chatEmptyState'));
     if (emptyState) emptyState.hidden = !canChat || hasVisibleMessages;
+    syncAdminChatControlsAvailability();
   }
 
   function appendUserChatMessage(content) {
@@ -2798,6 +2933,250 @@
     const stream = document.getElementById('chatStream');
     if (stream) stream.scrollTop = stream.scrollHeight;
     return row;
+  }
+
+  function safeChatMarkdownHref(rawHref) {
+    const candidate = String(rawHref || '').trim();
+    if (!candidate || /[\u0000-\u001f\u007f]/.test(candidate)) return '';
+    try {
+      const url = new URL(candidate, window.location.href);
+      if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return '';
+      return url.href;
+    } catch {
+      return '';
+    }
+  }
+
+  function appendChatMarkdownText(parent, value) {
+    if (value) parent.append(document.createTextNode(value));
+  }
+
+  function appendChatMarkdownInline(parent, value, depth = 0) {
+    const source = String(value || '');
+    if (depth > 8) {
+      appendChatMarkdownText(parent, source);
+      return;
+    }
+    const tokenPattern = /(`[^`\n]+`|\[[^\]\n]+\]\([^\n)]*\)|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/g;
+    let cursor = 0;
+    let match;
+    while ((match = tokenPattern.exec(source))) {
+      appendChatMarkdownText(parent, source.slice(cursor, match.index));
+      const token = match[0];
+      if (token.startsWith('`')) {
+        const code = document.createElement('code');
+        code.textContent = token.slice(1, -1);
+        parent.append(code);
+      } else if (token.startsWith('[')) {
+        const linkParts = token.match(/^\[([^\]\n]+)\]\(([^)\s]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\)$/);
+        const href = linkParts ? safeChatMarkdownHref(linkParts[2]) : '';
+        if (!linkParts || !href) {
+          appendChatMarkdownText(parent, token);
+        } else {
+          const anchor = document.createElement('a');
+          anchor.setAttribute('href', href);
+          anchor.setAttribute('rel', 'noopener noreferrer');
+          if (/^https?:/i.test(href)) anchor.setAttribute('target', '_blank');
+          const title = linkParts[3] ?? linkParts[4];
+          if (title) anchor.setAttribute('title', title);
+          appendChatMarkdownInline(anchor, linkParts[1], depth + 1);
+          parent.append(anchor);
+        }
+      } else {
+        let tag = '';
+        let inner = '';
+        if (token.startsWith('**') || token.startsWith('__')) {
+          tag = 'strong'; inner = token.slice(2, -2);
+        } else if (token.startsWith('~~')) {
+          tag = 'del'; inner = token.slice(2, -2);
+        } else {
+          tag = 'em'; inner = token.slice(1, -1);
+        }
+        const formatted = document.createElement(tag);
+        appendChatMarkdownInline(formatted, inner, depth + 1);
+        parent.append(formatted);
+      }
+      cursor = tokenPattern.lastIndex;
+    }
+    appendChatMarkdownText(parent, source.slice(cursor));
+  }
+
+  function splitChatMarkdownTableRow(line) {
+    let source = String(line || '').trim();
+    if (source.startsWith('|')) source = source.slice(1);
+    if (source.endsWith('|')) source = source.slice(0, -1);
+    const cells = [];
+    let cell = '';
+    for (let index = 0; index < source.length; index += 1) {
+      const character = source[index];
+      if (character === '\\' && source[index + 1] === '|') {
+        cell += '|';
+        index += 1;
+      } else if (character === '|') {
+        cells.push(cell.trim());
+        cell = '';
+      } else {
+        cell += character;
+      }
+    }
+    cells.push(cell.trim());
+    return cells;
+  }
+
+  function renderChatMarkdown(container, markdown) {
+    const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
+    container.replaceChildren();
+    const headingMatch = (line) => /^ {0,3}(#{1,6})(?:[ \t]+|$)(.*)$/.exec(line);
+    const fenceMatch = (line) => /^ {0,3}(`{3,}|~{3,})(?:([A-Za-z0-9_-]+))?[ \t]*$/.exec(line);
+    const listMatch = (line) => /^ {0,3}([-+*]|\d+[.)])[ \t]+(.*)$/.exec(line);
+    const isRule = (line) => /^ {0,3}(?:-{3,}|_{3,}|\*{3,})[ \t]*$/.test(line);
+    const isTableStart = (index) => {
+      if (index + 1 >= lines.length || !lines[index].includes('|')) return false;
+      const separators = splitChatMarkdownTableRow(lines[index + 1]);
+      return separators.length > 1 && separators.every((cell) => /^:?-{3,}:?$/.test(cell));
+    };
+    const isBlockStart = (line, index) => Boolean(
+      headingMatch(line) || fenceMatch(line) || listMatch(line) || isRule(line)
+      || /^ {0,3}>/.test(line) || isTableStart(index)
+    );
+
+    let index = 0;
+    while (index < lines.length) {
+      const line = lines[index];
+      if (!line.trim()) { index += 1; continue; }
+
+      const fence = fenceMatch(line);
+      if (fence) {
+        const marker = fence[1];
+        const markerChar = marker[0];
+        const codeLines = [];
+        index += 1;
+        while (index < lines.length) {
+          const candidate = lines[index].trim();
+          if (candidate.length >= marker.length && Array.from(candidate).every((character) => character === markerChar)) {
+            index += 1;
+            break;
+          }
+          codeLines.push(lines[index]);
+          index += 1;
+        }
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        if (fence[2]) code.setAttribute('data-language', fence[2].toLowerCase());
+        code.textContent = codeLines.join('\n');
+        pre.append(code);
+        container.append(pre);
+        continue;
+      }
+
+      const heading = headingMatch(line);
+      if (heading) {
+        const node = document.createElement(`h${heading[1].length}`);
+        const text = heading[2].replace(/[ \t]+#+[ \t]*$/, '');
+        appendChatMarkdownInline(node, text);
+        container.append(node);
+        index += 1;
+        continue;
+      }
+
+      if (isRule(line)) {
+        container.append(document.createElement('hr'));
+        index += 1;
+        continue;
+      }
+
+      if (/^ {0,3}>/.test(line)) {
+        const quoteLines = [];
+        while (index < lines.length && /^ {0,3}>/.test(lines[index])) {
+          quoteLines.push(lines[index].replace(/^ {0,3}>[ \t]?/, ''));
+          index += 1;
+        }
+        const quote = document.createElement('blockquote');
+        renderChatMarkdown(quote, quoteLines.join('\n'));
+        container.append(quote);
+        continue;
+      }
+
+      if (isTableStart(index)) {
+        const headerCells = splitChatMarkdownTableRow(lines[index]);
+        const dividerCells = splitChatMarkdownTableRow(lines[index + 1]);
+        const alignments = headerCells.map((_, cellIndex) => {
+          const divider = dividerCells[cellIndex] || '---';
+          return divider.startsWith(':') && divider.endsWith(':') ? 'center'
+            : divider.endsWith(':') ? 'right' : 'left';
+        });
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerCells.forEach((cellText, cellIndex) => {
+          const cell = document.createElement('th');
+          cell.setAttribute('scope', 'col');
+          cell.setAttribute('data-chat-align', alignments[cellIndex]);
+          appendChatMarkdownInline(cell, cellText);
+          headerRow.append(cell);
+        });
+        thead.append(headerRow);
+        table.append(thead);
+        const tbody = document.createElement('tbody');
+        index += 2;
+        while (index < lines.length && lines[index].trim() && lines[index].includes('|')) {
+          const rowValues = splitChatMarkdownTableRow(lines[index]);
+          const row = document.createElement('tr');
+          headerCells.forEach((_, cellIndex) => {
+            const cell = document.createElement('td');
+            cell.setAttribute('data-chat-align', alignments[cellIndex]);
+            appendChatMarkdownInline(cell, rowValues[cellIndex] || '');
+            row.append(cell);
+          });
+          tbody.append(row);
+          index += 1;
+        }
+        table.append(tbody);
+        container.append(table);
+        continue;
+      }
+
+      const firstItem = listMatch(line);
+      if (firstItem) {
+        const ordered = /^\d/.test(firstItem[1]);
+        const list = document.createElement(ordered ? 'ol' : 'ul');
+        if (ordered) {
+          const firstNumber = Number.parseInt(firstItem[1], 10);
+          if (firstNumber > 1) list.setAttribute('start', String(firstNumber));
+        }
+        while (index < lines.length) {
+          const item = listMatch(lines[index]);
+          if (!item || /^\d/.test(item[1]) !== ordered) break;
+          const listItem = document.createElement('li');
+          appendChatMarkdownInline(listItem, item[2]);
+          list.append(listItem);
+          index += 1;
+        }
+        container.append(list);
+        continue;
+      }
+
+      const paragraphLines = [];
+      while (index < lines.length && lines[index].trim() && (paragraphLines.length === 0 || !isBlockStart(lines[index], index))) {
+        paragraphLines.push(lines[index]);
+        index += 1;
+      }
+      if (!paragraphLines.length) {
+        paragraphLines.push(lines[index]);
+        index += 1;
+      }
+      const paragraph = document.createElement('p');
+      paragraphLines.forEach((paragraphLine, lineIndex) => {
+        const hardBreak = /(?: {2,}|\\)$/.test(paragraphLine);
+        const text = paragraphLine.replace(/ {2,}$/, '').replace(/\\$/, '');
+        appendChatMarkdownInline(paragraph, text);
+        if (lineIndex < paragraphLines.length - 1) {
+          if (hardBreak) paragraph.append(document.createElement('br'));
+          else appendChatMarkdownText(paragraph, ' ');
+        }
+      });
+      container.append(paragraph);
+    }
   }
 
   function createAssistantChatMessage(content, { pending = false } = {}) {
@@ -2819,33 +3198,18 @@
     const text = document.createElement('div');
     text.className = 'msg-text';
     if (pending) {
-      const progress = document.createElement('details');
-      progress.className = 'chat-progress';
-      progress.open = true;
-      const summary = document.createElement('summary');
-      summary.setAttribute('aria-live', 'polite');
-      const progressLabel = document.createElement('span');
-      progressLabel.className = 'chat-progress-label';
-      progressLabel.textContent = 'Preparing response';
-      const dots = document.createElement('span');
-      dots.className = 'chat-thinking-dots';
-      dots.setAttribute('aria-hidden', 'true');
-      for (let index = 0; index < 3; index += 1) dots.append(document.createElement('span'));
-      summary.append(progressLabel, dots);
-      const steps = document.createElement('ol');
-      steps.className = 'chat-progress-steps';
-      for (const [index, label] of ['Prompt received', 'Preparing response', 'Streaming answer'].entries()) {
-        const step = document.createElement('li');
-        step.dataset.progressStep = String(index);
-        step.className = index === 0 ? 'is-complete' : index === 1 ? 'is-active' : '';
-        step.textContent = label;
-        steps.append(step);
-      }
-      progress.append(summary, steps);
-      text.setAttribute('aria-label', 'Reply progress');
-      text.append(progress);
+      const liveStatus = document.createElement('span');
+      liveStatus.className = 'chat-live-status';
+      liveStatus.setAttribute('role', 'status');
+      liveStatus.setAttribute('aria-live', 'polite');
+      liveStatus.setAttribute('aria-atomic', 'true');
+      liveStatus.textContent = 'Preparing response.';
+      text.append(liveStatus);
     } else {
-      text.textContent = content;
+      const answerText = document.createElement('div');
+      answerText.className = 'chat-answer-text';
+      renderChatMarkdown(answerText, content);
+      text.append(answerText);
     }
     body.append(senderLine, text);
     row.append(avatar, body);
@@ -2855,29 +3219,76 @@
     return row;
   }
 
-  function setChatProgress(row, stage) {
-    const details = row?.querySelector('.chat-progress');
-    if (!details) return;
-    const states = {
-      preparing: { label: 'Preparing response', complete: 1, active: 1, dots: true },
-      streaming: { label: 'Streaming answer', complete: 2, active: 2, dots: false },
-      complete: { label: 'Reply complete', complete: 3, active: -1, dots: false },
-      interrupted: { label: 'Response interrupted', complete: 2, active: -1, dots: false },
-    };
-    const state = states[stage] || states.preparing;
-    const label = details.querySelector('.chat-progress-label');
-    if (label) label.textContent = state.label;
-    const dots = details.querySelector('.chat-thinking-dots');
-    if (dots) dots.hidden = !state.dots;
-    details.querySelectorAll('[data-progress-step]').forEach((step) => {
-      const index = Number(step.dataset.progressStep);
-      step.classList.remove('is-complete', 'is-active', 'is-interrupted');
-      if (stage === 'interrupted' && index === 2) step.classList.add('is-interrupted');
-      else if (index < state.complete) step.classList.add('is-complete');
-      else if (index === state.active) step.classList.add('is-active');
-    });
-    if (stage === 'complete') details.open = false;
+  function appendChatProviderAttribution(row, attribution) {
+    const cleanLabel = (value) => typeof value === 'string'
+      ? value.normalize('NFKC').replace(/[\x00-\x1f\x7f-\x9f]/g, '').trim().slice(0, 160)
+      : '';
+    const providerKey = cleanLabel(attribution?.provider);
+    const providerName = cleanLabel(attribution?.providerDisplayName);
+    const provider = providerName && providerKey && providerName !== providerKey
+      ? `${providerName} (${providerKey})`
+      : providerName || providerKey;
+    const model = cleanLabel(attribution?.model);
+    const textNode = row?.querySelector('.msg-text');
+    if (!provider || !model || !textNode || textNode.querySelector('.chat-provider-attribution')) return;
+    const note = document.createElement('div');
+    note.className = 'chat-provider-attribution';
+    note.setAttribute('role', 'note');
+    note.setAttribute('aria-label', 'Provider and model used for this reply');
+    note.textContent = `Provider: ${provider} · Model: ${model}`;
+    textNode.append(note);
   }
+
+  function runScoutCueQueue(svg) {
+    const queue = scoutCueQueues.get(svg);
+    if (!svg?.isConnected || !queue?.length) return;
+    const cue = queue.shift();
+    svg.classList.remove(...SCOUT_CUE_CLASSES);
+    void svg.getBoundingClientRect();
+    const cueClass = `scout-cue-${cue}`;
+    svg.classList.add(cueClass);
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    const playbackDuration = reducedMotion ? 650 : SCOUT_CUE_DURATIONS[cue] * SCOUT_CUE_REPEAT_COUNT + 80;
+    const timer = window.setTimeout(() => {
+      svg.classList.remove(cueClass);
+      scoutCueTimers.delete(svg);
+      runScoutCueQueue(svg);
+    }, playbackDuration);
+    scoutCueTimers.set(svg, timer);
+  }
+
+  function enqueueScoutAvatarCue(svg, cue) {
+    if (!svg || !SCOUT_CUE_IDS.has(cue)) return;
+    let queue = scoutCueQueues.get(svg);
+    if (!queue) {
+      queue = [];
+      scoutCueQueues.set(svg, queue);
+    }
+    if (queue.length >= SCOUT_CUE_IDS.size) return;
+    queue.push(cue);
+    if (!scoutCueTimers.has(svg)) runScoutCueQueue(svg);
+  }
+
+  function playScoutAvatarCue(cue, requestAgentId) {
+    const agent = findSelectedChatAgent();
+    if (!SCOUT_CUE_IDS.has(cue) || !agent || String(agent.id) !== String(requestAgentId)
+        || String(agent.avatar || '').trim().toLowerCase() !== 'magnifier') return;
+    const sidebarAvatar = document.getElementById('savedAgentAvatar')?.querySelector('.agent-avatar-art');
+    if (sidebarAvatar) enqueueScoutAvatarCue(sidebarAvatar, cue);
+  }
+
+  function setChatLiveStatus(row, stage) {
+    const status = row?.querySelector('.chat-live-status');
+    if (!status) return;
+    const messages = {
+      preparing: 'Preparing response.',
+      streaming: 'Assistant is replying.',
+      complete: 'Reply complete.',
+      interrupted: 'Reply interrupted.',
+    };
+    status.textContent = messages[stage] || messages.preparing;
+  }
+
 
   function selectDesktopAgent(agentId) {
     const agent = agentsFromBootstrap().find((entry) => String(entry.id) === String(agentId));
@@ -2885,6 +3296,7 @@
     const nextId = String(agent.id);
     const agentChanged = nextId !== renderedChatAgentId;
     if (agentChanged) {
+      setAdminChatDiagnostics(null);
       chatMessages = [];
       chatNotice = '';
       chatHistoryReady = false;
@@ -2916,6 +3328,123 @@
     return requestId ? `${copy} Reference: ${requestId}` : copy;
   }
 
+  function clearAdminChatControls() {
+    chatAdminProviders = [];
+    chatAdminModelWasEdited = false;
+    const root = document.getElementById('adminChatControls');
+    const providerSelect = document.getElementById('chatProviderSelect');
+    const modelInput = document.getElementById('chatModelId');
+    if (root) root.hidden = true;
+    if (providerSelect) {
+      providerSelect.replaceChildren();
+      providerSelect.disabled = true;
+    }
+    if (modelInput) {
+      modelInput.value = '';
+      modelInput.disabled = true;
+    }
+  }
+
+  function resetAdminChatOverrides() {
+    const providerSelect = document.getElementById('chatProviderSelect');
+    if (providerSelect) providerSelect.value = '';
+    syncAdminChatModelInput();
+  }
+
+  function syncAdminChatModelInput() {
+    const providerSelect = document.getElementById('chatProviderSelect');
+    const modelInput = document.getElementById('chatModelId');
+    const selectedKey = String(providerSelect?.value || '');
+    const selected = selectedKey
+      ? chatAdminProviders.find((provider) => provider.providerKey === selectedKey)
+      : chatAdminProviders.find((provider) => provider.isPrimary);
+    if (!modelInput || !selected) return;
+    modelInput.value = selected.modelId;
+    chatAdminModelWasEdited = false;
+  }
+
+  function renderAdminChatControls(data) {
+    const root = document.getElementById('adminChatControls');
+    const providerSelect = document.getElementById('chatProviderSelect');
+    const modelInput = document.getElementById('chatModelId');
+    const options = Array.isArray(data?.providers)
+      ? data.providers.filter((provider) => provider && typeof provider.providerKey === 'string'
+        && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(provider.providerKey)
+        && typeof provider.displayName === 'string' && typeof provider.modelId === 'string')
+      : [];
+    const primary = options.find((provider) => provider.isPrimary === true);
+    if (!root || !providerSelect || !modelInput || data?.adminControls !== true || !primary) {
+      clearAdminChatControls();
+      return;
+    }
+
+    chatAdminProviders = options;
+    chatAdminModelWasEdited = false;
+    providerSelect.replaceChildren();
+    const dynamicOption = document.createElement('option');
+    dynamicOption.value = '';
+    dynamicOption.textContent = `Configured primary (dynamic): ${primary.displayName}`;
+    providerSelect.append(dynamicOption);
+    for (const provider of options) {
+      if (provider.isPrimary) continue;
+      const option = document.createElement('option');
+      option.value = provider.providerKey;
+      const modeLabel = provider.isFallback ? 'marked backup' : 'manual target';
+      option.textContent = `${provider.displayName} · ${modeLabel}`;
+      providerSelect.append(option);
+    }
+    providerSelect.value = '';
+    providerSelect.disabled = !chatAvailable || chatPending || chatHistoryLoading;
+    modelInput.value = primary.modelId;
+    modelInput.disabled = !chatAvailable || chatPending || chatHistoryLoading;
+    root.hidden = false;
+  }
+
+  function syncAdminChatControlsAvailability() {
+    const disabled = !chatAvailable || chatPending || chatHistoryLoading;
+    const providerSelect = document.getElementById('chatProviderSelect');
+    const modelInput = document.getElementById('chatModelId');
+    if (providerSelect && !document.getElementById('adminChatControls')?.hidden) providerSelect.disabled = disabled;
+    if (modelInput && !document.getElementById('adminChatControls')?.hidden) modelInput.disabled = disabled;
+  }
+
+  function setAdminChatDiagnostics(diagnostics) {
+    const panel = document.getElementById('adminChatDiagnostics');
+    const output = document.getElementById('chatAdminDiagnosticText');
+    if (!panel || !output) return;
+    if (!diagnostics || typeof diagnostics !== 'object' || Array.isArray(diagnostics)) {
+      panel.hidden = true;
+      output.textContent = '';
+      return;
+    }
+    const clean = (value, limit = 160) => typeof value === 'string'
+      ? value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, limit)
+      : '';
+    const lines = [];
+    const requestId = clean(diagnostics.requestId, 64);
+    const code = clean(diagnostics.code, 80);
+    if (requestId) lines.push(`Request ID: ${requestId}`);
+    if (code) lines.push(`Error code: ${code}`);
+    const provider = diagnostics.provider && typeof diagnostics.provider === 'object' ? diagnostics.provider : null;
+    if (provider?.name || provider?.key) lines.push(`Provider: ${clean(provider.name || provider.key, 80)}`);
+    if (provider?.model) lines.push(`Model: ${clean(provider.model)}`);
+    if (Number.isInteger(diagnostics.upstreamStatus)) lines.push(`Upstream HTTP status: ${diagnostics.upstreamStatus}`);
+    if (typeof diagnostics.retryable === 'boolean') lines.push(`Retryable: ${diagnostics.retryable ? 'yes' : 'no'}`);
+    if (Number.isSafeInteger(diagnostics.fallbackAttempts)) lines.push(`Marked-backup attempts: ${diagnostics.fallbackAttempts}`);
+    if (Array.isArray(diagnostics.attempts)) {
+      diagnostics.attempts.slice(0, 3).forEach((attempt, index) => {
+        if (!attempt || typeof attempt !== 'object') return;
+        const destination = clean(attempt.providerName || attempt.providerKey, 80) || 'Configured provider';
+        const model = clean(attempt.model, 160);
+        const attemptCode = clean(attempt.code, 80) || 'request_failed';
+        const status = Number.isInteger(attempt.upstreamStatus) ? `, HTTP ${attempt.upstreamStatus}` : '';
+        lines.push(`Attempt ${index + 1}: ${destination}${model ? ` / ${model}` : ''}: ${attemptCode}${status}${attempt.retryable === true ? ' (retryable)' : ''}`);
+      });
+    }
+    output.textContent = lines.join('\n');
+    panel.hidden = lines.length === 0;
+  }
+
   async function loadChatHistory(agentId = selectedAgentId) {
     const requestedAgentId = String(agentId || '');
     if (!requestedAgentId || !chatAvailable || document.documentElement.dataset.reviewFixture === 'true') {
@@ -2924,6 +3453,7 @@
       syncChatComposer();
       return;
     }
+    setAdminChatDiagnostics(null);
     const loadVersion = ++chatHistoryLoadVersion;
     chatHistoryLoading = true;
     chatHistoryReady = false;
@@ -2974,8 +3504,11 @@
     chatHistoryLoadVersion += 1;
     chatHistoryReady = false;
     chatHistoryLoading = false;
+    setAdminChatDiagnostics(null);
     if (!currentBootstrap?.user?.id || document.documentElement.dataset.reviewFixture === 'true') {
       chatAvailable = false;
+      clearAdminChatControls();
+      setAdminChatDiagnostics(null);
       syncChatComposer();
       return;
     }
@@ -2991,8 +3524,10 @@
         return;
       }
       chatAvailable = response.ok && data.available === true;
+      renderAdminChatControls(data);
     } catch {
       chatAvailable = false;
+      clearAdminChatControls();
     }
     if (chatAvailable && selectedAgentId) {
       await loadChatHistory(selectedAgentId);
@@ -3015,7 +3550,7 @@
       const data = dataLines.join('\n');
       eventName = 'message';
       dataLines = [];
-      if (!['delta', 'done', 'error'].includes(name)) return;
+      if (!['delta', 'avatar_cue', 'done', 'error'].includes(name)) return;
       let payload;
       try { payload = JSON.parse(data); }
       catch { throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' }); }
@@ -3066,6 +3601,7 @@
     if (!content || !chatAvailable || !chatHistoryReady || chatHistoryLoading || !agent || chatPending) return;
     const requestAgentId = String(agent.id);
     const requestViewVersion = chatHistoryLoadVersion;
+    setAdminChatDiagnostics(null);
     chatNotice = '';
     chatMessages.push({ role: 'user', content });
     while (chatMessages.length > 100) chatMessages.shift();
@@ -3078,12 +3614,21 @@
     let replyText = '';
     let completed = false;
     let requestId = '';
+    let replyAttribution = null;
+    const requestBody = { agentId: requestAgentId, message: content };
+    const providerKey = String(document.getElementById('chatProviderSelect')?.value || '');
+    if (providerKey && chatAdminProviders.some((provider) => provider.providerKey === providerKey)) {
+      requestBody.providerKey = providerKey;
+    }
+    const modelId = String(document.getElementById('chatModelId')?.value || '').trim();
+    if (chatAdminModelWasEdited && modelId) requestBody.modelId = modelId;
+    resetAdminChatOverrides();
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId: requestAgentId, message: content }),
+        body: JSON.stringify(requestBody),
       });
       if (response.status === 401) {
         pendingRow?.remove();
@@ -3096,6 +3641,7 @@
         const error = new Error(String(data.error || 'ai_chat_unavailable'));
         error.code = String(data.error || 'ai_chat_unavailable');
         error.requestId = String(data.requestId || '');
+        error.adminDiagnostics = data.adminDiagnostics;
         throw error;
       }
       if (!String(response.headers.get('content-type') || '').toLowerCase().includes('text/event-stream')) {
@@ -3109,26 +3655,34 @@
             assistantRow = pendingRow;
             assistantRow?.classList.remove('chat-pending');
             const textNode = assistantRow?.querySelector('.msg-text');
-            const progress = textNode?.querySelector('.chat-progress');
+            const liveStatus = textNode?.querySelector('.chat-live-status');
             const answerText = document.createElement('div');
             answerText.className = 'chat-answer-text';
-            textNode?.removeAttribute('aria-label');
-            if (textNode) textNode.replaceChildren(...(progress ? [progress, answerText] : [answerText]));
+            if (textNode) textNode.replaceChildren(...(liveStatus ? [liveStatus, answerText] : [answerText]));
           }
           assistantRow?.classList.add('chat-streaming');
-          setChatProgress(assistantRow, 'streaming');
+          setChatLiveStatus(assistantRow, 'streaming');
           replyText += payload.text;
           const answerText = assistantRow?.querySelector('.chat-answer-text');
-          if (answerText) answerText.textContent = replyText;
+          if (answerText) renderChatMarkdown(answerText, replyText);
           const stream = document.getElementById('chatStream');
           if (stream) stream.scrollTop = stream.scrollHeight;
+        } else if (eventName === 'avatar_cue') {
+          if (payload?.avatar === 'magnifier' && typeof payload?.cue === 'string') {
+            playScoutAvatarCue(payload.cue, requestAgentId);
+          }
         } else if (eventName === 'done') {
           completed = true;
           requestId = String(payload?.requestId || '');
+          const candidate = payload?.attribution;
+          if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+            replyAttribution = { provider: candidate.provider, model: candidate.model };
+          }
         } else if (eventName === 'error') {
           const error = new Error(String(payload?.error || 'ai_chat_unavailable'));
           error.code = String(payload?.error || 'ai_chat_unavailable');
           error.requestId = String(payload?.requestId || '');
+          error.adminDiagnostics = payload?.adminDiagnostics;
           throw error;
         }
       });
@@ -3143,24 +3697,26 @@
         return;
       }
       assistantRow?.classList.remove('chat-streaming');
-      setChatProgress(assistantRow, 'complete');
+      setChatLiveStatus(assistantRow, 'complete');
       const reply = replyText.trim();
       const answerText = assistantRow?.querySelector('.chat-answer-text');
-      if (answerText) answerText.textContent = reply;
+      if (answerText) renderChatMarkdown(answerText, reply);
+      appendChatProviderAttribution(assistantRow, replyAttribution);
       chatMessages.push({ role: 'assistant', content: reply });
       while (chatMessages.length > 100) chatMessages.shift();
     } catch (error) {
       assistantRow?.classList.remove('chat-streaming');
       if (requestAgentId === String(selectedAgentId || '') && requestViewVersion === chatHistoryLoadVersion) {
+        setAdminChatDiagnostics(error.adminDiagnostics);
         if (replyText.trim()) {
           const partialReply = replyText.trim();
           if (!assistantRow) {
             pendingRow?.remove();
             assistantRow = createAssistantChatMessage(partialReply);
           } else {
-            setChatProgress(assistantRow, 'interrupted');
+            setChatLiveStatus(assistantRow, 'interrupted');
             const answerText = assistantRow.querySelector('.chat-answer-text');
-            if (answerText) answerText.textContent = partialReply;
+            if (answerText) renderChatMarkdown(answerText, partialReply);
           }
           chatMessages.push({ role: 'assistant', content: partialReply });
           while (chatMessages.length > 100) chatMessages.shift();
@@ -3187,9 +3743,9 @@
     onboarding: {
       status: 'completed',
       completedAt: '2026-10-27T00:00:00.000Z',
-      profile: { agent: { name: 'Route Scout', role: 'Read-only assistant', avatar: 'bulb', color: '#32d583' } },
+      profile: { agent: { name: 'Route Scout', role: 'Read-only assistant', avatar: 'magnifier', color: '#32d583' } },
       agent: {
-        id: 'onb_review_fixture', name: 'Route Scout', role: 'Read-only assistant', avatar: 'bulb', status: 'paused',
+        id: 'onb_review_fixture', name: 'Route Scout', role: 'Read-only assistant', avatar: 'magnifier', status: 'paused',
         settings: { color: '#32d583' },
       },
     },
@@ -3201,6 +3757,8 @@
   }
 
   function renderLocalReviewFixture() {
+    clearAdminChatControls();
+    setAdminChatDiagnostics(null);
     chatHistoryLoadVersion += 1;
     chatAvailable = false;
     chatPending = false;
@@ -3225,6 +3783,9 @@
   }
 
   function setWorkspaceUnavailable() {
+    document.getElementById('workspaceApp')?.removeAttribute('aria-busy');
+    clearAdminChatControls();
+    setAdminChatDiagnostics(null);
     currentBootstrap = null;
     chatHistoryLoadVersion += 1;
     chatAvailable = false;
@@ -3279,6 +3840,7 @@
     selectedAgentId = agent?.id ? String(agent.id) : null;
     const chatAgentChanged = selectedAgentId !== renderedChatAgentId;
     if (chatAgentChanged) {
+      setAdminChatDiagnostics(null);
       renderedChatAgentId = selectedAgentId;
       chatMessages = [];
       chatNotice = '';
@@ -3315,6 +3877,7 @@
     filterTeammates(document.getElementById('agentSearchInput')?.value || '');
     renderSettingsFromBootstrap(data);
     syncChatComposer();
+    document.getElementById('workspaceApp')?.removeAttribute('aria-busy');
     if (chatAgentChanged && chatAvailable && selectedAgentId) void loadChatHistory(selectedAgentId);
   }
 
@@ -3645,6 +4208,11 @@
       showToast('Sign out failed. Please try again.');
     }
   });
+
+  const chatProviderSelect = document.getElementById('chatProviderSelect');
+  const chatModelIdInput = document.getElementById('chatModelId');
+  chatProviderSelect?.addEventListener('change', syncChatAdminModelInput);
+  chatModelIdInput?.addEventListener('input', () => { chatAdminModelWasEdited = true; });
 
   const chatInput = document.getElementById('chatInput');
   chatInput?.addEventListener('input', syncChatComposer);
