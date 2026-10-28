@@ -728,6 +728,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
       return true;
     }
 
+    if (completion.fallbackUsed === true) {
+      const fallbackAttempts = Number.isSafeInteger(completion.fallbackAttempts) ? completion.fallbackAttempts : 0;
+      console.info('Desktop AI chat used an approved fallback:', JSON.stringify({ requestId, fallbackAttempts }));
+    }
     await aiChatHistoryService.appendExchange({
       workspaceId: workspace.id,
       userId: user.id,
@@ -744,7 +748,16 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const upstreamStatus = Number.isInteger(error?.upstreamStatus) && error.upstreamStatus >= 100 && error.upstreamStatus <= 599
       ? error.upstreamStatus
       : undefined;
-    console.error('Desktop AI chat failed:', JSON.stringify({ requestId, error: error?.name || 'Error', code: safeCode, ...(upstreamStatus ? { upstreamStatus } : {}) }));
+    const fallbackAttempts = Number.isSafeInteger(error?.fallbackAttempts) && error.fallbackAttempts >= 0
+      ? error.fallbackAttempts
+      : undefined;
+    console.error('Desktop AI chat failed:', JSON.stringify({
+      requestId,
+      error: error?.name || 'Error',
+      code: safeCode,
+      ...(upstreamStatus ? { upstreamStatus } : {}),
+      ...(fallbackAttempts !== undefined ? { fallbackAttempts } : {}),
+    }));
 
     if (error instanceof UsageLimitError) {
       sendJson(res, 429, { error: 'token_usage_limit_exceeded' });
