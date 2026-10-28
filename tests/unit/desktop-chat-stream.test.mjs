@@ -165,6 +165,8 @@ test('admin provider/model controls are server-gated, request-scoped, and render
   assert.match(desktopHtml, /provider\.isFallback \? 'marked backup' : 'manual target'/);
   assert.match(desktopHtml, /requestBody\.providerKey = providerKey/);
   assert.match(desktopHtml, /requestBody\.modelId = modelId/);
+  assert.match(desktopHtml, /chatProviderSelect\?\.addEventListener\('change', syncAdminChatModelInput\)/);
+  assert.doesNotMatch(desktopHtml, /syncChatAdminModelInput/);
   assert.match(desktopHtml, /resetAdminChatOverrides\(\)/);
   assert.match(desktopHtml, /error\.adminDiagnostics = data\.adminDiagnostics/);
   assert.match(desktopHtml, /error\.adminDiagnostics = payload\?\.adminDiagnostics/);
