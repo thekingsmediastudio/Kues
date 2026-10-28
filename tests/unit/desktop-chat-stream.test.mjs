@@ -150,6 +150,102 @@ test('workspace approval cards render reviewed values as text and call the appro
   assert.equal(body.children.length, 1, 'reloaded proposals do not duplicate approval cards');
 });
 
+test('approving a workspace change refreshes live workspace data before reloading chat history', async () => {
+  const start = desktopHtml.indexOf('  async function decideWorkspaceToolApproval');
+  const end = desktopHtml.indexOf('\n\n  function runScoutCueQueue', start);
+  assert.ok(start >= 0 && end > start);
+  const source = desktopHtml.slice(start, end);
+  const makeHarness = (approvalStatus) => {
+    const calls = [];
+    const status = { textContent: '' };
+    const controls = [{ disabled: false }];
+    const card = {
+      dataset: {},
+      querySelectorAll() { return controls; },
+      querySelector(selector) { return selector === '.workspace-tool-approval-status' ? status : null; },
+    };
+    const fetch = async (url, options) => {
+      calls.push(['approval', url, options]);
+      return {
+        status: 200,
+        ok: true,
+        async json() {
+          return {
+            status: approvalStatus,
+            message: approvalStatus === 'approved' ? 'Updated Scout.' : 'Cancelled the proposed change.',
+            historyUserMessage: `${approvalStatus} workspace change: Update Scout.`,
+          };
+        },
+      };
+    };
+    const loadWorkspace = async (options) => { calls.push(['workspace', options]); return true; };
+    const loadHistory = async (agentId) => { calls.push(['history', agentId]); };
+    const decide = new Function(
+      'fetch', 'location', 'loadAuthenticatedWorkspace', 'loadChatHistory', 'selectedAgentId', 'syncChatComposer', 'chatNotice',
+      `${source}; return decideWorkspaceToolApproval;`,
+    )(fetch, { replace() {} }, loadWorkspace, loadHistory, 'agent-1', () => {}, '');
+    return { card, calls, controls, decide, status };
+  };
+
+  const approved = makeHarness('approved');
+  await approved.decide('A'.repeat(32), 'approve', approved.card, 'agent-1');
+  assert.deepEqual(approved.calls.map(([kind, value]) => [kind, value]), [
+    ['approval', '/api/chat/tool-approval'],
+    ['workspace', { quiet: true }],
+    ['history', 'agent-1'],
+  ]);
+  assert.equal(approved.card.dataset.state, 'approved');
+  assert.equal(approved.status.textContent, 'Updated Scout.');
+  assert.equal(approved.controls[0].disabled, true);
+
+  const rejected = makeHarness('rejected');
+  await rejected.decide('B'.repeat(32), 'reject', rejected.card, 'agent-1');
+  assert.deepEqual(rejected.calls.map(([kind, value]) => [kind, value]), [
+    ['approval', '/api/chat/tool-approval'],
+    ['history', 'agent-1'],
+  ]);
+});
+
+test('quiet workspace refresh renders current data without replacing the app on a transient fetch failure', async () => {
+  const start = desktopHtml.indexOf('  async function loadAuthenticatedWorkspace');
+  const end = desktopHtml.indexOf('  function newAgentErrorCopy', start);
+  assert.ok(start >= 0 && end > start);
+  const source = desktopHtml.slice(start, end);
+  const makeLoader = (fetchImpl) => {
+    const rendered = [];
+    const state = { unavailable: 0, chatAvailabilityLoads: 0, reviewFixtures: 0 };
+    const loader = new Function(
+      'fetch', 'location', 'isLocalReviewHost', 'renderLocalReviewFixture', 'renderAuthenticatedWorkspace', 'loadChatAvailability', 'setWorkspaceUnavailable',
+      `${source}; return loadAuthenticatedWorkspace;`,
+    )(
+      fetchImpl,
+      { replace() {} },
+      () => false,
+      () => { state.reviewFixtures += 1; },
+      (data) => { rendered.push(data); },
+      () => { state.chatAvailabilityLoads += 1; },
+      () => { state.unavailable += 1; },
+    );
+    return { loader, rendered, state };
+  };
+  const latestBootstrap = { agents: [{ id: 'agent-1', settings: { color: '#ff7777' } }] };
+  const success = makeLoader(async (url, options) => {
+    assert.equal(url, '/api/workspace/bootstrap');
+    assert.equal(options.credentials, 'same-origin');
+    return { status: 200, ok: true, async json() { return latestBootstrap; } };
+  });
+  assert.equal(await success.loader({ quiet: true }), true);
+  assert.deepEqual(success.rendered, [latestBootstrap]);
+  assert.equal(success.state.chatAvailabilityLoads, 1);
+  assert.equal(success.state.unavailable, 0);
+
+  const failure = makeLoader(async () => { throw new Error('temporary network error'); });
+  assert.equal(await failure.loader({ quiet: true }), false);
+  assert.equal(failure.state.unavailable, 0, 'quiet refresh leaves the already-loaded workspace intact');
+  assert.equal(await failure.loader(), false);
+  assert.equal(failure.state.unavailable, 1, 'initial non-quiet load still reports a workspace failure');
+});
+
 test('pending assistant messages render three decorative bouncing dots and an accessible typing status', () => {
   const start = desktopHtml.indexOf('  function createAssistantChatMessage');
   const end = desktopHtml.indexOf('  function appendChatProviderAttribution', start);

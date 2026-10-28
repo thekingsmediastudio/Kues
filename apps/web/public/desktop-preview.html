@@ -3397,8 +3397,17 @@
       }
       if (status) status.textContent = String(data.message || 'Approval recorded.');
       card.dataset.state = String(data.status || 'completed');
-      if (data.historyUserMessage && String(threadAgentId) === String(selectedAgentId || '')) {
+      let workspaceRefreshed = true;
+      if (data.status === 'approved') {
+        workspaceRefreshed = await loadAuthenticatedWorkspace({ quiet: true });
+      }
+      const isCurrentThread = String(threadAgentId) === String(selectedAgentId || '');
+      if (data.historyUserMessage && isCurrentThread) {
         await loadChatHistory(threadAgentId);
+      }
+      if (!workspaceRefreshed && isCurrentThread) {
+        chatNotice = 'The change was approved, but the workspace view did not refresh. Reload the page to see it.';
+        syncChatComposer();
       }
     } catch {
       if (status) status.textContent = 'Could not reach the approval service. You can safely retry.';
@@ -4263,7 +4272,7 @@
     if (chatAgentChanged && chatAvailable && selectedAgentId) void loadChatHistory(selectedAgentId);
   }
 
-  async function loadAuthenticatedWorkspace() {
+  async function loadAuthenticatedWorkspace({ quiet = false } = {}) {
     try {
       const response = await fetch('/api/workspace/bootstrap', {
         credentials: 'same-origin',
@@ -4273,19 +4282,21 @@
       try { data = await response.json(); } catch {}
       if (response.status === 401) {
         location.replace('/login?auth_error=session');
-        return;
+        return false;
       }
       if (!response.ok) {
         if (isLocalReviewHost() && response.status === 503 && data.error === 'auth_storage_not_configured') {
           renderLocalReviewFixture();
-          return;
+          return true;
         }
         throw new Error(data.error || 'workspace_load_failed');
       }
       renderAuthenticatedWorkspace(data);
       void loadChatAvailability();
+      return true;
     } catch {
-      setWorkspaceUnavailable();
+      if (!quiet) setWorkspaceUnavailable();
+      return false;
     }
   }
 
