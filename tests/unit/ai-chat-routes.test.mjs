@@ -554,6 +554,34 @@ test('chat route drops Scout action cues for other avatars but allows one fixed 
   });
 });
 
+test('a standalone celebration request emits one supported mood cue even when the model sends none', async () => {
+  const fixture = testDependencies({
+    agentAvatar: 'bulb',
+    stream: async ({ onDelta }) => {
+      await onDelta('A little festive reaction.');
+      return {
+        text: 'A little festive reaction.', provider: 'internal-provider-key', model: 'test-model', inputTokens: 8, outputTokens: 4,
+      };
+    },
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...messagePayload, message: 'celebrate' }),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /"avatar":"emotion","cue":"excited"/);
+    assert.equal(wire.split(String.fromCharCode(10)).filter((line) => line === 'event: avatar_cue').length, 1);
+    assert.ok(wire.indexOf('event: avatar_cue') < wire.indexOf('event: delta'), 'the cue arrives while the pending avatar is present');
+    assert.match(wire, /event: done/);
+  });
+});
+
 test('desktop chat settles and stores a partial answer after interruption without attempting another provider in the route', async () => {
   const interrupted = new AiProviderError('ai_provider_stream_interrupted', 502);
   interrupted.partialCompletion = {
