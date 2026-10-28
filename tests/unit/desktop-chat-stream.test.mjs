@@ -37,7 +37,9 @@ test('desktop chat progressively renders answers, removes the completed progress
   assert.match(desktopHtml, /payload\?\.avatar === 'emotion'/);
   assert.match(desktopHtml, /playAvatarEmotion\(payload\.cue, requestAgentId, assistantRow \|\| pendingRow\)/);
   assert.match(desktopHtml, /\.agent-avatar-art\.avatar-mood-curious/);
-  assert.match(desktopHtml, /\.agent-avatar-art\[class\*="avatar-mood-"\] \{ animation:none!important; filter:brightness\(1\.1\); \}/);
+  assert.match(desktopHtml, /\.agent-avatar-art\[class\*="avatar-mood-"\] \{ animation:none!important; filter:brightness\(1\.4\) saturate\(1\.25\) drop-shadow\(0 0 8px rgba\(245,185,66,\.95\)\); \}/);
+  assert.ok(desktopHtml.includes('translateY(-11px)'), 'the excited reaction has a clearly visible bounce');
+  assert.ok(desktopHtml.includes('drop-shadow(0 0 10px rgba(245,185,66,1))'), 'the excited reaction includes a strong glow');
   for (const cue of ['happy', 'curious', 'thoughtful', 'empathetic', 'excited', 'concerned']) {
     const keyframeName = `avatarMood${cue[0].toUpperCase()}${cue.slice(1)}`;
     assert.ok(desktopHtml.includes(`.agent-avatar-art.avatar-mood-${cue} {`), `animation is mapped for ${cue}`);
@@ -48,7 +50,7 @@ test('desktop chat progressively renders answers, removes the completed progress
   const cueHandlerEnd = desktopHtml.indexOf('  function runAvatarEmotionQueue', cueHandlerStart);
   const cueHandler = desktopHtml.slice(cueHandlerStart, cueHandlerEnd);
   assert.match(cueHandler, /document\.getElementById\('savedAgentAvatar'\)\?\.querySelector\('\.agent-avatar-art'\)/);
-  assert.doesNotMatch(cueHandler, /hdrAvatar|chat-reply-avatar/, 'only the selected sidebar avatar animates');
+  assert.doesNotMatch(cueHandler, /hdrAvatar|chat-reply-avatar/, 'Scout action cues stay on the selected sidebar avatar');
   assert.match(desktopHtml, /const SCOUT_CUE_REPEAT_COUNT = 4/);
   assert.match(desktopHtml, /SCOUT_CUE_DURATIONS\[cue\] \* SCOUT_CUE_REPEAT_COUNT/);
   assert.match(desktopHtml, /prefers-reduced-motion:reduce/);
@@ -112,27 +114,42 @@ test('pending assistant messages render three decorative bouncing dots and an ac
 });
 
 
-test('allowlisted mood cues animate only the current reply avatar with a fixed local class', () => {
+test('allowlisted mood cues animate the reply, sidebar, and header avatars with fixed local classes', () => {
   const start = desktopHtml.indexOf('  function runAvatarEmotionQueue');
   const end = desktopHtml.indexOf('  function setChatLiveStatus', start);
   assert.ok(start >= 0 && end > start);
   const source = desktopHtml.slice(start, end);
-  const classes = new Set();
-  const svg = {
-    isConnected: true,
-    classList: {
-      add(value) { classes.add(value); },
-      remove(...values) { values.forEach((value) => classes.delete(value)); },
+  const makeAvatar = () => {
+    const classes = new Set();
+    return {
+      classes,
+      svg: {
+        isConnected: true,
+        classList: {
+          add(value) { classes.add(value); },
+          remove(...values) { values.forEach((value) => classes.delete(value)); },
+        },
+        getBoundingClientRect() {},
+      },
+    };
+  };
+  const replyAvatar = makeAvatar();
+  const sidebarAvatar = makeAvatar();
+  const headerAvatar = makeAvatar();
+  const document = {
+    getElementById(id) {
+      const avatar = id === 'savedAgentAvatar' ? sidebarAvatar.svg : id === 'hdrAvatar' ? headerAvatar.svg : null;
+      return avatar ? { querySelector(selector) { assert.equal(selector, '.agent-avatar-art'); return avatar; } } : null;
     },
-    getBoundingClientRect() {},
   };
   const timers = [];
+  let reducedMotion = false;
   const window = {
-    matchMedia() { return { matches: false }; },
+    matchMedia() { return { matches: reducedMotion }; },
     setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; },
   };
   const selectedAgent = { id: 'agent-1', avatar: 'bulb' };
-  const playAvatarEmotion = new Function('window', 'findSelectedChatAgent', 'emotionDurations', `
+  const playAvatarEmotion = new Function('window', 'document', 'findSelectedChatAgent', 'emotionDurations', `
     const AVATAR_EMOTION_DURATIONS = emotionDurations;
     const AVATAR_EMOTION_IDS = new Set(Object.keys(AVATAR_EMOTION_DURATIONS));
     const AVATAR_EMOTION_CLASSES = Object.keys(AVATAR_EMOTION_DURATIONS).map((cue) => 'avatar-mood-' + cue);
@@ -140,24 +157,31 @@ test('allowlisted mood cues animate only the current reply avatar with a fixed l
     const avatarEmotionTimers = new WeakMap();
     ${source}
     return playAvatarEmotion;
-  `)(window, () => selectedAgent, {
-    happy: 900, curious: 820, thoughtful: 1000, empathetic: 900, excited: 820, concerned: 760,
+  `)(window, document, () => selectedAgent, {
+    happy: 1280, curious: 1200, thoughtful: 1300, empathetic: 1200, excited: 1300, concerned: 1100,
   });
   const row = {
     querySelector(selector) {
       assert.equal(selector, '.chat-reply-avatar .agent-avatar-art');
-      return svg;
+      return replyAvatar.svg;
     },
   };
+  const targets = [replyAvatar, sidebarAvatar, headerAvatar];
   playAvatarEmotion('curious', 'agent-1', row);
-  assert.equal(classes.has('avatar-mood-curious'), true);
-  assert.equal(timers[0].delay, 900);
-  timers[0].callback();
-  assert.equal(classes.has('avatar-mood-curious'), false);
+  assert.ok(targets.every(({ classes }) => classes.has('avatar-mood-curious')));
+  assert.deepEqual(timers.map((timer) => timer.delay), [1280, 1280, 1280]);
+  timers.slice(0, 3).forEach(({ callback }) => callback());
+  assert.ok(targets.every(({ classes }) => !classes.has('avatar-mood-curious')));
+  reducedMotion = true;
+  playAvatarEmotion('excited', 'agent-1', row);
+  assert.ok(targets.every(({ classes }) => classes.has('avatar-mood-excited')));
+  assert.deepEqual(timers.slice(3).map((timer) => timer.delay), [850, 850, 850]);
+  timers.slice(3).forEach(({ callback }) => callback());
+  assert.ok(targets.every(({ classes }) => classes.size === 0));
   playAvatarEmotion('not-allowlisted', 'agent-1', row);
   playAvatarEmotion('happy', 'different-agent', row);
-  assert.equal(classes.size, 0);
-  assert.equal(timers.length, 1, 'invalid or stale cues do not animate');
+  assert.ok(targets.every(({ classes }) => classes.size === 0));
+  assert.equal(timers.length, 6, 'invalid or stale cues do not animate');
 });
 
 test('assistant Markdown renders common blocks safely and rejects executable links or raw HTML', () => {
