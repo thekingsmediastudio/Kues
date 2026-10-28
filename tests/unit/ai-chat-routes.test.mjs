@@ -32,10 +32,11 @@ async function withServer(dependencies, run) {
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-function testDependencies({ enabled = true, complete, stream, agentAvatar = 'bulb', providers } = {}) {
+function testDependencies({ enabled = true, complete, stream, agentAvatar = 'bulb', providers, catalog } = {}) {
   const usageCalls = { reserve: [], settle: [], release: [] };
   const aiCalls = [];
   const streamCalls = [];
+  const catalogCalls = [];
   const historyCalls = { append: [], recent: [] };
   const savedHistory = new Map();
   const historyKey = ({ workspaceId, userId, agentId }) => `${workspaceId}:${userId}:${agentId}`;
@@ -68,6 +69,18 @@ function testDependencies({ enabled = true, complete, stream, agentAvatar = 'bul
     },
     aiChatService: {
       async isReady() { return true; },
+      async listModels(input) {
+        catalogCalls.push(input);
+        if (catalog) return catalog(input);
+        return {
+          configuredModelId: 'hidden-model-id',
+          catalogAvailable: true,
+          models: [
+            { id: 'hidden-model-id', displayName: 'Configured Model', isConfigured: true },
+            { id: 'catalog-model', displayName: 'Catalog Model', isConfigured: false },
+          ],
+        };
+      },
       async complete(input) {
         aiCalls.push(input);
         if (complete) return complete(input);
@@ -106,7 +119,7 @@ function testDependencies({ enabled = true, complete, stream, agentAvatar = 'bul
       async releaseTokenReservation(input) { usageCalls.release.push(input); return { status: 'released' }; },
     },
   };
-  return { dependencies, usageCalls, aiCalls, streamCalls, historyCalls };
+  return { dependencies, usageCalls, aiCalls, streamCalls, historyCalls, catalogCalls };
 }
 
 const messagePayload = {
@@ -168,6 +181,78 @@ test('admin desktop chat status exposes enabled choices and replies include veri
       { role: 'user', content: messagePayload.message },
       { role: 'assistant', content: 'Keep daily-use items close by.' },
     ]);
+  });
+});
+
+test('model catalog route is authenticated, admin-only, provider-scoped, and falls back without leaking credentials', async () => {
+  const fixture = testDependencies({
+    catalog: async (input) => input.providerKey === 'manual-target'
+      ? {
+        configuredModelId: 'manual-model-id',
+        catalogAvailable: true,
+        models: [
+          { id: 'manual-model-id', displayName: 'Manual configured', isConfigured: true, apiKey: 'never-return-this' },
+          { id: 'manual-v2', displayName: 'Manual v2', isConfigured: false, apiKey: 'never-return-this' },
+        ],
+      }
+      : {
+        configuredModelId: 'hidden-model-id',
+        catalogAvailable: false,
+        models: [{ id: 'partial-result-must-not-be-shown', displayName: 'Partial result' }],
+      },
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const primary = await fetch(`${base}/api/chat/models`, {
+      headers: { Cookie: 'kues_session=admin-session' },
+    });
+    assert.equal(primary.status, 200);
+    assert.deepEqual(await primary.json(), {
+      configuredModelId: 'hidden-model-id',
+      catalogAvailable: false,
+      models: [{ id: 'hidden-model-id', displayName: 'hidden-model-id', isConfigured: true }],
+    });
+
+    const selected = await fetch(`${base}/api/chat/models?providerKey=manual-target`, {
+      headers: { Cookie: 'kues_session=admin-session' },
+    });
+    assert.equal(selected.status, 200);
+    const selectedBody = await selected.json();
+    assert.deepEqual(selectedBody, {
+      configuredModelId: 'manual-model-id',
+      catalogAvailable: true,
+      models: [
+        { id: 'manual-model-id', displayName: 'Manual configured', isConfigured: true },
+        { id: 'manual-v2', displayName: 'Manual v2', isConfigured: false },
+      ],
+    });
+    assert.equal(JSON.stringify(selectedBody).includes('never-return-this'), false);
+    assert.deepEqual(fixture.catalogCalls, [{}, { providerKey: 'manual-target' }]);
+
+    const duplicateProvider = await fetch(`${base}/api/chat/models?providerKey=manual-target&providerKey=other`, {
+      headers: { Cookie: 'kues_session=admin-session' },
+    });
+    assert.equal(duplicateProvider.status, 400);
+    assert.equal(fixture.catalogCalls.length, 2);
+
+    const crossOrigin = await fetch(`${base}/api/chat/models?providerKey=manual-target`, {
+      headers: { Cookie: 'kues_session=admin-session', Origin: 'https://attacker.example' },
+    });
+    assert.equal(crossOrigin.status, 403);
+    assert.equal(fixture.catalogCalls.length, 2);
+
+    const memberRequest = await fetch(`${base}/api/chat/models?providerKey=manual-target`, {
+      headers: { Cookie: 'kues_session=member-session', 'X-Admin': 'true' },
+    });
+    assert.equal(memberRequest.status, 503);
+    assert.equal(fixture.catalogCalls.length, 2);
+
+    const anonymous = await fetch(`${base}/api/chat/models`);
+    assert.equal(anonymous.status, 401);
+    const wrongMethod = await fetch(`${base}/api/chat/models`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session' },
+    });
+    assert.equal(wrongMethod.status, 405);
   });
 });
 
@@ -435,11 +520,14 @@ test('admin streaming chat reveals attribution only in the final done event', as
 });
 
 
-test('chat route drops even allowlisted cue requests for agents without Scout avatar support', async () => {
+test('chat route drops Scout action cues for other avatars but allows one fixed mood cue', async () => {
   const fixture = testDependencies({
     agentAvatar: 'bulb',
     stream: async ({ onDelta, onAvatarCue }) => {
+      await onAvatarCue('happy');
+      await onAvatarCue('curious');
       await onAvatarCue('search');
+      await onAvatarCue('run_code');
       await onDelta('A plain answer.');
       return {
         text: 'A plain answer.', provider: 'internal-provider-key', model: 'test-model', inputTokens: 8, outputTokens: 4,
@@ -459,7 +547,9 @@ test('chat route drops even allowlisted cue requests for agents without Scout av
     assert.equal(response.status, 200);
     assert.match(wire, /event: delta/);
     assert.match(wire, /A plain answer\./);
-    assert.doesNotMatch(wire, /event: avatar_cue/);
+    assert.match(wire, /"avatar":"emotion","cue":"happy"/);
+    assert.equal(wire.split(String.fromCharCode(10)).filter((line) => line === 'event: avatar_cue').length, 1, 'only one mood cue is forwarded per reply');
+    assert.doesNotMatch(wire, /curious|search|run_code/);
     assert.match(wire, /event: done/);
   });
 });
