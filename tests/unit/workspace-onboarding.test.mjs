@@ -83,7 +83,68 @@ test('verified accounts receive one shared-DB default workspace, owner membershi
   }
 });
 
-test('onboarding is persisted in the owner workspace and returned from the shared database', async () => {
+test('established workspace bootstrap stays on a read snapshot and repairs incomplete first-login state through the writer', async () => {
+  const db = await createDb();
+  const transactionModes = [];
+  const observedDb = {
+    transaction(mode) {
+      transactionModes.push(mode);
+      return db.transaction(mode);
+    },
+  };
+  const now = '2026-10-26T09:00:00.000Z';
+  try {
+    const auth = createAuthService({ db, competition });
+    const login = await auth.createWorkOSSession({
+      providerSubject: 'workos_fast_bootstrap_1',
+      email: 'fast-bootstrap@example.test',
+      emailVerified: true,
+      displayName: 'Fast Bootstrap Owner',
+      now,
+    });
+    const workspaces = createWorkspaceService({ db: observedDb, competition });
+
+    const ready = await workspaces.getBootstrap({ userId: login.user.id, now });
+    assert.equal(ready.workspace.role, 'owner');
+    assert.deepEqual(transactionModes, ['read'], 'a fully provisioned workspace does not enter the write queue');
+
+    await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now });
+    const secondLogin = await auth.createWorkOSSession({
+      providerSubject: 'workos_fast_bootstrap_2',
+      email: 'other-fast-bootstrap@example.test',
+      emailVerified: true,
+      displayName: 'Second Owner',
+      now,
+    });
+    transactionModes.length = 0;
+    const secondBootstrap = await workspaces.getBootstrap({ userId: secondLogin.user.id, now });
+    assert.notEqual(secondBootstrap.workspace.id, ready.workspace.id);
+    assert.deepEqual(secondBootstrap.agents, [], 'the read fast path returns only the signed-in account workspace agents');
+    assert.deepEqual(transactionModes, ['read']);
+
+    await db.execute({
+      sql: "DELETE FROM entitlements WHERE workspace_id = ? AND source = 'competition'",
+      args: [secondBootstrap.workspace.id],
+    });
+    transactionModes.length = 0;
+    const entitlementRepaired = await workspaces.getBootstrap({ userId: secondLogin.user.id, now });
+    assert.equal(entitlementRepaired.usageAccess.state, 'competition_free');
+    assert.deepEqual(transactionModes, ['read', 'write'], 'missing active competition provisioning uses the repair path');
+
+    await db.execute({
+      sql: 'DELETE FROM workspace_onboarding WHERE workspace_id = ?',
+      args: [ready.workspace.id],
+    });
+    transactionModes.length = 0;
+    const repaired = await workspaces.getBootstrap({ userId: login.user.id, now });
+    assert.equal(repaired.onboarding.status, 'not_started');
+    assert.deepEqual(transactionModes, ['read', 'write'], 'missing first-login state falls back to provisioning');
+  } finally {
+    await db.close();
+  }
+});
+
+test('completed onboarding stays linked to the same workspace on a new WorkOS identity with the same email', async () => {
   const db = await createDb();
   try {
     const now = '2026-10-26T09:00:00.000Z';
@@ -120,6 +181,20 @@ test('onboarding is persisted in the owner workspace and returned from the share
     assert.deepEqual(reloaded.onboarding.profile, saved.onboarding.profile);
     assert.equal(reloaded.onboarding.agent.id, saved.onboarding.agent.id);
     assert.equal(reloaded.usageAccess.state, 'competition_free');
+
+    const googleLogin = await auth.createWorkOSSession({
+      providerSubject: 'workos_google_identity_1',
+      email: 'onboarding@example.test',
+      emailVerified: true,
+      now: '2026-10-26T09:30:00.000Z',
+    });
+    assert.equal(googleLogin.user.id, login.user.id);
+    assert.equal(googleLogin.isNewUser, false);
+    assert.equal(googleLogin.needsOnboarding, false);
+    const googleBootstrap = await workspaces.getBootstrap({ userId: googleLogin.user.id, now });
+    assert.equal(googleBootstrap.workspace.id, saved.workspace.id);
+    assert.equal(googleBootstrap.onboarding.status, 'completed');
+    assert.equal(googleBootstrap.onboarding.agent.id, saved.onboarding.agent.id);
 
     const afterCompetition = await workspaces.getBootstrap({
       userId: login.user.id,
