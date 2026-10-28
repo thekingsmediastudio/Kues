@@ -542,6 +542,18 @@
   }
   .msg-text strong { color: #fff; font-weight: 600; }
   .chat-provider-attribution { margin-top:8px; color:var(--text-dim); font-size:10.5px; line-height:1.45; overflow-wrap:anywhere; }
+  .workspace-tool-approval{width:min(100%,680px);padding:13px 14px;border:1px solid rgba(50,213,131,.32);border-radius:12px;background:var(--bg-card);color:var(--text-main)}
+  .workspace-tool-approval-title{display:block;font-size:12px;font-weight:750}
+  .workspace-tool-approval-summary,.workspace-tool-approval-status{margin:5px 0 0;color:var(--text-sec);font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+  .workspace-tool-approval-fields{display:grid;gap:6px;margin:10px 0 0}
+  .workspace-tool-approval-fields>div{display:grid;grid-template-columns:minmax(100px,155px) minmax(0,1fr);gap:8px}
+  .workspace-tool-approval-fields dt{color:var(--text-dim);font-size:10px}
+  .workspace-tool-approval-fields dd{margin:0;color:var(--text-main);font-size:10px;line-height:1.4;overflow-wrap:anywhere}
+  .workspace-tool-approval-status{min-height:16px;margin-top:10px}
+  .workspace-tool-approval-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
+  .workspace-tool-approval-buttons button{min-height:32px;padding:6px 11px;border:1px solid var(--border-strong);border-radius:8px;background:transparent;color:var(--text-main);font:650 10px var(--font);cursor:pointer}
+  .workspace-tool-approval-buttons .workspace-tool-approve{border-color:rgba(50,213,131,.5);background:rgba(50,213,131,.13);color:var(--green)}
+  .workspace-tool-approval-buttons button:disabled{opacity:.55;cursor:not-allowed}
   .chat-live-status { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
   .chat-typing-indicator { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:48px; height:30px; padding:0 10px; border:1px solid var(--border); border-radius:14px 14px 14px 4px; background:rgba(255,255,255,.045); color:var(--text-sec); }
   .chat-typing-dot { width:5px; height:5px; flex:none; border-radius:50%; background:currentColor; opacity:.42; animation:chatTypingBounce 1.05s ease-in-out infinite; }
@@ -1945,7 +1957,7 @@
         <div class="chat-empty-state" id="chatEmptyState" hidden>
           <span class="chat-empty-kicker">Test chat</span>
           <h2>What can I help with?</h2>
-          <p>Ask a question for a text reply. Catalog search and external actions are not connected yet.</p>
+          <p>Ask a question for a text reply, or enable workspace agent mode to inspect your agents and propose changes for your approval. External actions are not connected.</p>
           <div class="chat-suggestion-list" aria-label="Suggested test prompts">
             <button type="button" data-chat-suggestion="Help me plan a focused workday.">Plan a focused workday</button>
             <button type="button" data-chat-suggestion="Explain a difficult idea in simple terms.">Explain an idea simply</button>
@@ -1979,6 +1991,7 @@
               <option value="">Loading available models…</option>
             </select>
           </label>
+          <p id="workspaceAgentNotice">Your workspace agent tools are available automatically in chat. It can inspect this signed-in workspace and propose agent/workspace edits. Every write pauses for your explicit approval; no outside apps, purchases, or web actions are available.</p>
           <p id="adminChatProviderNotice">Overrides apply to the next message only, then reset to the configured primary/model. The selected provider receives the prompt and saved context; on network, HTTP 429, or 5xx failures, explicitly marked backups may receive it too. Retention and costs can differ. <span id="adminChatCatalogStatus" role="status" aria-live="polite"></span></p>
         </div>
         <details class="admin-chat-diagnostics" id="adminChatDiagnostics" hidden>
@@ -3297,6 +3310,103 @@
     textNode.append(note);
   }
 
+  function renderWorkspaceApprovalCard(row, payload, threadAgentId) {
+    const actionId = typeof payload?.actionId === 'string' ? payload.actionId : '';
+    const action = payload?.action && typeof payload.action === 'object' ? payload.action : null;
+    const body = row?.querySelector('.agent-msg-body');
+    if (!body || !/^[A-Za-z0-9_-]{32,64}$/.test(actionId) || !action
+        || body.querySelector(`[data-workspace-action-id="${actionId}"]`)) return;
+    const card = document.createElement('section');
+    card.className = 'workspace-tool-approval';
+    card.dataset.workspaceActionId = actionId;
+    card.setAttribute('aria-label', 'Workspace change approval');
+    const title = document.createElement('strong');
+    title.className = 'workspace-tool-approval-title';
+    title.textContent = typeof action.title === 'string' ? action.title.slice(0, 80) : 'Workspace change';
+    const summary = document.createElement('p');
+    summary.className = 'workspace-tool-approval-summary';
+    summary.textContent = typeof action.summary === 'string' ? action.summary.slice(0, 240) : 'Review this proposed change.';
+    card.append(title, summary);
+    const fields = Array.isArray(action.fields) ? action.fields.slice(0, 20) : [];
+    if (fields.length) {
+      const list = document.createElement('dl');
+      list.className = 'workspace-tool-approval-fields';
+      for (const field of fields) {
+        if (typeof field?.label !== 'string' || typeof field?.value !== 'string') continue;
+        const item = document.createElement('div');
+        const label = document.createElement('dt');
+        label.textContent = field.label.slice(0, 60);
+        const value = document.createElement('dd');
+        const before = typeof field.before === 'string' ? field.before.slice(0, 160) : '';
+        value.textContent = before ? `${before} → ${field.value.slice(0, 240)}` : field.value.slice(0, 240);
+        item.append(label, value);
+        list.append(item);
+      }
+      if (list.childElementCount) card.append(list);
+    }
+    const status = document.createElement('p');
+    status.className = 'workspace-tool-approval-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    status.textContent = 'Nothing has changed yet.';
+    const buttons = document.createElement('div');
+    buttons.className = 'workspace-tool-approval-buttons';
+    const approve = document.createElement('button');
+    approve.type = 'button';
+    approve.className = 'workspace-tool-approve';
+    approve.textContent = 'Approve change';
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.className = 'workspace-tool-reject';
+    reject.textContent = 'Cancel';
+    approve.addEventListener('click', () => { void decideWorkspaceToolApproval(actionId, 'approve', card, threadAgentId); });
+    reject.addEventListener('click', () => { void decideWorkspaceToolApproval(actionId, 'reject', card, threadAgentId); });
+    buttons.append(approve, reject);
+    card.append(status, buttons);
+    body.append(card);
+  }
+
+  async function decideWorkspaceToolApproval(actionId, decision, card, threadAgentId) {
+    if (card.dataset.submitting === 'true') return;
+    const controls = [...card.querySelectorAll('button')];
+    const status = card.querySelector('.workspace-tool-approval-status');
+    card.dataset.submitting = 'true';
+    controls.forEach((button) => { button.disabled = true; });
+    if (status) status.textContent = decision === 'approve' ? 'Applying your approved change…' : 'Cancelling the proposal…';
+    try {
+      const response = await fetch('/api/chat/tool-approval', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ actionId, decision }),
+      });
+      let data = {};
+      try { data = await response.json(); } catch {}
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      if (!response.ok) {
+        const copy = response.status === 410
+          ? 'This approval expired. Ask the agent to prepare the change again.'
+          : 'I could not confirm this approval. Refresh the conversation and try again.';
+        if (status) status.textContent = copy;
+        card.dataset.submitting = 'false';
+        controls.forEach((button) => { button.disabled = true; });
+        return;
+      }
+      if (status) status.textContent = String(data.message || 'Approval recorded.');
+      card.dataset.state = String(data.status || 'completed');
+      if (data.historyUserMessage && String(threadAgentId) === String(selectedAgentId || '')) {
+        await loadChatHistory(threadAgentId);
+      }
+    } catch {
+      if (status) status.textContent = 'Could not reach the approval service. You can safely retry.';
+      card.dataset.submitting = 'false';
+      controls.forEach((button) => { button.disabled = false; });
+    }
+  }
+
   function runScoutCueQueue(svg) {
     const queue = scoutCueQueues.get(svg);
     if (!svg?.isConnected || !queue?.length) return;
@@ -3743,9 +3853,15 @@
       )) : [];
       chatMessages = messages.slice(-100).map(({ role, content }) => ({ role, content }));
       clearChatStream();
+      let lastAssistantRow = null;
       for (const message of chatMessages) {
         if (message.role === 'user') appendUserChatMessage(message.content);
-        else createAssistantChatMessage(message.content);
+        else lastAssistantRow = createAssistantChatMessage(message.content);
+      }
+      if (lastAssistantRow && Array.isArray(data.pendingActions)) {
+        for (const action of data.pendingActions.slice(0, 20)) {
+          renderWorkspaceApprovalCard(lastAssistantRow, action, requestedAgentId);
+        }
       }
       chatHistoryReady = true;
     } catch (error) {
@@ -3809,7 +3925,7 @@
       const data = dataLines.join('\n');
       eventName = 'message';
       dataLines = [];
-      if (!['delta', 'avatar_cue', 'done', 'error'].includes(name)) return;
+      if (!['delta', 'avatar_cue', 'tool_approval_required', 'done', 'error'].includes(name)) return;
       let payload;
       try { payload = JSON.parse(data); }
       catch { throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' }); }
@@ -3935,6 +4051,8 @@
           } else if (payload?.avatar === 'emotion' && typeof payload?.cue === 'string') {
             playAvatarEmotion(payload.cue, requestAgentId, assistantRow || pendingRow);
           }
+        } else if (eventName === 'tool_approval_required') {
+          if (assistantRow) renderWorkspaceApprovalCard(assistantRow, payload, requestAgentId);
         } else if (eventName === 'done') {
           completed = true;
           requestId = String(payload?.requestId || '');

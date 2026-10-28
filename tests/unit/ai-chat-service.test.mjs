@@ -287,6 +287,73 @@ test('all agent avatars support allowlisted decorative mood cues that are stripp
   }
 });
 
+test('workspace-agent prompts use fixed tool instructions without changing normal provider selection', async () => {
+  const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
+  const observed = [];
+  try {
+    const marker = '[[KEUS_WORKSPACE_TOOL:{"name":"inspect_workspace","arguments":{}}]]';
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsImpl: async (request) => {
+        observed.push(request);
+        return {
+          status: 200,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify({ choices: [{ message: { content: marker } }] })),
+        };
+      },
+    });
+    const agent = { name: 'Desk Helper', role: 'Workspace helper', avatar: 'bulb' };
+    const toolMode = await chat.complete({ agent, messages, workspaceTools: true });
+    assert.equal(toolMode.text, marker, 'workspace control data remains available to the server parser');
+    const normalMode = await chat.complete({ agent, messages });
+    assert.equal(normalMode.text, marker);
+    const toolSystem = JSON.parse(observed[0].body.toString('utf8')).messages[0].content;
+    const normalSystem = JSON.parse(observed[1].body.toString('utf8')).messages[0].content;
+    assert.match(toolSystem, /workspace agent with a small, server-enforced tool set, available by default in this chat/);
+    assert.match(toolSystem, /create_agent/);
+    assert.match(toolSystem, /update_agent/);
+    assert.match(toolSystem, /rename_workspace/);
+    assert.doesNotMatch(normalSystem, /You are a Kues workspace agent with a small, server-enforced tool set/);
+  } finally {
+    await db.close();
+  }
+});
+
+test('workspace-agent tools can be included in provider streaming prompts without leaking into normal prompts', async () => {
+  const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
+  const observed = [];
+  try {
+    const { Readable } = await import('node:stream');
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsStreamImpl: async (request) => {
+        observed.push(request);
+        return {
+          status: 200,
+          contentType: 'text/event-stream',
+          body: Readable.from([
+            'data: {"choices":[{"delta":{"content":"A clear reply."},"finish_reason":null}]}\n\n',
+            'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+          ]),
+        };
+      },
+    });
+    const withTools = await chat.stream({ agent: { name: 'Desk helper', role: 'Workspace agent' }, messages, workspaceTools: true, onDelta: async () => {} });
+    const normal = await chat.stream({ agent: { name: 'Desk helper', role: 'Workspace agent' }, messages, onDelta: async () => {} });
+    assert.equal(withTools.text, 'A clear reply.');
+    assert.equal(normal.text, 'A clear reply.');
+    const toolPrompt = JSON.parse(observed[0].body.toString('utf8')).messages[0].content;
+    const normalPrompt = JSON.parse(observed[1].body.toString('utf8')).messages[0].content;
+    assert.match(toolPrompt, /workspace agent with a small, server-enforced tool set/);
+    assert.doesNotMatch(normalPrompt, /workspace agent with a small, server-enforced tool set/);
+  } finally {
+    await db.close();
+  }
+});
+
 test('celebration synonyms are normalized to the supported excited cue and removed from visible text', async () => {
   const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
   try {

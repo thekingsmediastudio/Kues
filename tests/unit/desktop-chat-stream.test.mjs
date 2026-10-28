@@ -10,7 +10,7 @@ const desktopHtml = fs.readFileSync(path.resolve(testDir, '../../apps/web/public
 
 test('desktop chat progressively renders answers, removes the completed progress card, and preserves Scout action cues', () => {
   assert.match(desktopHtml, /headers:\s*\{\s*Accept:\s*'text\/event-stream',\s*'Content-Type':\s*'application\/json'\s*\}/);
-  assert.match(desktopHtml, /\['delta', 'avatar_cue', 'done', 'error'\]\.includes\(name\)/);
+  assert.match(desktopHtml, /\['delta', 'avatar_cue', 'tool_approval_required', 'done', 'error'\]\.includes\(name\)/);
   assert.match(desktopHtml, /const answerText = assistantRow\?\.querySelector\('\.chat-answer-text'\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, replyText\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, reply\)/);
@@ -28,6 +28,12 @@ test('desktop chat progressively renders answers, removes the completed progress
   assert.match(desktopHtml, /Reply complete\./);
   assert.doesNotMatch(desktopHtml, /chat-progress|chat-thinking-dots|Prompt received|Streaming answer/);
   assert.match(desktopHtml, /function appendChatProviderAttribution\(row, attribution\)/);
+  assert.match(desktopHtml, /Your workspace agent tools are available automatically in chat/);
+  assert.match(desktopHtml, /Every write pauses for your explicit approval/);
+  assert.doesNotMatch(desktopHtml, /chatAgentMode|agentMode = true|Agent mode · workspace tools/);
+  assert.match(desktopHtml, /function renderWorkspaceApprovalCard\(row, payload, threadAgentId\)/);
+  assert.match(desktopHtml, /fetch\('\/api\/chat\/tool-approval'/);
+  assert.match(desktopHtml, /if \(lastAssistantRow && Array\.isArray\(data\.pendingActions\)\)/);
   assert.match(desktopHtml, /const candidate = payload\?\.attribution/);
   assert.match(desktopHtml, /appendChatProviderAttribution\(assistantRow, replyAttribution\)/);
   assert.match(desktopHtml, /note\.textContent = `Provider: \$\{provider\} · Model: \$\{model\}`/);
@@ -77,6 +83,71 @@ test('desktop chat progressively renders answers, removes the completed progress
     assert.ok(reducedMotionStyles.includes(`.agent-avatar-art.scout-cue-${cue} .scout-mark-${cue}`), `reduced motion shows only the active ${cue} symbol`);
   }
   assert.doesNotMatch(desktopHtml, /eventName\s*===\s*['"]reasoning['"]/i);
+});
+
+test('workspace approval cards render reviewed values as text and call the approval endpoint only on a button action', async () => {
+  const start = desktopHtml.indexOf('  function renderWorkspaceApprovalCard');
+  const end = desktopHtml.indexOf('  async function decideWorkspaceToolApproval', start);
+  assert.ok(start >= 0 && end > start);
+  const source = desktopHtml.slice(start, end);
+  class MockNode {
+    constructor(tag) {
+      this.tagName = tag;
+      this.children = [];
+      this.attributes = {};
+      this.dataset = {};
+      this.listeners = {};
+      this.className = '';
+      this.textContent = '';
+      this.type = '';
+    }
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+    addEventListener(name, callback) { this.listeners[name] = callback; }
+    querySelector(selector) {
+      if (selector.startsWith('[data-workspace-action-id=')) {
+        const id = selector.match(/"([^"]+)"/)?.[1];
+        return this.children.find((child) => child.dataset.workspaceActionId === id) || null;
+      }
+      return null;
+    }
+    get childElementCount() { return this.children.length; }
+  }
+  const document = { createElement(tag) { return new MockNode(tag); } };
+  const decisions = [];
+  const renderCard = new Function('document', 'decideWorkspaceToolApproval', `${source}; return renderWorkspaceApprovalCard;`)(
+    document,
+    (...args) => { decisions.push(args); },
+  );
+  const body = new MockNode('div');
+  const row = { querySelector(selector) { return selector === '.agent-msg-body' ? body : null; } };
+  const actionId = 'A'.repeat(32);
+  const payload = {
+    actionId,
+    action: {
+      title: 'Rename workspace',
+      summary: 'Change the workspace display name.',
+      fields: [{ label: 'Workspace name', before: 'Old name', value: '<script>not markup</script>' }],
+    },
+  };
+  renderCard(row, payload, 'agent-1');
+  assert.equal(body.children.length, 1);
+  const card = body.children[0];
+  assert.equal(card.dataset.workspaceActionId, actionId);
+  assert.equal(card.children[0].textContent, 'Rename workspace');
+  assert.equal(card.children[1].textContent, 'Change the workspace display name.');
+  const list = card.children.find((child) => child.className === 'workspace-tool-approval-fields');
+  assert.ok(list);
+  assert.equal(list.children[0].children[1].textContent, 'Old name → <script>not markup</script>');
+  assert.equal(card.children.at(-1).children[0].textContent, 'Approve change');
+  assert.equal(card.children.at(-1).children[1].textContent, 'Cancel');
+  assert.equal(decisions.length, 0, 'rendering a proposal does not approve it');
+  card.children.at(-1).children[0].listeners.click();
+  assert.deepEqual(decisions[0], [actionId, 'approve', card, 'agent-1']);
+  card.children.at(-1).children[1].listeners.click();
+  assert.deepEqual(decisions[1], [actionId, 'reject', card, 'agent-1']);
+  renderCard(row, payload, 'agent-1');
+  assert.equal(body.children.length, 1, 'reloaded proposals do not duplicate approval cards');
 });
 
 test('pending assistant messages render three decorative bouncing dots and an accessible typing status', () => {
