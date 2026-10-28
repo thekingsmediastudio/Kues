@@ -21,6 +21,7 @@ test('app AI-provider registry is global, has ciphertext-only key fields, and en
       'api_key_tag',
       'enabled',
       'is_primary',
+      'is_fallback',
     ]) {
       assert.ok(columns.has(column), `missing ${column}`);
     }
@@ -33,6 +34,17 @@ test('app AI-provider registry is global, has ciphertext-only key fields, and en
         VALUES (?, ?, ?, ?, ?, ?)`,
       args: ['provider-test-1', 'provider-test', 'Test Provider', 'openai_chat', 'https://provider.example/v1', 'test-model'],
     });
+    const defaultFallback = await db.execute({ sql: 'SELECT is_fallback FROM ai_providers WHERE id = ?', args: ['provider-test-1'] });
+    assert.equal(Number(defaultFallback.rows[0].is_fallback), 0);
+    await assert.rejects(
+      db.execute({
+        sql: `INSERT INTO ai_providers
+          (id, provider_key, display_name, api_protocol, base_url, model_id, is_fallback)
+          VALUES (?, ?, ?, ?, ?, ?, 2)`,
+        args: ['provider-test-invalid-fallback', 'invalid-fallback', 'Invalid Fallback', 'openai_chat', 'https://provider.example/v1', 'test-model'],
+      }),
+      /CHECK constraint failed/i,
+    );
 
     await assert.rejects(
       db.execute({
