@@ -8,13 +8,21 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopHtml = fs.readFileSync(path.resolve(testDir, '../../apps/web/public/desktop-preview.html'), 'utf8');
 
 
-test('desktop chat progressively renders answers, removes the completed progress card, and accepts only Scout cue events', () => {
+test('desktop chat progressively renders answers, removes the completed progress card, and preserves Scout action cues', () => {
   assert.match(desktopHtml, /headers:\s*\{\s*Accept:\s*'text\/event-stream',\s*'Content-Type':\s*'application\/json'\s*\}/);
   assert.match(desktopHtml, /\['delta', 'avatar_cue', 'done', 'error'\]\.includes\(name\)/);
   assert.match(desktopHtml, /const answerText = assistantRow\?\.querySelector\('\.chat-answer-text'\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, replyText\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, reply\)/);
   assert.match(desktopHtml, /className = 'chat-live-status'/);
+  assert.match(desktopHtml, /className = 'chat-typing-indicator'/);
+  assert.match(desktopHtml, /className = 'chat-typing-dot'/);
+  assert.match(desktopHtml, /for \(let index = 0; index < 3; index \+= 1\)/);
+  assert.match(desktopHtml, /text\.append\(liveStatus, typingIndicator\)/);
+  assert.match(desktopHtml, /@keyframes chatTypingBounce/);
+  assert.match(desktopHtml, /\.chat-typing-dot:nth-child\(2\) \{ animation-delay:\.14s; \}/);
+  assert.match(desktopHtml, /\.chat-typing-dot:nth-child\(3\) \{ animation-delay:\.28s; \}/);
+  assert.match(desktopHtml, /\.chat-typing-dot \{ animation:none; opacity:\.75; transform:none; \}/);
   assert.match(desktopHtml, /function setChatLiveStatus\(row, stage\)/);
   assert.match(desktopHtml, /position:absolute!important; width:1px!important/);
   assert.match(desktopHtml, /Reply complete\./);
@@ -25,9 +33,19 @@ test('desktop chat progressively renders answers, removes the completed progress
   assert.match(desktopHtml, /note\.textContent = `Provider: \$\{provider\} · Model: \$\{model\}`/);
   assert.match(desktopHtml, /chat-streaming \.chat-answer-text::after/);
   assert.match(desktopHtml, /function playScoutAvatarCue\(cue, requestAgentId\)/);
+  assert.match(desktopHtml, /function playAvatarEmotion\(cue, requestAgentId, replyRow\)/);
+  assert.match(desktopHtml, /payload\?\.avatar === 'emotion'/);
+  assert.match(desktopHtml, /playAvatarEmotion\(payload\.cue, requestAgentId, assistantRow \|\| pendingRow\)/);
+  assert.match(desktopHtml, /\.agent-avatar-art\.avatar-mood-curious/);
+  assert.match(desktopHtml, /\.agent-avatar-art\[class\*="avatar-mood-"\] \{ animation:none!important; filter:brightness\(1\.1\); \}/);
+  for (const cue of ['happy', 'curious', 'thoughtful', 'empathetic', 'excited', 'concerned']) {
+    const keyframeName = `avatarMood${cue[0].toUpperCase()}${cue.slice(1)}`;
+    assert.ok(desktopHtml.includes(`.agent-avatar-art.avatar-mood-${cue} {`), `animation is mapped for ${cue}`);
+    assert.ok(desktopHtml.includes(`@keyframes ${keyframeName}`), `keyframes are defined for ${cue}`);
+  }
   assert.match(desktopHtml, /payload\?\.avatar === 'magnifier'/);
   const cueHandlerStart = desktopHtml.indexOf('  function playScoutAvatarCue');
-  const cueHandlerEnd = desktopHtml.indexOf('  function setChatLiveStatus', cueHandlerStart);
+  const cueHandlerEnd = desktopHtml.indexOf('  function runAvatarEmotionQueue', cueHandlerStart);
   const cueHandler = desktopHtml.slice(cueHandlerStart, cueHandlerEnd);
   assert.match(cueHandler, /document\.getElementById\('savedAgentAvatar'\)\?\.querySelector\('\.agent-avatar-art'\)/);
   assert.doesNotMatch(cueHandler, /hdrAvatar|chat-reply-avatar/, 'only the selected sidebar avatar animates');
@@ -54,6 +72,93 @@ test('desktop chat progressively renders answers, removes the completed progress
   assert.doesNotMatch(desktopHtml, /eventName\s*===\s*['"]reasoning['"]/i);
 });
 
+test('pending assistant messages render three decorative bouncing dots and an accessible typing status', () => {
+  const start = desktopHtml.indexOf('  function createAssistantChatMessage');
+  const end = desktopHtml.indexOf('  function appendChatProviderAttribution', start);
+  assert.ok(start >= 0 && end > start);
+  const source = desktopHtml.slice(start, end);
+  class MockNode {
+    constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.className = ''; this.textContent = ''; }
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+  }
+  const streamInner = new MockNode('div');
+  const chatStream = { scrollTop: 0, scrollHeight: 120 };
+  const document = {
+    createElement(tag) { return new MockNode(tag); },
+    getElementById(id) { return id === 'streamInner' ? streamInner : id === 'chatStream' ? chatStream : null; },
+  };
+  const createMessage = new Function('document', 'findSelectedChatAgent', 'objectAvatarSvg', 'renderChatMarkdown', `${source}; return createAssistantChatMessage;`)(
+    document,
+    () => ({ name: 'Idea Generator', avatar: 'lightbulb', settings: { color: '#32d583' } }),
+    () => '<svg></svg>',
+    () => { throw new Error('pending messages do not render Markdown'); },
+  );
+  const row = createMessage('Thinking...', { pending: true });
+  assert.match(row.className, /chat-pending/);
+  assert.equal(streamInner.children[0], row);
+  assert.equal(chatStream.scrollTop, chatStream.scrollHeight);
+  const text = row.children[1].children[1];
+  const [status, typingIndicator] = text.children;
+  assert.equal(status.className, 'chat-live-status');
+  assert.equal(status.attributes.role, 'status');
+  assert.equal(status.attributes['aria-live'], 'polite');
+  assert.equal(status.textContent, 'Preparing response.');
+  assert.equal(typingIndicator.className, 'chat-typing-indicator');
+  assert.equal(typingIndicator.attributes['aria-hidden'], 'true');
+  assert.deepEqual(typingIndicator.children.map((dot) => dot.className), [
+    'chat-typing-dot', 'chat-typing-dot', 'chat-typing-dot',
+  ]);
+});
+
+
+test('allowlisted mood cues animate only the current reply avatar with a fixed local class', () => {
+  const start = desktopHtml.indexOf('  function runAvatarEmotionQueue');
+  const end = desktopHtml.indexOf('  function setChatLiveStatus', start);
+  assert.ok(start >= 0 && end > start);
+  const source = desktopHtml.slice(start, end);
+  const classes = new Set();
+  const svg = {
+    isConnected: true,
+    classList: {
+      add(value) { classes.add(value); },
+      remove(...values) { values.forEach((value) => classes.delete(value)); },
+    },
+    getBoundingClientRect() {},
+  };
+  const timers = [];
+  const window = {
+    matchMedia() { return { matches: false }; },
+    setTimeout(callback, delay) { timers.push({ callback, delay }); return timers.length; },
+  };
+  const selectedAgent = { id: 'agent-1', avatar: 'bulb' };
+  const playAvatarEmotion = new Function('window', 'findSelectedChatAgent', 'emotionDurations', `
+    const AVATAR_EMOTION_DURATIONS = emotionDurations;
+    const AVATAR_EMOTION_IDS = new Set(Object.keys(AVATAR_EMOTION_DURATIONS));
+    const AVATAR_EMOTION_CLASSES = Object.keys(AVATAR_EMOTION_DURATIONS).map((cue) => 'avatar-mood-' + cue);
+    const avatarEmotionQueues = new WeakMap();
+    const avatarEmotionTimers = new WeakMap();
+    ${source}
+    return playAvatarEmotion;
+  `)(window, () => selectedAgent, {
+    happy: 900, curious: 820, thoughtful: 1000, empathetic: 900, excited: 820, concerned: 760,
+  });
+  const row = {
+    querySelector(selector) {
+      assert.equal(selector, '.chat-reply-avatar .agent-avatar-art');
+      return svg;
+    },
+  };
+  playAvatarEmotion('curious', 'agent-1', row);
+  assert.equal(classes.has('avatar-mood-curious'), true);
+  assert.equal(timers[0].delay, 900);
+  timers[0].callback();
+  assert.equal(classes.has('avatar-mood-curious'), false);
+  playAvatarEmotion('not-allowlisted', 'agent-1', row);
+  playAvatarEmotion('happy', 'different-agent', row);
+  assert.equal(classes.size, 0);
+  assert.equal(timers.length, 1, 'invalid or stale cues do not animate');
+});
 
 test('assistant Markdown renders common blocks safely and rejects executable links or raw HTML', () => {
   const start = desktopHtml.indexOf('  function safeChatMarkdownHref');
@@ -157,7 +262,11 @@ test('admin provider attribution is added as safe text and never duplicated', ()
 test('admin provider/model controls are server-gated, request-scoped, and render diagnostics as safe text', () => {
   assert.match(desktopHtml, /id="adminChatControls" hidden/);
   assert.match(desktopHtml, /id="chatProviderSelect" disabled/);
-  assert.match(desktopHtml, /id="chatModelId" type="text"[^>]*disabled/);
+  assert.match(desktopHtml, /<select id="chatModelId" disabled/);
+  assert.doesNotMatch(desktopHtml, /id="chatModelId"[^>]*type="text"/);
+  assert.match(desktopHtml, /function loadAdminChatModelCatalog\(\)/);
+  assert.match(desktopHtml, /fetch\(`\/api\/chat\/models\$\{query\}`/);
+  assert.match(desktopHtml, /Live catalog unavailable; only the configured model is selectable/);
   assert.match(desktopHtml, /overrides apply to the next message only/i);
   assert.match(desktopHtml, /data\?\.adminControls !== true/);
   assert.match(desktopHtml, /function renderAdminChatControls\(data\)/);
@@ -165,8 +274,9 @@ test('admin provider/model controls are server-gated, request-scoped, and render
   assert.match(desktopHtml, /provider\.isFallback \? 'marked backup' : 'manual target'/);
   assert.match(desktopHtml, /requestBody\.providerKey = providerKey/);
   assert.match(desktopHtml, /requestBody\.modelId = modelId/);
-  assert.match(desktopHtml, /chatProviderSelect\?\.addEventListener\('change', syncAdminChatModelInput\)/);
-  assert.doesNotMatch(desktopHtml, /syncChatAdminModelInput/);
+  assert.match(desktopHtml, /chatProviderSelect\?\.addEventListener\('change', \(\) => \{ void loadAdminChatModelCatalog\(\); \}\)/);
+  assert.match(desktopHtml, /chatModelIdSelect\?\.addEventListener\('change'/);
+  assert.doesNotMatch(desktopHtml, /syncAdminChatModelInput|syncChatAdminModelInput/);
   assert.match(desktopHtml, /resetAdminChatOverrides\(\)/);
   assert.match(desktopHtml, /error\.adminDiagnostics = data\.adminDiagnostics/);
   assert.match(desktopHtml, /error\.adminDiagnostics = payload\?\.adminDiagnostics/);
@@ -177,6 +287,110 @@ test('admin provider/model controls are server-gated, request-scoped, and render
   assert.match(diagnosticsSource, /output\.textContent = lines\.join/);
   assert.doesNotMatch(diagnosticsSource, /innerHTML/);
   assert.match(desktopHtml, /setAdminChatDiagnostics\(error\.adminDiagnostics\)/);
+});
+
+test('admin model dropdown fetches the selected provider catalog and retains only its configured model on failure', async () => {
+  const start = desktopHtml.indexOf('  function cleanAdminChatModelText');
+  const end = desktopHtml.indexOf('  function resetAdminChatOverrides', start);
+  assert.ok(start >= 0 && end > start);
+  const helperSource = desktopHtml.slice(start, end);
+  class MockSelect {
+    constructor(value = '') { this.value = value; this.disabled = true; this.options = []; }
+    replaceChildren(...children) {
+      this.options = children;
+      this.value = children[0]?.value || '';
+    }
+    append(option) {
+      this.options.push(option);
+      if (this.options.length === 1) this.value = option.value;
+    }
+  }
+  const makeHarness = (fetchImpl) => {
+    const elements = {
+      adminChatControls: { hidden: false },
+      chatProviderSelect: { value: 'manual-target' },
+      chatModelId: new MockSelect(),
+      adminChatCatalogStatus: { textContent: '' },
+    };
+    const document = {
+      getElementById(id) { return elements[id] || null; },
+      createElement(tag) { assert.equal(tag, 'option'); return { value: '', textContent: '' }; },
+    };
+    const harness = new Function('document', 'fetch', 'location', 'initialProviders', `
+      let chatAdminProviders = initialProviders;
+      let chatAdminCatalogLoadVersion = 0;
+      let chatAdminModelWasEdited = false;
+      let chatAdminCatalogProviderKey = '';
+      let chatAdminConfiguredModelId = '';
+      let chatAdminCatalogLoading = false;
+      const chatAvailable = true;
+      const chatPending = false;
+      const chatHistoryLoading = false;
+      function syncAdminChatControlsAvailability() {
+        const modelSelect = document.getElementById('chatModelId');
+        if (modelSelect) modelSelect.disabled = chatPending || chatHistoryLoading || chatAdminCatalogLoading || !chatAdminConfiguredModelId;
+      }
+      ${helperSource}
+      return {
+        load: loadAdminChatModelCatalog,
+        state: () => ({ chatAdminModelWasEdited, chatAdminCatalogProviderKey, chatAdminConfiguredModelId, chatAdminCatalogLoading }),
+      };
+    `)(
+      document,
+      fetchImpl,
+      { replace() {} },
+      [
+        { providerKey: 'primary', modelId: 'primary-model', isPrimary: true },
+        { providerKey: 'manual-target', modelId: 'manual-configured', isPrimary: false },
+      ],
+    );
+    return { ...harness, elements };
+  };
+
+  const successfulCalls = [];
+  const successful = makeHarness(async (url, options) => {
+    successfulCalls.push({ url, options });
+    return {
+      status: 200,
+      ok: true,
+      async json() {
+        return {
+          configuredModelId: 'manual-configured',
+          catalogAvailable: true,
+          models: [
+            { id: 'manual-configured', displayName: 'Manual default' },
+            { id: 'manual-v2', displayName: '<unsafe label>' },
+          ],
+        };
+      },
+    };
+  });
+  await successful.load();
+  assert.equal(successfulCalls[0].url, '/api/chat/models?providerKey=manual-target');
+  assert.equal(successfulCalls[0].options.credentials, 'same-origin');
+  assert.deepEqual(successful.elements.chatModelId.options.map((option) => option.value), ['manual-configured', 'manual-v2']);
+  assert.equal(successful.elements.chatModelId.options[0].textContent, 'Manual default · configured');
+  assert.equal(successful.elements.chatModelId.options[1].textContent, '<unsafe label>');
+  assert.equal(successful.elements.chatModelId.value, 'manual-configured');
+  assert.match(successful.elements.adminChatCatalogStatus.textContent, /2 models available/);
+  assert.deepEqual(successful.state(), {
+    chatAdminModelWasEdited: false,
+    chatAdminCatalogProviderKey: 'manual-target',
+    chatAdminConfiguredModelId: 'manual-configured',
+    chatAdminCatalogLoading: false,
+  });
+
+  const failed = makeHarness(async () => ({ status: 503, ok: false, async json() { throw new Error('must_not_parse'); } }));
+  await failed.load();
+  assert.deepEqual(failed.elements.chatModelId.options.map((option) => option.value), ['manual-configured']);
+  assert.equal(failed.elements.chatModelId.value, 'manual-configured');
+  assert.match(failed.elements.adminChatCatalogStatus.textContent, /catalog unavailable/i);
+  assert.deepEqual(failed.state(), {
+    chatAdminModelWasEdited: false,
+    chatAdminCatalogProviderKey: 'manual-target',
+    chatAdminConfiguredModelId: 'manual-configured',
+    chatAdminCatalogLoading: false,
+  });
 });
 
 test('authenticated workspace starts with an explicit accessible loading state and clears it after hydration', () => {
