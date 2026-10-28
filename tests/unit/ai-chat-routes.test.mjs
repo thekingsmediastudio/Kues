@@ -52,8 +52,11 @@ function testDependencies({ enabled = true, complete, stream, agentAvatar = 'bul
     workspaceService: {
       async getBootstrap({ userId }) {
         return {
-          workspace: { id: `workspace-${userId}`, status: 'active' },
-          agents: [{ id: 'agent-1', name: 'Desk helper', role: 'Organize my workspace', avatar: agentAvatar, status: 'paused' }],
+          workspace: { id: `workspace-${userId}`, name: 'Test workspace', status: 'active', role: 'owner' },
+          agents: [{
+            id: 'agent-1', name: 'Desk helper', role: 'Organize my workspace', avatar: agentAvatar, status: 'paused',
+            settings: { color: '#32d583', approvalPath: 'desktop', orderCap: 100, dailyCap: 200, apps: [], memoryPills: [], previewOnly: true },
+          }],
         };
       },
     },
@@ -127,6 +130,23 @@ const messagePayload = {
   message: 'How should I organize my desk?',
 };
 
+function streamWorkspaceToolMarker(marker, overrides = {}) {
+  return async ({ onDelta }) => {
+    for (const chunk of [marker.slice(0, 9), marker.slice(9, 27), marker.slice(27)]) {
+      if (chunk) await onDelta(chunk);
+    }
+    return {
+      text: marker,
+      provider: 'internal-provider-key',
+      providerDisplayName: 'Configured Primary',
+      model: 'hidden-model-id',
+      inputTokens: 20,
+      outputTokens: 10,
+      ...overrides,
+    };
+  };
+}
+
 test('admin desktop chat status exposes enabled choices and replies include verified attribution', async () => {
   const { dependencies, usageCalls, aiCalls, historyCalls } = testDependencies();
   await withServer(dependencies, async (base) => {
@@ -181,6 +201,298 @@ test('admin desktop chat status exposes enabled choices and replies include veri
       { role: 'user', content: messagePayload.message },
       { role: 'assistant', content: 'Keep daily-use items close by.' },
     ]);
+  });
+});
+
+test('default workspace agent invokes a read-only tool for the signed-in owner and returns sanitized data', async () => {
+  const marker = '[[KEUS_WORKSPACE_TOOL:{"name":"inspect_workspace","arguments":{}}]]';
+  const fixture = testDependencies({
+    stream: streamWorkspaceToolMarker(marker, { inputTokens: 18, outputTokens: 9 }),
+  });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...messagePayload, message: 'Show my workspace agents.' }),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /event: delta/);
+    assert.match(wire, /Test workspace/);
+    assert.match(wire, /Desk helper: Organize my workspace · bulb · paused/);
+    assert.doesNotMatch(wire, /KEUS_WORKSPACE_TOOL|workspace-chat-admin|agt-helper-1/);
+    assert.match(wire, /event: done/);
+    assert.equal(fixture.aiCalls.length, 0);
+    assert.equal(fixture.streamCalls.length, 1);
+    assert.equal(fixture.streamCalls[0].workspaceTools, true);
+    assert.equal(fixture.usageCalls.settle.length, 1);
+    assert.match(fixture.historyCalls.append[0].assistantMessage, /Test workspace/);
+    assert.equal(fixture.historyCalls.append[0].userId, admin.id);
+  });
+});
+
+test('workspace create proposals do not write until same-user approval and approval replay is idempotent', async () => {
+  const marker = '[[KEUS_WORKSPACE_TOOL:{"name":"create_agent","arguments":{"name":"Budget Helper","role":"Help organize budgets","avatar":"laptop"}}]]';
+  const fixture = testDependencies({ stream: streamWorkspaceToolMarker(marker) });
+  const created = [];
+  fixture.dependencies.workspaceService.createAgent = async (input) => { created.push(input); return { createdAgentId: 'new-agent-id' }; };
+  const originalGetSession = fixture.dependencies.authService.getSession.bind(fixture.dependencies.authService);
+  fixture.dependencies.authService.getSession = async ({ token }) => token === 'second-admin-session'
+    ? { id: 'chat-admin-second', email: admin.email }
+    : originalGetSession({ token });
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ...messagePayload, message: 'Create a budget helper.' }),
+    });
+    const wire = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(wire, /Nothing will be changed unless you approve/);
+    assert.doesNotMatch(wire, /KEUS_WORKSPACE_TOOL/);
+    const approvalMatch = wire.match(/event: tool_approval_required\ndata: ([^\n]+)/);
+    assert.ok(approvalMatch, 'a confirmation event is sent for a write proposal');
+    const approval = JSON.parse(approvalMatch[1]);
+    assert.match(approval.actionId, /^[A-Za-z0-9_-]{32}$/);
+    assert.match(approval.action.title, /Create agent/);
+    assert.match(approval.action.summary, /Budget Helper/);
+    assert.ok(approval.action.fields.some((field) => field.label === 'Initial status' && field.value === 'Paused · preview-only'));
+    const pendingHistory = await fetch(`${base}/api/chat/history?agentId=agent-1`, {
+      headers: { Cookie: 'kues_session=admin-session' },
+    });
+    assert.equal(pendingHistory.status, 200);
+    assert.equal((await pendingHistory.json()).pendingActions[0].actionId, approval.actionId);
+    assert.equal(created.length, 0, 'the model proposal itself performs no workspace mutation');
+    assert.equal(fixture.historyCalls.append.length, 1);
+
+    const otherUser = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=second-admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: approval.actionId, decision: 'approve' }),
+    });
+    assert.equal(otherUser.status, 404, 'a different signed-in admin cannot approve another user’s proposal');
+    assert.equal(created.length, 0);
+    const otherHistory = await fetch(`${base}/api/chat/history?agentId=agent-1`, {
+      headers: { Cookie: 'kues_session=second-admin-session' },
+    });
+    assert.deepEqual((await otherHistory.json()).pendingActions, [], 'history does not reveal another user’s pending action');
+
+    const approve = () => fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: approval.actionId, decision: 'approve' }),
+    });
+    const applied = await approve();
+    assert.equal(applied.status, 200);
+    const result = await applied.json();
+    assert.equal(result.status, 'approved');
+    assert.match(result.message, /paused and preview-only/);
+    assert.equal(created.length, 1);
+    assert.equal(created[0].userId, admin.id);
+    assert.equal(created[0].input.name, 'Budget Helper');
+    assert.equal(created[0].input.approvalPath, 'desktop');
+    assert.equal(fixture.historyCalls.append.length, 2, 'approval action is persisted in the signed-in user’s chat history');
+    const completedHistory = await fetch(`${base}/api/chat/history?agentId=agent-1`, {
+      headers: { Cookie: 'kues_session=admin-session' },
+    });
+    assert.deepEqual((await completedHistory.json()).pendingActions, []);
+
+    const repeated = await approve();
+    assert.equal(repeated.status, 200);
+    assert.deepEqual(await repeated.json(), result);
+    assert.equal(created.length, 1, 'replaying the same approval does not execute twice');
+    assert.equal(fixture.historyCalls.append.length, 2);
+
+    const secondProposalResponse = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, message: 'Create another budget helper.' }),
+    });
+    const secondWire = await secondProposalResponse.text();
+    const secondMatch = secondWire.match(/event: tool_approval_required\ndata: ([^\n]+)/);
+    assert.ok(secondMatch);
+    const secondProposal = JSON.parse(secondMatch[1]);
+    const rejected = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: secondProposal.actionId, decision: 'reject' }),
+    });
+    assert.equal((await rejected.json()).status, 'rejected');
+    assert.equal(created.length, 1, 'rejecting a proposal performs no workspace write');
+  });
+});
+
+test('non-streaming chats also default to workspace-agent tools and return a confirmation-only proposal', async () => {
+  const marker = '[[KEUS_WORKSPACE_TOOL:{"name":"create_agent","arguments":{"name":"Notes Helper","role":"Organize my notes","avatar":"bulb"}}]]';
+  const fixture = testDependencies({ complete: async (input) => {
+    assert.equal(input.workspaceTools, true);
+    return { text: marker, provider: 'internal-provider-key', model: 'hidden-model-id', inputTokens: 14, outputTokens: 8 };
+  } });
+  const created = [];
+  fixture.dependencies.workspaceService.createAgent = async (input) => { created.push(input); return {}; };
+  await withServer(fixture.dependencies, async (base) => {
+    const response = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, message: 'Create a notes helper.', agentMode: false }),
+    });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.match(data.reply, /Nothing will be changed unless you approve/);
+    assert.equal(data.pendingAction.action.title, 'Create agent');
+    assert.match(data.pendingAction.action.summary, /Notes Helper/);
+    assert.equal(created.length, 0);
+    const approved = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: data.pendingAction.actionId, decision: 'approve' }),
+    });
+    assert.equal((await approved.json()).status, 'approved');
+    assert.equal(created.length, 1);
+  });
+});
+
+test('agent edits and workspace renames are bound to the exact reviewed snapshot', async () => {
+  const fixture = testDependencies({ stream: async ({ messages, onDelta }) => {
+    const prompt = messages.at(-1)?.content || '';
+    const marker = prompt.toLowerCase().includes('rename')
+      ? '[[KEUS_WORKSPACE_TOOL:{"name":"rename_workspace","arguments":{"name":"Studio Workspace"}}]]'
+      : '[[KEUS_WORKSPACE_TOOL:{"name":"update_agent","arguments":{"agentName":"Desk helper","changes":{"role":"Plan my calendar","dailyCap":300}}}]]';
+    return streamWorkspaceToolMarker(marker)({ onDelta });
+  } });
+  const updates = [];
+  const renames = [];
+  fixture.dependencies.workspaceService.updateAgent = async (input) => { updates.push(input); return {}; };
+  fixture.dependencies.workspaceService.updateWorkspaceName = async (input) => { renames.push(input); return {}; };
+  await withServer(fixture.dependencies, async (base) => {
+    const requestProposal = async (message) => {
+      const response = await fetch(`${base}/api/chat`, {
+        method: 'POST',
+        headers: { Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...messagePayload, message }),
+      });
+      const wire = await response.text();
+      const match = wire.match(/event: tool_approval_required\ndata: ([^\n]+)/);
+      assert.ok(match, `confirmation event should exist for ${message}`);
+      return JSON.parse(match[1]);
+    };
+    const edit = await requestProposal('Update Desk helper role and daily cap.');
+    assert.equal(updates.length, 0);
+    assert.ok(edit.action.fields.some((field) => field.label === 'Daily cap' && field.value === '$300 USD'));
+    const editResponse = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST', headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: edit.actionId, decision: 'approve' }),
+    });
+    assert.equal((await editResponse.json()).status, 'approved');
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].agentId, 'agent-1');
+    assert.equal(updates[0].input.role, 'Plan my calendar');
+    assert.equal(updates[0].input.dailyCap, 300);
+    assert.equal(updates[0].input.status, undefined);
+
+    const rename = await requestProposal('Rename the workspace to Studio Workspace.');
+    assert.equal(renames.length, 0);
+    const renameResponse = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST', headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: rename.actionId, decision: 'approve' }),
+    });
+    assert.equal((await renameResponse.json()).status, 'approved');
+    assert.deepEqual(renames, [{ userId: admin.id, name: 'Studio Workspace' }]);
+  });
+});
+
+test('approval rejects stale agent and workspace proposals without executing writes', async () => {
+  const fixture = testDependencies({ stream: async ({ messages, onDelta }) => {
+    const prompt = messages.at(-1)?.content || '';
+    const marker = prompt.toLowerCase().includes('rename')
+      ? '[[KEUS_WORKSPACE_TOOL:{"name":"rename_workspace","arguments":{"name":"Studio Workspace"}}]]'
+      : '[[KEUS_WORKSPACE_TOOL:{"name":"update_agent","arguments":{"agentName":"Desk helper","changes":{"role":"Plan my calendar"}}}]]';
+    return streamWorkspaceToolMarker(marker)({ onDelta });
+  } });
+  let workspaceState = structuredClone(await fixture.dependencies.workspaceService.getBootstrap({ userId: admin.id }));
+  fixture.dependencies.workspaceService.getBootstrap = async () => structuredClone(workspaceState);
+  const updates = [];
+  const renames = [];
+  fixture.dependencies.workspaceService.updateAgent = async (input) => { updates.push(input); return {}; };
+  fixture.dependencies.workspaceService.updateWorkspaceName = async (input) => { renames.push(input); return {}; };
+  await withServer(fixture.dependencies, async (base) => {
+    const propose = async (message) => {
+      const response = await fetch(`${base}/api/chat`, {
+        method: 'POST',
+        headers: { Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...messagePayload, message }),
+      });
+      const wire = await response.text();
+      const match = wire.match(/event: tool_approval_required\ndata: ([^\n]+)/);
+      assert.ok(match);
+      return JSON.parse(match[1]);
+    };
+    const edit = await propose('Update Desk helper role.');
+    workspaceState.agents[0].settings.dailyCap = 250;
+    const staleEdit = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: edit.actionId, decision: 'approve' }),
+    });
+    const staleEditResult = await staleEdit.json();
+    assert.equal(staleEditResult.status, 'stale');
+    assert.match(staleEditResult.message, /out of date/);
+    assert.equal(updates.length, 0);
+
+    const rename = await propose('Rename the workspace to Studio Workspace.');
+    workspaceState.workspace.name = 'Changed by another settings update';
+    const staleRename = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: rename.actionId, decision: 'approve' }),
+    });
+    assert.equal((await staleRename.json()).status, 'stale');
+    assert.equal(renames.length, 0);
+  });
+});
+
+test('workspace tools are enabled by default, legacy flags cannot disable them, and safety gates remain enforced', async () => {
+  const fixture = testDependencies();
+  await withServer(fixture.dependencies, async (base) => {
+    const crossOrigin = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: 'A'.repeat(32), decision: 'approve' }),
+    });
+    assert.equal(crossOrigin.status, 403);
+
+    const nonAdmin = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=member-session', Origin: base, Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+      body: JSON.stringify(messagePayload),
+    });
+    assert.equal(nonAdmin.status, 503);
+    assert.equal(fixture.aiCalls.length, 0);
+
+    const invalidLegacyFlag = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, agentMode: 'false' }),
+    });
+    assert.equal(invalidLegacyFlag.status, 400);
+    assert.equal(fixture.usageCalls.reserve.length, 0);
+
+    const defaultAgent = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { Cookie: 'kues_session=admin-session', Origin: base, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...messagePayload, agentMode: false }),
+    });
+    assert.equal(defaultAgent.status, 200);
+    assert.equal((await defaultAgent.json()).reply, 'Keep daily-use items close by.');
+    assert.equal(fixture.aiCalls.length, 1);
+    assert.equal(fixture.aiCalls[0].workspaceTools, true, 'agent tools stay enabled even when an older client sends false');
+    assert.equal(fixture.usageCalls.reserve.length, 1);
   });
 });
 
