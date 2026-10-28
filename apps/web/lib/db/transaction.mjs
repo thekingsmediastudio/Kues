@@ -5,6 +5,19 @@ function isTransientWriteConflict(error) {
   return /SQLITE_BUSY|SQLITE_LOCKED|TRANSACTION_BUSY|database is locked/i.test(detail);
 }
 
+/** Read a consistent snapshot without joining the serialized write queue. */
+export async function withReadTransaction(db, callback) {
+  const tx = await db.transaction('read');
+  try {
+    const result = await callback(tx);
+    await tx.commit();
+    return result;
+  } catch (error) {
+    try { await tx.rollback(); } catch {}
+    throw error;
+  }
+}
+
 /** Serialize writes per client and retry bounded transient SQLite/libSQL write conflicts. */
 export async function withWriteTransaction(db, callback, { maxRetries = 5 } = {}) {
   const previous = writeQueues.get(db) || Promise.resolve();
