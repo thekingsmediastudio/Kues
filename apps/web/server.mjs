@@ -12,7 +12,7 @@ import { createWorkOSAuth } from './lib/auth/workos-auth.mjs';
 import { ApiHubError, createApiHubService } from './lib/api-hub/service.mjs';
 import { AiProviderError, createAiProviderService } from './lib/ai-providers/service.mjs';
 import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-providers/history.mjs';
-import { AI_CHAT_AVATAR_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
+import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
 import { WorkOS } from '@workos-inc/node';
@@ -641,18 +641,19 @@ async function handleDesktopAiChatRequest(req, res, url, {
 }) {
   const statusRoute = url.pathname === '/api/chat/status';
   const historyRoute = url.pathname === '/api/chat/history';
+  const modelCatalogRoute = url.pathname === '/api/chat/models';
   const chatRoute = url.pathname === '/api/chat';
   const streamingRequest = chatRoute && String(req.headers.accept || '').split(',')
     .some((entry) => /^\s*text\/event-stream(?:\s*;|\s*$)/i.test(entry));
-  if (!statusRoute && !historyRoute && !chatRoute) return false;
+  if (!statusRoute && !historyRoute && !modelCatalogRoute && !chatRoute) return false;
 
-  const expectedMethod = statusRoute || historyRoute ? 'GET' : 'POST';
+  const expectedMethod = statusRoute || historyRoute || modelCatalogRoute ? 'GET' : 'POST';
   if (req.method !== expectedMethod) {
     res.setHeader('Allow', `${expectedMethod}, OPTIONS`);
     sendJson(res, 405, { error: 'method_not_allowed' });
     return true;
   }
-  if (chatRoute || (historyRoute && requestOrigin(req).present)) {
+  if (chatRoute || ((historyRoute || modelCatalogRoute) && requestOrigin(req).present)) {
     try { requireSameOrigin(req); } catch (error) {
       sendJson(res, error.status || 403, { error: error.code || 'same_origin_required' });
       return true;
@@ -679,6 +680,55 @@ async function handleDesktopAiChatRequest(req, res, url, {
     && Boolean(aiChatService)
     && Boolean(aiChatHistoryService)
     && aiProviderAdminAllowed(config, user);
+  if (modelCatalogRoute) {
+    if (!enabledForAdmin || typeof aiChatService.listModels !== 'function') {
+      sendJson(res, 503, { error: 'ai_chat_unavailable' });
+      return true;
+    }
+    const providerKeys = url.searchParams.getAll('providerKey');
+    const hasUnexpectedParameter = [...url.searchParams.keys()].some((key) => key !== 'providerKey');
+    if (hasUnexpectedParameter || providerKeys.length > 1
+        || (providerKeys.length === 1 && !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(providerKeys[0].trim()))) {
+      sendJson(res, 400, { error: 'ai_chat_request_invalid' });
+      return true;
+    }
+    const providerKey = providerKeys.length ? providerKeys[0].trim().toLowerCase() : undefined;
+    try {
+      const catalog = await aiChatService.listModels(providerKey ? { providerKey } : {});
+      const safeText = (value, limit) => typeof value === 'string'
+        ? value.normalize('NFKC').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, limit)
+        : '';
+      const configuredModelId = safeText(catalog?.configuredModelId, 160);
+      if (!configuredModelId) throw new Error('ai_chat_model_catalog_invalid');
+      const choices = catalog?.catalogAvailable === true && Array.isArray(catalog.models) ? catalog.models : [];
+      const models = choices.map((model) => {
+        const id = safeText(model?.id, 160);
+        if (!id) return null;
+        return {
+          id,
+          displayName: safeText(model?.displayName, 160) || id,
+          isConfigured: model?.isConfigured === true || id === configuredModelId,
+        };
+      }).filter(Boolean).slice(0, 500);
+      if (!models.some((model) => model.id === configuredModelId)) {
+        models.unshift({ id: configuredModelId, displayName: configuredModelId, isConfigured: true });
+        models.length = Math.min(models.length, 500);
+      }
+      sendJson(res, 200, {
+        configuredModelId,
+        catalogAvailable: catalog?.catalogAvailable === true,
+        models,
+      });
+    } catch (error) {
+      if (error instanceof AiProviderError) {
+        sendJson(res, error.status, { error: error.code });
+      } else {
+        console.error('Desktop AI model catalog failed:', JSON.stringify({ error: error?.name || 'Error' }));
+        sendJson(res, 503, { error: 'ai_chat_model_catalog_unavailable' });
+      }
+    }
+    return true;
+  }
   if (statusRoute) {
     let available = false;
     if (enabledForAdmin) {
@@ -775,6 +825,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
   let tokenReservationHeld = false;
   let streamCompletion = null;
   let streamAvatarCueCount = 0;
+  let streamAvatarEmotionCount = 0;
   let streamHistoryAttempted = false;
   let workspace = null;
   let agent = null;
@@ -866,11 +917,18 @@ async function handleDesktopAiChatRequest(req, res, url, {
           signal: streamController.signal,
           onDelta: (text) => writeSseEvent(res, 'delta', { text }, streamController.signal),
           onAvatarCue: (cue) => {
-            if (String(agent?.avatar || '').trim().toLowerCase() !== 'magnifier'
-                || !AI_CHAT_AVATAR_CUES.includes(cue)
-                || streamAvatarCueCount >= AI_CHAT_MAX_AVATAR_CUES_PER_REPLY) return Promise.resolve();
+            const isScoutCue = String(agent?.avatar || '').trim().toLowerCase() === 'magnifier'
+              && AI_CHAT_AVATAR_CUES.includes(cue);
+            const isEmotionCue = AI_CHAT_AVATAR_EMOTION_CUES.includes(cue);
+            if ((!isScoutCue && !isEmotionCue)
+                || streamAvatarCueCount >= AI_CHAT_MAX_AVATAR_CUES_PER_REPLY
+                || (isEmotionCue && streamAvatarEmotionCount >= 1)) return Promise.resolve();
             streamAvatarCueCount += 1;
-            return writeSseEvent(res, 'avatar_cue', { avatar: 'magnifier', cue }, streamController.signal);
+            if (isEmotionCue) streamAvatarEmotionCount += 1;
+            return writeSseEvent(res, 'avatar_cue', {
+              avatar: isEmotionCue ? 'emotion' : 'magnifier',
+              cue,
+            }, streamController.signal);
           },
         });
         if (streamCompletion.fallbackUsed === true) {
@@ -1615,7 +1673,7 @@ export function createServer({
         if (handled) return;
       }
 
-      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status' || url.pathname === '/api/chat/history') {
+      if (url.pathname === '/api/chat' || url.pathname === '/api/chat/status' || url.pathname === '/api/chat/history' || url.pathname === '/api/chat/models') {
         await handleDesktopAiChatRequest(req, res, url, {
           config: activeConfig,
           authService,
