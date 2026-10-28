@@ -116,6 +116,94 @@ test('desktop chat uses the hidden enabled primary provider with the correct pro
   }
 });
 
+test('admin request overrides select only enabled providers and keep automatic failover restricted to marked backups', async () => {
+  const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
+  const observedModels = [];
+  try {
+    await aiProviderService.createProvider({
+      input: {
+        providerKey: 'manual-target', displayName: 'Manual target', apiProtocol: 'openai_chat',
+        baseUrl: 'https://api.example-provider.com/v1', modelId: 'manual-default', apiKey,
+        enabled: true, isPrimary: false, isFallback: false,
+      },
+    });
+    await aiProviderService.createProvider({
+      input: {
+        providerKey: 'approved-backup', displayName: 'Approved backup', apiProtocol: 'openai_chat',
+        baseUrl: 'https://api.example-provider.com/v1', modelId: 'approved-backup-model', apiKey,
+        enabled: true, isPrimary: false, isFallback: true,
+      },
+    });
+    await aiProviderService.createProvider({
+      input: {
+        providerKey: 'unmarked-provider', displayName: 'Unmarked provider', apiProtocol: 'openai_chat',
+        baseUrl: 'https://api.example-provider.com/v1', modelId: 'unmarked-model', apiKey,
+        enabled: true, isPrimary: false, isFallback: false,
+      },
+    });
+
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsImpl: async (request) => {
+        const model = JSON.parse(request.body.toString('utf8')).model;
+        observedModels.push(model);
+        if (model === 'requested-model') {
+          return { status: 503, contentType: 'application/json', body: Buffer.from('{}') };
+        }
+        return {
+          status: 200,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify({ choices: [{ message: { content: 'Backup reply.' } }] })),
+        };
+      },
+    });
+    const result = await chat.complete({
+      agent: { name: 'Desk helper', role: 'Workspace organizer' },
+      messages,
+      providerKey: 'manual-target',
+      modelId: 'requested-model',
+    });
+    assert.deepEqual(observedModels, ['requested-model', 'approved-backup-model']);
+    assert.equal(result.text, 'Backup reply.');
+    assert.equal(result.provider, 'approved-backup');
+    assert.equal(result.model, 'approved-backup-model');
+    assert.equal(result.fallbackUsed, true);
+    assert.equal(result.fallbackAttempts, 1);
+    const configuredProviders = await aiProviderService.listProviders();
+    assert.equal(configuredProviders.find((provider) => provider.providerKey === 'manual-target').modelId, 'manual-default');
+    assert.equal(configuredProviders.find((provider) => provider.isPrimary)?.providerKey, 'chat-test');
+
+    const exhaustedChat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsImpl: async () => ({ status: 429, contentType: 'application/json', body: Buffer.from('{}') }),
+    });
+    await assert.rejects(
+      exhaustedChat.complete({ agent: {}, messages, providerKey: 'manual-target' }),
+      (error) => {
+        assert.equal(error.code, 'ai_provider_upstream_failed');
+        assert.equal(error.retryable, true);
+        assert.equal(error.attempts.length, 2);
+        assert.equal(error.attempts.every((attempt) => attempt.retryable), true);
+        assert.deepEqual(error.attempts.map((attempt) => attempt.upstreamStatus), [429, 429]);
+        return true;
+      },
+    );
+
+    await assert.rejects(
+      chat.complete({ agent: {}, messages, providerKey: 'not-enabled' }),
+      (error) => error instanceof AiProviderError && error.code === 'ai_provider_not_found',
+    );
+    await assert.rejects(
+      chat.complete({ agent: {}, messages, modelId: 'bad\nmodel' }),
+      (error) => error instanceof AiProviderError && error.code === 'ai_provider_model_invalid',
+    );
+  } finally {
+    await db.close();
+  }
+});
+
 test('desktop chat rejects unsafe destinations, provider failures, malformed output, and client-supplied system messages', async () => {
   const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
   try {
@@ -159,6 +247,42 @@ test('desktop chat status does not need a provider call when no enabled primary 
       chat.complete({ agent: {}, messages }),
       (error) => error instanceof AiProviderError && error.code === 'ai_provider_primary_unavailable',
     );
+  } finally {
+    await db.close();
+  }
+});
+
+test('Scout cue control tokens are allowlisted, stripped from answer text, and instructed as UI-only', async () => {
+  const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
+  const observed = [];
+  try {
+    const overflowCues = Array.from({ length: 12 }, () => '[[KUES_AVATAR_CUE:notice]]').join('\n');
+    const rawReply = `I reviewed the note.\n[[KUES_AVATAR_CUE:search]]\nThen I verified the detail.\n[[KUES_AVATAR_CUE:verify]]\n${overflowCues}\n[[KUES_AVATAR_CUE:launch_browser]]`;
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsImpl: async (request) => {
+        observed.push(request);
+        return {
+          status: 200,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify({ choices: [{ message: { content: rawReply } }] })),
+        };
+      },
+    });
+    const result = await chat.complete({ agent: { name: 'Scout', role: 'Read-only helper', avatar: 'magnifier' }, messages });
+    assert.equal(result.text, 'I reviewed the note.\nThen I verified the detail.');
+    assert.equal(result.avatarCues.length, 12);
+    assert.deepEqual(result.avatarCues.slice(0, 2), ['search', 'verify']);
+    assert.ok(result.avatarCues.every((cue) => cue === 'search' || cue === 'verify' || cue === 'notice'));
+    assert.doesNotMatch(result.text, /KUES_AVATAR_CUE|launch_browser/);
+    const requestBody = JSON.parse(observed[0].body.toString('utf8'));
+    const system = requestBody.messages[0].content;
+    assert.match(system, /Allowed cue IDs: notice, search, inspect, compare, draft, organize, verify, explain, ask, wait, success, recover/);
+    assert.match(system, /local decorative animation/);
+    assert.match(system, /Never reveal hidden chain-of-thought/);
+    assert.match(system, /never to browsing or independent live verification/);
+    assert.match(system, /Success means only that a text reply is complete/);
   } finally {
     await db.close();
   }

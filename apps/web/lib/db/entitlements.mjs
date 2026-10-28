@@ -72,9 +72,9 @@ export async function ensureCompetitionEntitlementInTransaction(tx, {
   return true;
 }
 
-/** Select one currently valid metered entitlement; paid subscriptions take priority. */
-export async function findActiveUsageEntitlement(tx, { workspaceId, now }) {
-  const result = await tx.execute({
+/** Build the read statement for one currently valid metered entitlement. */
+export function activeUsageEntitlementStatement({ workspaceId, now }) {
+  return {
     sql: `SELECT e.id AS entitlement_id, e.workspace_id, e.plan_id, e.source,
                  e.starts_at AS entitlement_starts_at, e.ends_at AS entitlement_ends_at,
                  p.code AS plan_code, p.billing_interval, p.included_tokens, p.active AS plan_active,
@@ -99,7 +99,12 @@ export async function findActiveUsageEntitlement(tx, { workspaceId, now }) {
                    e.starts_at DESC, e.created_at DESC
           LIMIT 1`,
     args: [workspaceId, now, now, now, now],
-  });
+  };
+}
+
+/** Select one currently valid metered entitlement; paid subscriptions take priority. */
+export async function findActiveUsageEntitlement(tx, input) {
+  const result = await tx.execute(activeUsageEntitlementStatement(input));
   return result.rows[0] || null;
 }
 

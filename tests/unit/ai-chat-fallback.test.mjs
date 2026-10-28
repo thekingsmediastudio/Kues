@@ -63,6 +63,7 @@ test('chat retries a primary network failure through an explicitly marked backup
     const result = await chat.complete({ agent: { name: 'Test helper', role: 'Helpful' }, messages });
     assert.equal(result.text, 'Backup reply.');
     assert.equal(result.provider, 'approved-backup');
+    assert.equal(result.providerDisplayName, 'Approved backup');
     assert.equal(result.model, 'backup-model');
     assert.equal(result.fallbackUsed, true);
     assert.equal(result.fallbackAttempts, 1);
@@ -218,11 +219,95 @@ test('chat streaming fails over to an approved backup only before the first fina
     });
     assert.equal(result.text, 'Backup answer.');
     assert.equal(result.provider, 'approved-backup');
+    assert.equal(result.providerDisplayName, 'Approved backup');
+    assert.equal(result.model, 'backup-model');
     assert.equal(result.fallbackUsed, true);
     assert.equal(result.fallbackAttempts, 1);
     assert.deepEqual(observed, ['primary.provider.com', 'backup.provider.com']);
     assert.deepEqual(deltas, ['Backup ', 'answer.']);
     assert.doesNotMatch(deltas.join(''), /hidden reasoning/);
+  } finally {
+    await db.close();
+  }
+});
+
+
+test('Scout cues stream as allowlisted events across provider delta boundaries and never enter the answer', async () => {
+  const { db, aiProviderService } = await createFallbackFixture();
+  try {
+    const { Readable } = await import('node:stream');
+    const deltas = [];
+    const eventsSeen = [];
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: publicLookup,
+      requestHttpsStreamImpl: async (request) => {
+        const body = JSON.parse(request.body.toString('utf8'));
+        assert.match(body.messages[0].content, /Allowed cue IDs: notice, search, inspect, compare, draft, organize, verify, explain, ask, wait, success, recover/);
+        const sse = (payload) => `data: ${JSON.stringify(payload)}\n\n`;
+        const events = [
+          sse({ choices: [{ delta: { content: '[[KUES_AVATAR_CUE:search]]' }, finish_reason: null }] }),
+          sse({ choices: [{ delta: { content: 'Reviewing [[KUES_AVATAR_CUE:com' }, finish_reason: null }] }),
+          sse({ choices: [{ delta: { content: "pare]]\nScout's notes." }, finish_reason: null }] }),
+          sse({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+        ];
+        return { status: 200, contentType: 'text/event-stream', body: Readable.from(events) };
+      },
+    });
+    const result = await chat.stream({
+      agent: { name: 'Scout', role: 'Read-only helper', avatar: 'magnifier' },
+      messages,
+      onDelta: async (text) => { deltas.push(text); eventsSeen.push(`delta:${text}`); },
+      onAvatarCue: async (cue) => eventsSeen.push(`cue:${cue}`),
+    });
+    assert.equal(result.text, "Reviewing Scout's notes.");
+    assert.deepEqual(result.avatarCues, ['search', 'compare']);
+    assert.deepEqual(deltas, ['Reviewing ', "Scout's notes."]);
+    assert.deepEqual(eventsSeen, ['cue:search', 'delta:Reviewing ', 'cue:compare', "delta:Scout's notes."]);
+    assert.doesNotMatch(JSON.stringify({ result, deltas }), /KUES_AVATAR_CUE/);
+  } finally {
+    await db.close();
+  }
+});
+
+test('a cue queued before the first answer text does not prevent approved-backup failover', async () => {
+  const { db, aiProviderService } = await createFallbackFixture();
+  try {
+    const { Readable } = await import('node:stream');
+    const observed = [];
+    const deltas = [];
+    const avatarCues = [];
+    const brokenPrimary = Readable.from((async function* () {
+      yield 'data: {"choices":[{"delta":{"content":"[[KUES_AVATAR_CUE:notice]]"},"finish_reason":null}]}\n\n';
+      throw Object.assign(new Error('connection reset'), { code: 'ECONNRESET' });
+    }()));
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: publicLookup,
+      requestHttpsStreamImpl: async (request) => {
+        observed.push(request.url.hostname);
+        if (request.url.hostname === 'primary.provider.com') {
+          return { status: 200, contentType: 'text/event-stream', body: brokenPrimary };
+        }
+        const events = [
+          'data: {"choices":[{"delta":{"content":"Backup answer."},"finish_reason":null}]}\n\n',
+          'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        ];
+        return { status: 200, contentType: 'text/event-stream', body: Readable.from(events) };
+      },
+    });
+    const result = await chat.stream({
+      agent: { name: 'Scout', role: 'Read-only helper', avatar: 'magnifier' },
+      messages,
+      onDelta: async (text) => deltas.push(text),
+      onAvatarCue: async (cue) => avatarCues.push(cue),
+    });
+    assert.equal(result.text, 'Backup answer.');
+    assert.equal(result.fallbackUsed, true);
+    assert.deepEqual(observed, ['primary.provider.com', 'backup.provider.com']);
+    assert.deepEqual(deltas, ['Backup answer.']);
+    assert.deepEqual(avatarCues, []);
+    assert.deepEqual(result.avatarCues, []);
   } finally {
     await db.close();
   }

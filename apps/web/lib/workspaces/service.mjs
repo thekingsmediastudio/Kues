@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
-import { withWriteTransaction } from '../db/transaction.mjs';
+import { withReadTransaction, withWriteTransaction } from '../db/transaction.mjs';
 import {
+  activeUsageEntitlementStatement,
   ensureCompetitionEntitlementInTransaction,
   findActiveUsageEntitlement,
   usageAccessView,
@@ -208,6 +209,155 @@ function normalizeOnboardingInput(input) {
   };
 }
 
+function mapWorkspaceBootstrapAgents(rows) {
+  return rows.map((agentRow) => ({
+    id: agentRow.id,
+    name: agentRow.name,
+    role: agentRow.role,
+    avatar: agentRow.avatar,
+    status: agentRow.status,
+    settings: parseJson(agentRow.settings_json),
+    createdAt: agentRow.created_at,
+    updatedAt: agentRow.updated_at,
+  }));
+}
+
+function workspaceBootstrapView({ user, row, agentRows, entitlement, now, competition, theme }) {
+  const agents = mapWorkspaceBootstrapAgents(agentRows);
+  const onboardingAgent = agents.find((agent) => agent.id === onboardingAgentId(row.workspace_id)) || null;
+  return {
+    user: {
+      id: user.id,
+      email: user.email_normalized,
+      displayName: user.display_name,
+      theme: theme === 'light' ? 'light' : 'dark',
+    },
+    workspace: {
+      id: row.workspace_id,
+      name: row.workspace_name,
+      status: row.workspace_status,
+      role: row.member_role,
+    },
+    onboarding: {
+      status: row.onboarding_status || 'not_started',
+      completedAt: row.completed_at || null,
+      profile: parseJson(row.profile_json),
+      agent: onboardingAgent ? {
+        id: onboardingAgent.id,
+        name: onboardingAgent.name,
+        role: onboardingAgent.role,
+        avatar: onboardingAgent.avatar,
+        status: onboardingAgent.status,
+        settings: onboardingAgent.settings,
+      } : null,
+    },
+    usageAccess: usageAccessView(entitlement, { now, competition }),
+    agents,
+  };
+}
+
+/**
+ * Most authenticated page loads are reads of an already-provisioned workspace.
+ * Keep those loads out of the serialized write queue; return null when the legacy
+ * provisioning path needs to repair or create any required rows.
+ */
+async function workspaceBootstrapFromExistingInTransaction(tx, { userId, now, competition }) {
+  const result = await tx.execute({
+    sql: `SELECT u.id AS user_id, u.email_normalized AS user_email_normalized,
+                 u.display_name AS user_display_name, u.status AS user_status,
+                 w.id AS workspace_id, w.owner_user_id, w.name AS workspace_name,
+                 w.status AS workspace_status, m.role AS member_role,
+                 o.status AS onboarding_status, o.profile_json, o.completed_at,
+                 p.theme AS user_theme
+          FROM users u
+          LEFT JOIN user_default_workspaces d ON d.user_id = u.id
+          LEFT JOIN workspaces w ON w.id = d.workspace_id
+          LEFT JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = u.id
+          LEFT JOIN workspace_onboarding o ON o.workspace_id = w.id
+          LEFT JOIN user_preferences p ON p.user_id = u.id
+          WHERE u.id = ?`,
+    args: [String(userId || '').trim()],
+  });
+  const row = result.rows[0];
+  if (!row || row.user_status !== 'active') throw new WorkspaceError('account_unavailable', 403);
+
+  // Any missing or inconsistent provisioning state gets the existing repair path.
+  if (!row.workspace_id || row.owner_user_id !== row.user_id || row.member_role !== 'owner' || !row.onboarding_status) {
+    return null;
+  }
+  if (row.workspace_status !== 'active') throw new WorkspaceError('workspace_unavailable', 403);
+  const statements = [
+    {
+      sql: `SELECT id, name, role, avatar, status, settings_json, created_at, updated_at
+            FROM agents WHERE workspace_id = ?
+            ORDER BY created_at ASC, id ASC`,
+      args: [row.workspace_id],
+    },
+    activeUsageEntitlementStatement({ workspaceId: row.workspace_id, now }),
+  ];
+  if (competition) statements.push(competitionEntitlementStatement(row.workspace_id));
+  const results = await tx.batch(statements);
+  const agentsResult = results[0];
+  const entitlement = results[1].rows[0] || null;
+  if (competition && competitionEntitlementNeedsRepair(results[2].rows, { competition, now })) return null;
+  return workspaceBootstrapView({
+    user: {
+      id: row.user_id,
+      email_normalized: row.user_email_normalized,
+      display_name: row.user_display_name,
+    },
+    row,
+    agentRows: agentsResult.rows,
+    entitlement,
+    now,
+    competition,
+    theme: row.user_theme,
+  });
+}
+
+function competitionEntitlementStatement(workspaceId) {
+  return {
+    sql: `SELECT e.status, e.starts_at, e.ends_at,
+                 p.code AS plan_code, p.billing_interval, p.included_tokens,
+                 p.active AS plan_active, p.metadata_json
+          FROM entitlements e
+          LEFT JOIN plans p ON p.id = e.plan_id
+          WHERE e.workspace_id = ? AND e.source = 'competition'`,
+    args: [workspaceId],
+  };
+}
+
+function competitionEntitlementNeedsRepair(rows, { competition, now }) {
+  if (!competition) return false;
+  const startMs = Date.parse(competition.startAt);
+  const endMs = Date.parse(competition.endAt);
+  const dailyTokenLimit = Number(competition.dailyTokenLimit);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs
+    || !Number.isSafeInteger(dailyTokenLimit) || dailyTokenLimit <= 0) return true;
+
+  const startsAt = new Date(startMs).toISOString();
+  const endsAt = new Date(endMs).toISOString();
+  const metadata = JSON.stringify({
+    quotaUnit: 'tokens_per_utc_day',
+    competitionStartAt: startsAt,
+    competitionEndAt: endsAt,
+  });
+  const staleActiveGrant = rows.some((row) => row.status === 'active'
+    && (row.starts_at !== startsAt || row.ends_at !== endsAt));
+  if (staleActiveGrant) return true;
+
+  if (Date.parse(now) >= endMs) return false;
+  const readyGrantExists = rows.some((row) => row.status === 'active'
+    && row.starts_at === startsAt
+    && row.ends_at === endsAt
+    && row.plan_code === 'keus_competition_daily'
+    && row.billing_interval === 'competition'
+    && Number(row.included_tokens) === dailyTokenLimit
+    && Number(row.plan_active) === 1
+    && row.metadata_json === metadata);
+  return !readyGrantExists;
+}
+
 async function workspaceBootstrapInTransaction(tx, { userId, now, competition }) {
   const { user, workspace } = await ensureDefaultWorkspaceInTransaction(tx, {
     userId,
@@ -218,16 +368,13 @@ async function workspaceBootstrapInTransaction(tx, { userId, now, competition })
   const result = await tx.execute({
     sql: `SELECT w.id AS workspace_id, w.name AS workspace_name, w.status AS workspace_status,
                  m.role AS member_role,
-                 o.status AS onboarding_status, o.profile_json, o.completed_at,
-                 a.id AS agent_id, a.name AS agent_name, a.role AS agent_role,
-                 a.avatar AS agent_avatar, a.status AS agent_status, a.settings_json AS agent_settings_json
+                 o.status AS onboarding_status, o.profile_json, o.completed_at
           FROM user_default_workspaces d
           JOIN workspaces w ON w.id = d.workspace_id
           JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = d.user_id
           LEFT JOIN workspace_onboarding o ON o.workspace_id = w.id
-          LEFT JOIN agents a ON a.workspace_id = w.id AND a.id = ?
           WHERE d.user_id = ?`,
-    args: [onboardingAgentId(workspace.id), user.id],
+    args: [user.id],
   });
   const row = result.rows[0];
   if (!row) throw new WorkspaceError('workspace_access_denied', 403);
@@ -238,51 +385,23 @@ async function workspaceBootstrapInTransaction(tx, { userId, now, competition })
           ORDER BY created_at ASC, id ASC`,
     args: [row.workspace_id],
   });
-  const agents = agentsResult.rows.map((agentRow) => ({
-    id: agentRow.id,
-    name: agentRow.name,
-    role: agentRow.role,
-    avatar: agentRow.avatar,
-    status: agentRow.status,
-    settings: parseJson(agentRow.settings_json),
-    createdAt: agentRow.created_at,
-    updatedAt: agentRow.updated_at,
-  }));
   const entitlement = await findActiveUsageEntitlement(tx, {
     workspaceId: row.workspace_id,
-    now: isoNow(now),
+    now,
   });
-  const onboardingProfile = parseJson(row.profile_json);
-  const settings = parseJson(row.agent_settings_json);
   const preferenceResult = await tx.execute({
     sql: 'SELECT theme FROM user_preferences WHERE user_id = ?',
     args: [user.id],
   });
-  const theme = preferenceResult.rows[0]?.theme === 'light' ? 'light' : 'dark';
-  return {
-    user: { id: user.id, email: user.email_normalized, displayName: user.display_name, theme },
-    workspace: {
-      id: row.workspace_id,
-      name: row.workspace_name,
-      status: row.workspace_status,
-      role: row.member_role,
-    },
-    onboarding: {
-      status: row.onboarding_status || 'not_started',
-      completedAt: row.completed_at || null,
-      profile: onboardingProfile,
-      agent: row.agent_id ? {
-        id: row.agent_id,
-        name: row.agent_name,
-        role: row.agent_role,
-        avatar: row.agent_avatar,
-        status: row.agent_status,
-        settings,
-      } : null,
-    },
-    usageAccess: usageAccessView(entitlement, { now: isoNow(now), competition }),
-    agents,
-  };
+  return workspaceBootstrapView({
+    user,
+    row,
+    agentRows: agentsResult.rows,
+    entitlement,
+    now,
+    competition,
+    theme: preferenceResult.rows[0]?.theme,
+  });
 }
 
 export function createWorkspaceService({ db, competition = null } = {}) {
@@ -290,6 +409,12 @@ export function createWorkspaceService({ db, competition = null } = {}) {
 
   async function getBootstrap({ userId, now = new Date().toISOString() }) {
     const checkedAt = isoNow(now);
+    const existing = await withReadTransaction(db, (tx) => workspaceBootstrapFromExistingInTransaction(tx, {
+      userId,
+      now: checkedAt,
+      competition,
+    }));
+    if (existing) return existing;
     return withWriteTransaction(db, (tx) => workspaceBootstrapInTransaction(tx, {
       userId,
       now: checkedAt,
