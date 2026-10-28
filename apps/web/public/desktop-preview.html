@@ -543,6 +543,11 @@
   .msg-text strong { color: #fff; font-weight: 600; }
   .chat-provider-attribution { margin-top:8px; color:var(--text-dim); font-size:10.5px; line-height:1.45; overflow-wrap:anywhere; }
   .chat-live-status { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+  .chat-typing-indicator { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:48px; height:30px; padding:0 10px; border:1px solid var(--border); border-radius:14px 14px 14px 4px; background:rgba(255,255,255,.045); color:var(--text-sec); }
+  .chat-typing-dot { width:5px; height:5px; flex:none; border-radius:50%; background:currentColor; opacity:.42; animation:chatTypingBounce 1.05s ease-in-out infinite; }
+  .chat-typing-dot:nth-child(2) { animation-delay:.14s; }
+  .chat-typing-dot:nth-child(3) { animation-delay:.28s; }
+  @keyframes chatTypingBounce { 0%,70%,100% { transform:translateY(0); opacity:.42; } 35% { transform:translateY(-4px); opacity:1; } }
   .chat-answer-text { color:inherit; white-space:normal; overflow-wrap:anywhere; }
   .chat-answer-text p { margin:0 0 .72em; }
   .chat-answer-text p:last-child { margin-bottom:0; }
@@ -563,6 +568,7 @@
   @keyframes chatStreamCaret { to { visibility:hidden; } }
   @media (prefers-reduced-motion: reduce) {
     .chat-streaming .chat-answer-text::after { animation:none; }
+    .chat-typing-dot { animation:none; opacity:.75; transform:none; }
   }
 
   /* =========================================================
@@ -1524,6 +1530,19 @@
   .scout-cue-mark { opacity:0; }
   .scout-mark-glyph { fill:#b57cff; font:900 12px/1 sans-serif; text-anchor:middle; dominant-baseline:middle; stroke:#111113; stroke-width:.8px; paint-order:stroke; }
   .scout-compare-label { fill:#111113; font:900 5px/1 sans-serif; text-anchor:middle; dominant-baseline:middle; }
+  @keyframes avatarMoodHappy { 0%,100%{transform:translateY(0) rotate(0)} 24%{transform:translateY(-3px) rotate(-6deg)} 52%{transform:translateY(-5px) rotate(0)} 78%{transform:translateY(-2px) rotate(5deg)} }
+  @keyframes avatarMoodCurious { 0%,100%{transform:rotate(0) scale(1)} 32%{transform:rotate(-8deg) scale(1.04)} 68%{transform:rotate(6deg) scale(1.02)} }
+  @keyframes avatarMoodThoughtful { 0%,100%{transform:translateY(0) rotate(0)} 42%{transform:translateY(-2px) rotate(-4deg)} 72%{transform:translateY(0) rotate(2deg)} }
+  @keyframes avatarMoodEmpathetic { 0%,100%{transform:scale(1)} 35%{transform:scale(1.06)} 68%{transform:scale(.99)} }
+  @keyframes avatarMoodExcited { 0%,100%{transform:translateY(0) scale(1)} 22%{transform:translateY(-6px) scale(1.06)} 44%{transform:translateY(0) scale(.98)} 68%{transform:translateY(-3px) scale(1.02)} }
+  @keyframes avatarMoodConcerned { 0%,100%{transform:translateX(0) rotate(0)} 24%{transform:translateX(-2px) rotate(-3deg)} 50%{transform:translateX(2px) rotate(3deg)} 76%{transform:translateX(-1px) rotate(-1deg)} }
+  .agent-avatar-art[class*="avatar-mood-"] { transform-box:fill-box; transform-origin:center; }
+  .agent-avatar-art.avatar-mood-happy { animation:avatarMoodHappy 900ms cubic-bezier(.2,.75,.3,1) both; }
+  .agent-avatar-art.avatar-mood-curious { animation:avatarMoodCurious 820ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-thoughtful { animation:avatarMoodThoughtful 1000ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-empathetic { animation:avatarMoodEmpathetic 900ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-excited { animation:avatarMoodExcited 820ms cubic-bezier(.2,.75,.3,1) both; }
+  .agent-avatar-art.avatar-mood-concerned { animation:avatarMoodConcerned 760ms ease-in-out both; }
   @keyframes scoutCueNotice { 0%,100%{transform:translateY(0) rotate(0)} 24%{transform:translateY(-3px) rotate(-8deg)} 53%{transform:translateY(-1px) rotate(6deg)} }
   @keyframes scoutCueHandleSearch { 0%,100%{transform:rotate(0)} 28%{transform:rotate(-10deg)} 62%{transform:rotate(8deg)} }
   @keyframes scoutCueLensInspect { 0%,100%{transform:scale(1);opacity:.22} 44%{transform:scale(1.2);opacity:.48} }
@@ -1590,6 +1609,7 @@
   .agent-avatar-art.scout-cue-recover .scout-recover-arrow { animation:scoutCueRecoverSpin 760ms linear 4 both; }
   @media (prefers-reduced-motion:reduce) {
     .agent-avatar-art[class*="scout-cue-"],.agent-avatar-art[class*="scout-cue-"] * { animation:none!important; }
+    .agent-avatar-art[class*="avatar-mood-"] { animation:none!important; filter:brightness(1.1); }
     .agent-avatar-art[class*="scout-cue-"] { filter:brightness(1.1); }
     .agent-avatar-art.scout-cue-notice .scout-mark-notice,
     .agent-avatar-art.scout-cue-search .scout-mark-search,
@@ -1639,14 +1659,14 @@
   .admin-chat-controls[hidden],.admin-chat-diagnostics[hidden]{display:none!important}
   .admin-chat-controls{max-width:740px;margin:0 auto 8px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;border:1px solid rgba(50,213,131,.18);border-radius:10px;background:rgba(18,23,23,.82)}
   .admin-chat-controls label{display:grid;gap:4px;color:var(--text-sec);font-size:10px;font-weight:650}
-  .admin-chat-controls select,.admin-chat-controls input{width:100%;min-width:0;min-height:34px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#111517;color:var(--text-main);font:11px var(--font)}
-  .admin-chat-controls select:disabled,.admin-chat-controls input:disabled{opacity:.65}
+  .admin-chat-controls select{width:100%;min-width:0;min-height:34px;padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:#111517;color:var(--text-main);font:11px var(--font)}
+  .admin-chat-controls select:disabled{opacity:.65}
   .admin-chat-controls p{grid-column:1/-1;margin:0;color:var(--text-dim);font-size:9px;line-height:1.45}
   .admin-chat-diagnostics{max-width:740px;margin:0 auto 8px;padding:8px 11px;border:1px solid rgba(255,155,145,.3);border-radius:9px;background:rgba(255,155,145,.06);color:var(--text-sec);font-size:10px}
   .admin-chat-diagnostics summary{cursor:pointer;color:#ffb7ae;font-weight:700}
   .admin-chat-diagnostics pre{max-height:220px;overflow:auto;margin:8px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text-sec);font:10px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
   :root[data-theme="light"] .admin-chat-controls{background:#f7faf6;border-color:#cce5d1}
-  :root[data-theme="light"] .admin-chat-controls select,:root[data-theme="light"] .admin-chat-controls input{background:#fff;color:#243629;border-color:#d4e0d5}
+  :root[data-theme="light"] .admin-chat-controls select{background:#fff;color:#243629;border-color:#d4e0d5}
   :root[data-theme="light"] .admin-chat-diagnostics{background:#fff5f3;border-color:#efd0cb}
   :root[data-theme="light"] .admin-chat-diagnostics summary{color:#9b463c}
   @media(max-width:640px){.admin-chat-controls{grid-template-columns:1fr;gap:6px}.admin-chat-controls p{grid-column:1}}
@@ -1948,10 +1968,12 @@
               <option value="">Configured primary (dynamic)</option>
             </select>
           </label>
-          <label for="chatModelId">Model override
-            <input id="chatModelId" type="text" maxlength="160" autocomplete="off" placeholder="Use the configured model" disabled aria-describedby="adminChatProviderNotice" />
+          <label for="chatModelId">Model for this request
+            <select id="chatModelId" disabled aria-describedby="adminChatProviderNotice">
+              <option value="">Loading available models…</option>
+            </select>
           </label>
-          <p id="adminChatProviderNotice">Overrides apply to the next message only, then reset to the configured primary/model. The selected provider receives the prompt and saved context; on network, HTTP 429, or 5xx failures, explicitly marked backups may receive it too. Retention and costs can differ.</p>
+          <p id="adminChatProviderNotice">Overrides apply to the next message only, then reset to the configured primary/model. The selected provider receives the prompt and saved context; on network, HTTP 429, or 5xx failures, explicitly marked backups may receive it too. Retention and costs can differ. <span id="adminChatCatalogStatus" role="status" aria-live="polite"></span></p>
         </div>
         <details class="admin-chat-diagnostics" id="adminChatDiagnostics" hidden>
           <summary>View detailed admin error</summary>
@@ -2263,6 +2285,10 @@
   let chatMessages = [];
   let chatAdminProviders = [];
   let chatAdminModelWasEdited = false;
+  let chatAdminCatalogLoadVersion = 0;
+  let chatAdminCatalogProviderKey = '';
+  let chatAdminConfiguredModelId = '';
+  let chatAdminCatalogLoading = false;
   const SCOUT_CUE_DURATIONS = Object.freeze({
     notice: 720, search: 820, inspect: 780, compare: 760, draft: 720, organize: 760,
     verify: 760, explain: 780, ask: 700, wait: 950, success: 900, recover: 760,
@@ -2272,6 +2298,13 @@
   const SCOUT_CUE_CLASSES = Object.keys(SCOUT_CUE_DURATIONS).map((cue) => `scout-cue-${cue}`);
   const scoutCueQueues = new WeakMap();
   const scoutCueTimers = new WeakMap();
+  const AVATAR_EMOTION_DURATIONS = Object.freeze({
+    happy: 900, curious: 820, thoughtful: 1000, empathetic: 900, excited: 820, concerned: 760,
+  });
+  const AVATAR_EMOTION_IDS = new Set(Object.keys(AVATAR_EMOTION_DURATIONS));
+  const AVATAR_EMOTION_CLASSES = Object.keys(AVATAR_EMOTION_DURATIONS).map((cue) => `avatar-mood-${cue}`);
+  const avatarEmotionQueues = new WeakMap();
+  const avatarEmotionTimers = new WeakMap();
   let renderedChatAgentId = null;
   function openOverlay(id) {
     const backdrop = document.getElementById(id);
@@ -3204,7 +3237,15 @@
       liveStatus.setAttribute('aria-live', 'polite');
       liveStatus.setAttribute('aria-atomic', 'true');
       liveStatus.textContent = 'Preparing response.';
-      text.append(liveStatus);
+      const typingIndicator = document.createElement('span');
+      typingIndicator.className = 'chat-typing-indicator';
+      typingIndicator.setAttribute('aria-hidden', 'true');
+      for (let index = 0; index < 3; index += 1) {
+        const dot = document.createElement('span');
+        dot.className = 'chat-typing-dot';
+        typingIndicator.append(dot);
+      }
+      text.append(liveStatus, typingIndicator);
     } else {
       const answerText = document.createElement('div');
       answerText.className = 'chat-answer-text';
@@ -3277,6 +3318,43 @@
     if (sidebarAvatar) enqueueScoutAvatarCue(sidebarAvatar, cue);
   }
 
+  function runAvatarEmotionQueue(svg) {
+    const queue = avatarEmotionQueues.get(svg);
+    if (!svg?.isConnected || !queue?.length) return;
+    const cue = queue.shift();
+    svg.classList.remove(...AVATAR_EMOTION_CLASSES);
+    void svg.getBoundingClientRect();
+    const cueClass = `avatar-mood-${cue}`;
+    svg.classList.add(cueClass);
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    const playbackDuration = reducedMotion ? 450 : AVATAR_EMOTION_DURATIONS[cue] + 80;
+    const timer = window.setTimeout(() => {
+      svg.classList.remove(cueClass);
+      avatarEmotionTimers.delete(svg);
+      runAvatarEmotionQueue(svg);
+    }, playbackDuration);
+    avatarEmotionTimers.set(svg, timer);
+  }
+
+  function enqueueAvatarEmotion(svg, cue) {
+    if (!svg || !AVATAR_EMOTION_IDS.has(cue)) return;
+    let queue = avatarEmotionQueues.get(svg);
+    if (!queue) {
+      queue = [];
+      avatarEmotionQueues.set(svg, queue);
+    }
+    if (queue.length >= AVATAR_EMOTION_IDS.size) return;
+    queue.push(cue);
+    if (!avatarEmotionTimers.has(svg)) runAvatarEmotionQueue(svg);
+  }
+
+  function playAvatarEmotion(cue, requestAgentId, replyRow) {
+    const agent = findSelectedChatAgent();
+    if (!AVATAR_EMOTION_IDS.has(cue) || !agent || String(agent.id) !== String(requestAgentId)) return;
+    const replyAvatar = replyRow?.querySelector('.chat-reply-avatar .agent-avatar-art');
+    if (replyAvatar) enqueueAvatarEmotion(replyAvatar, cue);
+  }
+
   function setChatLiveStatus(row, stage) {
     const status = row?.querySelector('.chat-live-status');
     if (!status) return;
@@ -3331,49 +3409,153 @@
   function clearAdminChatControls() {
     chatAdminProviders = [];
     chatAdminModelWasEdited = false;
+    chatAdminCatalogLoadVersion += 1;
+    chatAdminCatalogProviderKey = '';
+    chatAdminConfiguredModelId = '';
+    chatAdminCatalogLoading = false;
     const root = document.getElementById('adminChatControls');
     const providerSelect = document.getElementById('chatProviderSelect');
-    const modelInput = document.getElementById('chatModelId');
+    const modelSelect = document.getElementById('chatModelId');
+    const catalogStatus = document.getElementById('adminChatCatalogStatus');
     if (root) root.hidden = true;
     if (providerSelect) {
       providerSelect.replaceChildren();
       providerSelect.disabled = true;
     }
-    if (modelInput) {
-      modelInput.value = '';
-      modelInput.disabled = true;
+    if (modelSelect) {
+      modelSelect.replaceChildren();
+      modelSelect.disabled = true;
+    }
+    if (catalogStatus) catalogStatus.textContent = '';
+  }
+
+  function cleanAdminChatModelText(value) {
+    return typeof value === 'string'
+      ? value.normalize('NFKC').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, 160)
+      : '';
+  }
+
+  async function loadAdminChatModelCatalog() {
+    const root = document.getElementById('adminChatControls');
+    const providerSelect = document.getElementById('chatProviderSelect');
+    const modelSelect = document.getElementById('chatModelId');
+    const catalogStatus = document.getElementById('adminChatCatalogStatus');
+    if (!root || root.hidden || !providerSelect || !modelSelect) return;
+    const selectedKey = String(providerSelect.value || '');
+    const selectedProvider = selectedKey
+      ? chatAdminProviders.find((provider) => provider.providerKey === selectedKey)
+      : chatAdminProviders.find((provider) => provider.isPrimary === true);
+    const loadVersion = ++chatAdminCatalogLoadVersion;
+    chatAdminModelWasEdited = false;
+    if (!selectedProvider) {
+      chatAdminCatalogProviderKey = '';
+      chatAdminConfiguredModelId = '';
+      chatAdminCatalogLoading = false;
+      modelSelect.replaceChildren();
+      modelSelect.disabled = true;
+      if (catalogStatus) catalogStatus.textContent = 'No provider is available for model selection.';
+      return;
+    }
+
+    const configuredFallback = cleanAdminChatModelText(selectedProvider.modelId);
+    chatAdminCatalogProviderKey = selectedProvider.providerKey;
+    chatAdminConfiguredModelId = configuredFallback;
+    chatAdminCatalogLoading = true;
+    const loadingOption = document.createElement('option');
+    loadingOption.value = '';
+    loadingOption.textContent = 'Loading available models…';
+    modelSelect.replaceChildren(loadingOption);
+    modelSelect.disabled = true;
+    if (catalogStatus) catalogStatus.textContent = ' Loading available models…';
+
+    try {
+      const query = selectedKey ? `?providerKey=${encodeURIComponent(selectedKey)}` : '';
+      const response = await fetch(`/api/chat/models${query}`, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      });
+      if (response.status === 401) {
+        location.replace('/login?auth_error=session');
+        return;
+      }
+      if (!response.ok) throw new Error('ai_chat_model_catalog_unavailable');
+      const data = await response.json();
+      if (loadVersion !== chatAdminCatalogLoadVersion) return;
+      const configuredModelId = cleanAdminChatModelText(data?.configuredModelId) || configuredFallback;
+      if (!configuredModelId) throw new Error('ai_chat_model_catalog_invalid');
+      const choices = new Map();
+      if (data?.catalogAvailable === true && Array.isArray(data.models)) {
+        for (const item of data.models) {
+          const id = cleanAdminChatModelText(item?.id);
+          if (!id || choices.has(id)) continue;
+          choices.set(id, {
+            id,
+            displayName: cleanAdminChatModelText(item?.displayName) || id,
+          });
+          if (choices.size >= 500) break;
+        }
+      }
+      if (!choices.has(configuredModelId)) {
+        choices.set(configuredModelId, { id: configuredModelId, displayName: configuredModelId });
+      }
+      chatAdminConfiguredModelId = configuredModelId;
+      const models = [
+        choices.get(configuredModelId),
+        ...[...choices.values()].filter((model) => model.id !== configuredModelId).slice(0, 499),
+      ];
+      modelSelect.replaceChildren();
+      for (const model of models) {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = model.id === configuredModelId ? `${model.displayName} · configured` : model.displayName;
+        modelSelect.append(option);
+      }
+      modelSelect.value = configuredModelId;
+      if (catalogStatus) {
+        catalogStatus.textContent = data?.catalogAvailable === true
+          ? (models.length > 1 ? ` ${models.length} models available.` : ' No additional models listed; configured model is available.')
+          : ' Live catalog unavailable; only the configured model is selectable.';
+      }
+    } catch {
+      if (loadVersion !== chatAdminCatalogLoadVersion) return;
+      modelSelect.replaceChildren();
+      if (configuredFallback) {
+        const option = document.createElement('option');
+        option.value = configuredFallback;
+        option.textContent = `${configuredFallback} · configured`;
+        modelSelect.append(option);
+        modelSelect.value = configuredFallback;
+      }
+      chatAdminConfiguredModelId = configuredFallback;
+      if (catalogStatus) catalogStatus.textContent = configuredFallback
+        ? ' Live catalog unavailable; only the configured model is selectable.'
+        : ' Live catalog unavailable; no model could be selected.';
+    } finally {
+      if (loadVersion === chatAdminCatalogLoadVersion) {
+        chatAdminCatalogLoading = false;
+        syncAdminChatControlsAvailability();
+      }
     }
   }
 
   function resetAdminChatOverrides() {
     const providerSelect = document.getElementById('chatProviderSelect');
     if (providerSelect) providerSelect.value = '';
-    syncAdminChatModelInput();
-  }
-
-  function syncAdminChatModelInput() {
-    const providerSelect = document.getElementById('chatProviderSelect');
-    const modelInput = document.getElementById('chatModelId');
-    const selectedKey = String(providerSelect?.value || '');
-    const selected = selectedKey
-      ? chatAdminProviders.find((provider) => provider.providerKey === selectedKey)
-      : chatAdminProviders.find((provider) => provider.isPrimary);
-    if (!modelInput || !selected) return;
-    modelInput.value = selected.modelId;
     chatAdminModelWasEdited = false;
+    void loadAdminChatModelCatalog();
   }
 
   function renderAdminChatControls(data) {
     const root = document.getElementById('adminChatControls');
     const providerSelect = document.getElementById('chatProviderSelect');
-    const modelInput = document.getElementById('chatModelId');
+    const modelSelect = document.getElementById('chatModelId');
     const options = Array.isArray(data?.providers)
       ? data.providers.filter((provider) => provider && typeof provider.providerKey === 'string'
         && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(provider.providerKey)
         && typeof provider.displayName === 'string' && typeof provider.modelId === 'string')
       : [];
     const primary = options.find((provider) => provider.isPrimary === true);
-    if (!root || !providerSelect || !modelInput || data?.adminControls !== true || !primary) {
+    if (!root || !providerSelect || !modelSelect || data?.adminControls !== true || !primary) {
       clearAdminChatControls();
       return;
     }
@@ -3395,17 +3577,18 @@
     }
     providerSelect.value = '';
     providerSelect.disabled = !chatAvailable || chatPending || chatHistoryLoading;
-    modelInput.value = primary.modelId;
-    modelInput.disabled = !chatAvailable || chatPending || chatHistoryLoading;
     root.hidden = false;
+    void loadAdminChatModelCatalog();
   }
 
   function syncAdminChatControlsAvailability() {
     const disabled = !chatAvailable || chatPending || chatHistoryLoading;
     const providerSelect = document.getElementById('chatProviderSelect');
-    const modelInput = document.getElementById('chatModelId');
+    const modelSelect = document.getElementById('chatModelId');
     if (providerSelect && !document.getElementById('adminChatControls')?.hidden) providerSelect.disabled = disabled;
-    if (modelInput && !document.getElementById('adminChatControls')?.hidden) modelInput.disabled = disabled;
+    if (modelSelect && !document.getElementById('adminChatControls')?.hidden) {
+      modelSelect.disabled = disabled || chatAdminCatalogLoading || !chatAdminConfiguredModelId;
+    }
   }
 
   function setAdminChatDiagnostics(diagnostics) {
@@ -3617,11 +3800,14 @@
     let replyAttribution = null;
     const requestBody = { agentId: requestAgentId, message: content };
     const providerKey = String(document.getElementById('chatProviderSelect')?.value || '');
-    if (providerKey && chatAdminProviders.some((provider) => provider.providerKey === providerKey)) {
-      requestBody.providerKey = providerKey;
-    }
+    const selectedProvider = providerKey
+      ? chatAdminProviders.find((provider) => provider.providerKey === providerKey)
+      : chatAdminProviders.find((provider) => provider.isPrimary === true);
+    if (providerKey && selectedProvider) requestBody.providerKey = providerKey;
     const modelId = String(document.getElementById('chatModelId')?.value || '').trim();
-    if (chatAdminModelWasEdited && modelId) requestBody.modelId = modelId;
+    if (chatAdminModelWasEdited && modelId && selectedProvider
+        && selectedProvider.providerKey === chatAdminCatalogProviderKey
+        && modelId !== chatAdminConfiguredModelId) requestBody.modelId = modelId;
     resetAdminChatOverrides();
     try {
       const response = await fetch('/api/chat', {
@@ -3670,6 +3856,8 @@
         } else if (eventName === 'avatar_cue') {
           if (payload?.avatar === 'magnifier' && typeof payload?.cue === 'string') {
             playScoutAvatarCue(payload.cue, requestAgentId);
+          } else if (payload?.avatar === 'emotion' && typeof payload?.cue === 'string') {
+            playAvatarEmotion(payload.cue, requestAgentId, assistantRow || pendingRow);
           }
         } else if (eventName === 'done') {
           completed = true;
@@ -4210,9 +4398,12 @@
   });
 
   const chatProviderSelect = document.getElementById('chatProviderSelect');
-  const chatModelIdInput = document.getElementById('chatModelId');
-  chatProviderSelect?.addEventListener('change', syncAdminChatModelInput);
-  chatModelIdInput?.addEventListener('input', () => { chatAdminModelWasEdited = true; });
+  const chatModelIdSelect = document.getElementById('chatModelId');
+  chatProviderSelect?.addEventListener('change', () => { void loadAdminChatModelCatalog(); });
+  chatModelIdSelect?.addEventListener('change', () => {
+    const selectedModel = String(chatModelIdSelect.value || '');
+    chatAdminModelWasEdited = Boolean(selectedModel && selectedModel !== chatAdminConfiguredModelId);
+  });
 
   const chatInput = document.getElementById('chatInput');
   chatInput?.addEventListener('input', syncChatComposer);
