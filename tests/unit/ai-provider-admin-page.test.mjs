@@ -63,5 +63,9 @@ test('AI provider admin form is private to an authenticated allowlisted admin', 
     assert.match(html, /method:'DELETE'/);
     assert.match(html, /type="password"/);
     assert.match(html, /credentials:'same-origin'/);
+    assert.match(html, /id="is-fallback"/);
+    assert.match(html, /Mark approved backup/);
+    assert.match(html, /network failure, HTTP 429, or 5xx from the primary/);
+    assert.match(html, /At most two enabled backups are attempted/);
   });
 });
