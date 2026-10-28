@@ -30,7 +30,7 @@ async function withServer(dependencies, run) {
   finally { await new Promise((resolve) => server.close(resolve)); }
 }
 
-test('desktop chat hides failover provider/model metadata while logging only a request reference and attempt count', async () => {
+test('admin sees the successful fallback provider/model while logs exclude prompt and provider identifiers', async () => {
   const info = [];
   const originalConsoleInfo = console.info;
   console.info = (...args) => info.push(args.join(' '));
@@ -52,6 +52,7 @@ test('desktop chat hides failover provider/model metadata while logging only a r
           return {
             text: 'Fallback reply',
             provider: 'backup-provider-private-id',
+            providerDisplayName: 'Approved backup provider',
             model: 'backup-model-private-id',
             inputTokens: 12,
             outputTokens: 7,
@@ -78,8 +79,12 @@ test('desktop chat hides failover provider/model metadata while logging only a r
       assert.equal(response.status, 200);
       const body = await response.json();
       assert.equal(body.reply, 'Fallback reply');
-      assert.deepEqual(Object.keys(body).sort(), ['reply', 'requestId']);
-      assert.doesNotMatch(JSON.stringify(body), /backup-provider-private-id|backup-model-private-id/);
+      assert.deepEqual(Object.keys(body).sort(), ['attribution', 'reply', 'requestId']);
+      assert.deepEqual(body.attribution, {
+        provider: 'backup-provider-private-id',
+        providerDisplayName: 'Approved backup provider',
+        model: 'backup-model-private-id',
+      });
     });
   } finally {
     console.info = originalConsoleInfo;
