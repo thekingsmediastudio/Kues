@@ -4211,7 +4211,7 @@
 
   const chatProviderSelect = document.getElementById('chatProviderSelect');
   const chatModelIdInput = document.getElementById('chatModelId');
-  chatProviderSelect?.addEventListener('change', syncChatAdminModelInput);
+  chatProviderSelect?.addEventListener('change', syncAdminChatModelInput);
   chatModelIdInput?.addEventListener('input', () => { chatAdminModelWasEdited = true; });
 
   const chatInput = document.getElementById('chatInput');
