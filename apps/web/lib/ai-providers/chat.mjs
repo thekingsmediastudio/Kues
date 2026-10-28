@@ -7,6 +7,11 @@ const MAX_MESSAGES = 12;
 const MAX_MESSAGE_CHARACTERS = 4_000;
 const MAX_CONVERSATION_CHARACTERS = 16_000;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+const TRANSIENT_NETWORK_ERROR_CODES = new Set([
+  'ECONNABORTED', 'ECONNREFUSED', 'ECONNRESET', 'EHOSTDOWN', 'EHOSTUNREACH',
+  'EAI_AGAIN', 'ENETUNREACH', 'ENOTFOUND', 'EPIPE', 'ETIMEDOUT',
+  'ERR_SOCKET_CONNECTION_TIMEOUT',
+]);
 
 function plainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -186,6 +191,19 @@ function estimateUsage(messages, system, reply) {
   };
 }
 
+function isTransientNetworkError(error) {
+  return error?.code === 'connector_host_unavailable'
+    || error?.message === 'connector_timeout'
+    || TRANSIENT_NETWORK_ERROR_CODES.has(String(error?.code || '').toUpperCase());
+}
+
+function isTransientProviderFailure(error) {
+  if (!(error instanceof AiProviderError)) return false;
+  if (error.code === 'ai_provider_unavailable') return error.retryable === true;
+  return error.code === 'ai_provider_upstream_failed'
+    && (Number(error.upstreamStatus) === 429 || Number(error.upstreamStatus) >= 500);
+}
+
 export function createAiChatService({
   aiProviderService,
   resolveHost = (hostname) => dns.lookup(hostname, { all: true, verbatim: true }),
@@ -202,17 +220,7 @@ export function createAiChatService({
     }
   }
 
-  async function complete({ agent, messages: rawMessages }) {
-    const messages = normalizeAiChatMessages(rawMessages);
-    const system = buildSystemPrompt(agent);
-    let provider;
-    try {
-      provider = await aiProviderService.getPrimaryProviderForRuntime();
-    } catch (error) {
-      if (error instanceof AiProviderError) throw error;
-      throw new AiProviderError('ai_provider_primary_unavailable', 503);
-    }
-
+  async function completeWithProvider(provider, messages, system) {
     const request = buildProviderRequest(provider, messages, system);
     let addresses;
     let upstream;
@@ -230,7 +238,12 @@ export function createAiChatService({
       if (error?.code === 'connector_destination_blocked') {
         throw new AiProviderError('ai_provider_destination_blocked', 502);
       }
-      throw new AiProviderError('ai_provider_unavailable', 502);
+      if (error?.message === 'connector_response_too_large') {
+        throw new AiProviderError('ai_provider_response_invalid', 502);
+      }
+      const unavailable = new AiProviderError('ai_provider_unavailable', 502);
+      unavailable.retryable = isTransientNetworkError(error);
+      throw unavailable;
     }
 
     if (upstream.status < 200 || upstream.status >= 300) {
@@ -255,6 +268,57 @@ export function createAiChatService({
       inputTokens: completion.inputTokens ?? fallbackUsage.inputTokens,
       outputTokens: completion.outputTokens ?? fallbackUsage.outputTokens,
     };
+  }
+
+  async function complete({ agent, messages: rawMessages }) {
+    const messages = normalizeAiChatMessages(rawMessages);
+    const system = buildSystemPrompt(agent);
+    let primary;
+    try {
+      primary = await aiProviderService.getPrimaryProviderForRuntime();
+    } catch (error) {
+      if (error instanceof AiProviderError) throw error;
+      throw new AiProviderError('ai_provider_primary_unavailable', 503);
+    }
+
+    try {
+      return { ...(await completeWithProvider(primary, messages, system)), fallbackUsed: false, fallbackAttempts: 0 };
+    } catch (primaryError) {
+      if (!isTransientProviderFailure(primaryError)
+          || typeof aiProviderService.getFallbackProvidersForRuntime !== 'function') {
+        throw primaryError;
+      }
+
+      let fallbacks;
+      try {
+        fallbacks = await aiProviderService.getFallbackProvidersForRuntime();
+      } catch {
+        const error = new AiProviderError('ai_provider_fallback_unavailable', 503);
+        error.fallbackAttempts = 0;
+        error.upstreamStatus = primaryError.upstreamStatus;
+        throw error;
+      }
+      if (!Array.isArray(fallbacks) || fallbacks.length === 0) {
+        primaryError.fallbackAttempts = 0;
+        throw primaryError;
+      }
+
+      let lastError = primaryError;
+      for (let index = 0; index < fallbacks.length; index += 1) {
+        try {
+          return {
+            ...(await completeWithProvider(fallbacks[index], messages, system)),
+            fallbackUsed: true,
+            fallbackAttempts: index + 1,
+          };
+        } catch (fallbackError) {
+          lastError = fallbackError;
+          lastError.fallbackAttempts = index + 1;
+          if (!isTransientProviderFailure(fallbackError)) throw fallbackError;
+        }
+      }
+      throw lastError;
+    }
   }
 
   return Object.freeze({ isReady, complete });

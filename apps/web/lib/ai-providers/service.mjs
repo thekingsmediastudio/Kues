@@ -9,6 +9,7 @@ const ALLOWED_PROTOCOLS = new Set([
   'google_generative',
 ]);
 const MAX_API_KEY_LENGTH = 4096;
+const MAX_FALLBACK_PROVIDERS = 2;
 
 export class AiProviderError extends Error {
   constructor(code, status = 400) {
@@ -135,7 +136,7 @@ function normalizeBaseUrl(value) {
 function normalizeInput(input) {
   if (!plainObject(input)) throw new AiProviderError('ai_provider_input_invalid');
   const allowedFields = new Set([
-    'providerKey', 'displayName', 'apiProtocol', 'baseUrl', 'modelId', 'apiKey', 'enabled', 'isPrimary',
+    'providerKey', 'displayName', 'apiProtocol', 'baseUrl', 'modelId', 'apiKey', 'enabled', 'isPrimary', 'isFallback',
   ]);
   if (Object.keys(input).some((field) => !allowedFields.has(field))) {
     throw new AiProviderError('ai_provider_input_invalid');
@@ -157,17 +158,20 @@ function normalizeInput(input) {
   }
   const enabled = input.enabled === undefined ? false : input.enabled;
   const isPrimary = input.isPrimary === undefined ? false : input.isPrimary;
-  if (typeof enabled !== 'boolean' || typeof isPrimary !== 'boolean') {
+  const isFallback = input.isFallback === undefined ? false : input.isFallback;
+  if (typeof enabled !== 'boolean' || typeof isPrimary !== 'boolean' || typeof isFallback !== 'boolean') {
     throw new AiProviderError('ai_provider_status_invalid');
   }
   if (isPrimary && !enabled) throw new AiProviderError('ai_provider_primary_requires_enabled');
-  return { providerKey, displayName, apiProtocol, baseUrl, modelId, apiKey, enabled, isPrimary };
+  if (isFallback && !enabled) throw new AiProviderError('ai_provider_fallback_requires_enabled');
+  if (isFallback && isPrimary) throw new AiProviderError('ai_provider_fallback_cannot_be_primary');
+  return { providerKey, displayName, apiProtocol, baseUrl, modelId, apiKey, enabled, isPrimary, isFallback };
 }
 
 function normalizeUpdateInput(existing, input) {
   if (!plainObject(input)) throw new AiProviderError('ai_provider_input_invalid');
   const allowedFields = new Set([
-    'displayName', 'apiProtocol', 'baseUrl', 'modelId', 'apiKey', 'enabled', 'isPrimary',
+    'displayName', 'apiProtocol', 'baseUrl', 'modelId', 'apiKey', 'enabled', 'isPrimary', 'isFallback',
   ]);
   if (Object.keys(input).some((field) => !allowedFields.has(field))) {
     throw new AiProviderError('ai_provider_input_invalid');
@@ -189,10 +193,13 @@ function normalizeUpdateInput(existing, input) {
   }
   const enabled = input.enabled;
   const isPrimary = input.isPrimary;
-  if (typeof enabled !== 'boolean' || typeof isPrimary !== 'boolean') {
+  const isFallback = input.isFallback === undefined ? Number(existing.is_fallback) === 1 : input.isFallback;
+  if (typeof enabled !== 'boolean' || typeof isPrimary !== 'boolean' || typeof isFallback !== 'boolean') {
     throw new AiProviderError('ai_provider_status_invalid');
   }
   if (isPrimary && !enabled) throw new AiProviderError('ai_provider_primary_requires_enabled');
+  if (isFallback && !enabled) throw new AiProviderError('ai_provider_fallback_requires_enabled');
+  if (isFallback && isPrimary) throw new AiProviderError('ai_provider_fallback_cannot_be_primary');
   return {
     providerKey: String(existing.provider_key),
     displayName,
@@ -202,6 +209,7 @@ function normalizeUpdateInput(existing, input) {
     apiKey,
     enabled,
     isPrimary,
+    isFallback,
   };
 }
 
@@ -215,6 +223,7 @@ function safeProvider(row) {
     modelId: row.model_id,
     enabled: Number(row.enabled) === 1,
     isPrimary: Number(row.is_primary) === 1,
+    isFallback: Number(row.is_fallback) === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -236,17 +245,25 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     });
     try {
       await withWriteTransaction(db, async (tx) => {
+        if (normalized.isFallback) {
+          const fallbacks = await tx.execute({
+            sql: 'SELECT COUNT(*) AS count FROM ai_providers WHERE enabled = 1 AND is_fallback = 1',
+          });
+          if (Number(fallbacks.rows[0]?.count || 0) >= MAX_FALLBACK_PROVIDERS) {
+            throw new AiProviderError('ai_provider_fallback_limit_reached', 409);
+          }
+        }
         await tx.execute({
           sql: `INSERT INTO ai_providers
                   (id, provider_key, display_name, api_protocol, base_url, model_id,
                    api_key_ciphertext, api_key_nonce, api_key_tag, key_version, enabled,
-                   is_primary, settings_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
+                   is_primary, is_fallback, settings_json, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`,
           args: [
             id, normalized.providerKey, normalized.displayName, normalized.apiProtocol,
             normalized.baseUrl, normalized.modelId, encrypted.ciphertext, encrypted.nonce,
             encrypted.tag, keyVersion, normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0,
-            timestamp, timestamp,
+            normalized.isFallback ? 1 : 0, timestamp, timestamp,
           ],
         });
       });
@@ -262,7 +279,7 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     }
     const result = await db.execute({
       sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
-                   enabled, is_primary, created_at, updated_at
+                   enabled, is_primary, is_fallback, created_at, updated_at
             FROM ai_providers WHERE id = ?`,
       args: [id],
     });
@@ -290,6 +307,15 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
 
     try {
       await withWriteTransaction(db, async (tx) => {
+        if (normalized.isFallback && Number(existing.is_fallback) !== 1) {
+          const fallbacks = await tx.execute({
+            sql: 'SELECT COUNT(*) AS count FROM ai_providers WHERE enabled = 1 AND is_fallback = 1 AND id <> ?',
+            args: [id],
+          });
+          if (Number(fallbacks.rows[0]?.count || 0) >= MAX_FALLBACK_PROVIDERS) {
+            throw new AiProviderError('ai_provider_fallback_limit_reached', 409);
+          }
+        }
         if (normalized.isPrimary) {
           await tx.execute({
             sql: 'UPDATE ai_providers SET is_primary = 0, updated_at = ? WHERE is_primary = 1 AND id <> ?',
@@ -301,22 +327,22 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
             sql: `UPDATE ai_providers
                   SET display_name = ?, api_protocol = ?, base_url = ?, model_id = ?,
                       api_key_ciphertext = ?, api_key_nonce = ?, api_key_tag = ?, key_version = 1,
-                      enabled = ?, is_primary = ?, updated_at = ?
+                      enabled = ?, is_primary = ?, is_fallback = ?, updated_at = ?
                   WHERE id = ?`,
             args: [
               normalized.displayName, normalized.apiProtocol, normalized.baseUrl, normalized.modelId,
               encrypted.ciphertext, encrypted.nonce, encrypted.tag,
-              normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0, timestamp, id,
+              normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0, normalized.isFallback ? 1 : 0, timestamp, id,
             ],
           })
           : await tx.execute({
             sql: `UPDATE ai_providers
                   SET display_name = ?, api_protocol = ?, base_url = ?, model_id = ?,
-                      enabled = ?, is_primary = ?, updated_at = ?
+                      enabled = ?, is_primary = ?, is_fallback = ?, updated_at = ?
                   WHERE id = ?`,
             args: [
               normalized.displayName, normalized.apiProtocol, normalized.baseUrl, normalized.modelId,
-              normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0, timestamp, id,
+              normalized.enabled ? 1 : 0, normalized.isPrimary ? 1 : 0, normalized.isFallback ? 1 : 0, timestamp, id,
             ],
           });
         if (Number(result.rowsAffected || 0) !== 1) throw new AiProviderError('ai_provider_not_found', 404);
@@ -335,7 +361,7 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
 
     const updated = await db.execute({
       sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
-                   enabled, is_primary, created_at, updated_at
+                   enabled, is_primary, is_fallback, created_at, updated_at
             FROM ai_providers WHERE id = ?`,
       args: [id],
     });
@@ -356,7 +382,7 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
   async function listProviders() {
     const result = await db.execute(`
       SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
-             enabled, is_primary, created_at, updated_at
+             enabled, is_primary, is_fallback, created_at, updated_at
       FROM ai_providers ORDER BY created_at DESC, provider_key ASC
     `);
     return result.rows.map(safeProvider);
@@ -374,12 +400,26 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     const result = await db.execute({
       sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
                    api_key_ciphertext, api_key_nonce, api_key_tag, key_version,
-                   enabled, is_primary, created_at, updated_at
+                   enabled, is_primary, is_fallback, created_at, updated_at
             FROM ai_providers WHERE enabled = 1 AND is_primary = 1 LIMIT 1`,
     });
     const row = result.rows[0];
     if (!row) throw new AiProviderError('ai_provider_primary_unavailable', 503);
     return { ...safeProvider(row), apiKey: decryptApiKey(row, key) };
+  }
+
+  async function getFallbackProvidersForRuntime() {
+    const result = await db.execute({
+      sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
+                   api_key_ciphertext, api_key_nonce, api_key_tag, key_version,
+                   enabled, is_primary, is_fallback, created_at, updated_at
+            FROM ai_providers
+            WHERE enabled = 1 AND is_primary = 0 AND is_fallback = 1
+            ORDER BY created_at ASC, provider_key ASC
+            LIMIT ?`,
+      args: [MAX_FALLBACK_PROVIDERS],
+    });
+    return result.rows.map((row) => ({ ...safeProvider(row), apiKey: decryptApiKey(row, key) }));
   }
 
   async function getProviderForRuntime({ providerKey }) {
@@ -388,7 +428,7 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     const result = await db.execute({
       sql: `SELECT id, provider_key, display_name, api_protocol, base_url, model_id,
                    api_key_ciphertext, api_key_nonce, api_key_tag, key_version,
-                   enabled, is_primary, created_at, updated_at
+                   enabled, is_primary, is_fallback, created_at, updated_at
             FROM ai_providers WHERE provider_key = ? AND enabled = 1`,
       args: [normalizedKey],
     });
@@ -404,6 +444,7 @@ export function createAiProviderService({ db, encryptionKey, now = () => new Dat
     listProviders,
     hasPrimaryProvider,
     getPrimaryProviderForRuntime,
+    getFallbackProvidersForRuntime,
     getProviderForRuntime,
   });
 }
