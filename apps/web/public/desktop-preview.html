@@ -1530,19 +1530,19 @@
   .scout-cue-mark { opacity:0; }
   .scout-mark-glyph { fill:#b57cff; font:900 12px/1 sans-serif; text-anchor:middle; dominant-baseline:middle; stroke:#111113; stroke-width:.8px; paint-order:stroke; }
   .scout-compare-label { fill:#111113; font:900 5px/1 sans-serif; text-anchor:middle; dominant-baseline:middle; }
-  @keyframes avatarMoodHappy { 0%,100%{transform:translateY(0) rotate(0)} 24%{transform:translateY(-3px) rotate(-6deg)} 52%{transform:translateY(-5px) rotate(0)} 78%{transform:translateY(-2px) rotate(5deg)} }
-  @keyframes avatarMoodCurious { 0%,100%{transform:rotate(0) scale(1)} 32%{transform:rotate(-8deg) scale(1.04)} 68%{transform:rotate(6deg) scale(1.02)} }
-  @keyframes avatarMoodThoughtful { 0%,100%{transform:translateY(0) rotate(0)} 42%{transform:translateY(-2px) rotate(-4deg)} 72%{transform:translateY(0) rotate(2deg)} }
-  @keyframes avatarMoodEmpathetic { 0%,100%{transform:scale(1)} 35%{transform:scale(1.06)} 68%{transform:scale(.99)} }
-  @keyframes avatarMoodExcited { 0%,100%{transform:translateY(0) scale(1)} 22%{transform:translateY(-6px) scale(1.06)} 44%{transform:translateY(0) scale(.98)} 68%{transform:translateY(-3px) scale(1.02)} }
-  @keyframes avatarMoodConcerned { 0%,100%{transform:translateX(0) rotate(0)} 24%{transform:translateX(-2px) rotate(-3deg)} 50%{transform:translateX(2px) rotate(3deg)} 76%{transform:translateX(-1px) rotate(-1deg)} }
+  @keyframes avatarMoodHappy { 0%,100%{transform:translateY(0) rotate(0) scale(1);filter:drop-shadow(0 0 0 rgba(245,185,66,0))} 18%{transform:translateY(-9px) rotate(-14deg) scale(1.1);filter:drop-shadow(0 0 9px rgba(245,185,66,.95))} 38%{transform:translateY(1px) rotate(7deg) scale(1.03)} 56%{transform:translateY(-7px) rotate(0) scale(1.11);filter:drop-shadow(0 0 8px rgba(245,185,66,.9))} 78%{transform:translateY(0) rotate(10deg) scale(1.04)} }
+  @keyframes avatarMoodCurious { 0%,100%{transform:rotate(0) scale(1);filter:drop-shadow(0 0 0 rgba(84,216,232,0))} 24%{transform:translateX(-3px) rotate(-16deg) scale(1.12);filter:drop-shadow(0 0 9px rgba(84,216,232,.95))} 52%{transform:translateX(1px) rotate(8deg) scale(1.08)} 78%{transform:translateX(3px) rotate(14deg) scale(1.04);filter:drop-shadow(0 0 7px rgba(84,216,232,.8))} }
+  @keyframes avatarMoodThoughtful { 0%,100%{transform:translateY(0) rotate(0) scale(1);filter:drop-shadow(0 0 0 rgba(181,124,255,0))} 34%{transform:translateY(-5px) rotate(-9deg) scale(1.08);filter:drop-shadow(0 0 8px rgba(181,124,255,.9))} 62%{transform:translateY(2px) rotate(5deg) scale(1.02)} 82%{transform:translateY(-2px) rotate(-4deg) scale(1.05)} }
+  @keyframes avatarMoodEmpathetic { 0%,100%{transform:scale(1);filter:drop-shadow(0 0 0 rgba(239,146,127,0))} 28%{transform:scale(1.14);filter:drop-shadow(0 0 10px rgba(239,146,127,.95))} 52%{transform:scale(1.03)} 74%{transform:scale(1.11);filter:drop-shadow(0 0 8px rgba(239,146,127,.85))} }
+  @keyframes avatarMoodExcited { 0%,100%{transform:translateY(0) scale(1);filter:drop-shadow(0 0 0 rgba(245,185,66,0))} 16%{transform:translateY(-11px) rotate(-8deg) scale(1.14);filter:drop-shadow(0 0 10px rgba(245,185,66,1))} 32%{transform:translateY(1px) rotate(5deg) scale(.98)} 48%{transform:translateY(-8px) rotate(7deg) scale(1.12);filter:drop-shadow(0 0 9px rgba(245,185,66,.95))} 66%{transform:translateY(1px) rotate(-4deg) scale(1)} 82%{transform:translateY(-4px) rotate(3deg) scale(1.06)} }
+  @keyframes avatarMoodConcerned { 0%,100%{transform:translateX(0) rotate(0) scale(1);filter:drop-shadow(0 0 0 rgba(76,141,255,0))} 20%{transform:translateX(-4px) rotate(-8deg) scale(1.06);filter:drop-shadow(0 0 8px rgba(76,141,255,.9))} 42%{transform:translateX(4px) rotate(7deg) scale(1.04)} 64%{transform:translateX(-3px) rotate(-5deg) scale(1.03)} 82%{transform:translateX(2px) rotate(3deg) scale(1.02)} }
   .agent-avatar-art[class*="avatar-mood-"] { transform-box:fill-box; transform-origin:center; }
-  .agent-avatar-art.avatar-mood-happy { animation:avatarMoodHappy 900ms cubic-bezier(.2,.75,.3,1) both; }
-  .agent-avatar-art.avatar-mood-curious { animation:avatarMoodCurious 820ms ease-in-out both; }
-  .agent-avatar-art.avatar-mood-thoughtful { animation:avatarMoodThoughtful 1000ms ease-in-out both; }
-  .agent-avatar-art.avatar-mood-empathetic { animation:avatarMoodEmpathetic 900ms ease-in-out both; }
-  .agent-avatar-art.avatar-mood-excited { animation:avatarMoodExcited 820ms cubic-bezier(.2,.75,.3,1) both; }
-  .agent-avatar-art.avatar-mood-concerned { animation:avatarMoodConcerned 760ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-happy { animation:avatarMoodHappy 1280ms cubic-bezier(.2,.75,.3,1) both; }
+  .agent-avatar-art.avatar-mood-curious { animation:avatarMoodCurious 1200ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-thoughtful { animation:avatarMoodThoughtful 1300ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-empathetic { animation:avatarMoodEmpathetic 1200ms ease-in-out both; }
+  .agent-avatar-art.avatar-mood-excited { animation:avatarMoodExcited 1300ms cubic-bezier(.2,.75,.3,1) both; }
+  .agent-avatar-art.avatar-mood-concerned { animation:avatarMoodConcerned 1100ms ease-in-out both; }
   @keyframes scoutCueNotice { 0%,100%{transform:translateY(0) rotate(0)} 24%{transform:translateY(-3px) rotate(-8deg)} 53%{transform:translateY(-1px) rotate(6deg)} }
   @keyframes scoutCueHandleSearch { 0%,100%{transform:rotate(0)} 28%{transform:rotate(-10deg)} 62%{transform:rotate(8deg)} }
   @keyframes scoutCueLensInspect { 0%,100%{transform:scale(1);opacity:.22} 44%{transform:scale(1.2);opacity:.48} }
@@ -1609,7 +1609,7 @@
   .agent-avatar-art.scout-cue-recover .scout-recover-arrow { animation:scoutCueRecoverSpin 760ms linear 4 both; }
   @media (prefers-reduced-motion:reduce) {
     .agent-avatar-art[class*="scout-cue-"],.agent-avatar-art[class*="scout-cue-"] * { animation:none!important; }
-    .agent-avatar-art[class*="avatar-mood-"] { animation:none!important; filter:brightness(1.1); }
+    .agent-avatar-art[class*="avatar-mood-"] { animation:none!important; filter:brightness(1.4) saturate(1.25) drop-shadow(0 0 8px rgba(245,185,66,.95)); }
     .agent-avatar-art[class*="scout-cue-"] { filter:brightness(1.1); }
     .agent-avatar-art.scout-cue-notice .scout-mark-notice,
     .agent-avatar-art.scout-cue-search .scout-mark-search,
@@ -2299,7 +2299,7 @@
   const scoutCueQueues = new WeakMap();
   const scoutCueTimers = new WeakMap();
   const AVATAR_EMOTION_DURATIONS = Object.freeze({
-    happy: 900, curious: 820, thoughtful: 1000, empathetic: 900, excited: 820, concerned: 760,
+    happy: 1280, curious: 1200, thoughtful: 1300, empathetic: 1200, excited: 1300, concerned: 1100,
   });
   const AVATAR_EMOTION_IDS = new Set(Object.keys(AVATAR_EMOTION_DURATIONS));
   const AVATAR_EMOTION_CLASSES = Object.keys(AVATAR_EMOTION_DURATIONS).map((cue) => `avatar-mood-${cue}`);
@@ -3327,7 +3327,7 @@
     const cueClass = `avatar-mood-${cue}`;
     svg.classList.add(cueClass);
     const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-    const playbackDuration = reducedMotion ? 450 : AVATAR_EMOTION_DURATIONS[cue] + 80;
+    const playbackDuration = reducedMotion ? 850 : AVATAR_EMOTION_DURATIONS[cue] + 80;
     const timer = window.setTimeout(() => {
       svg.classList.remove(cueClass);
       avatarEmotionTimers.delete(svg);
@@ -3351,8 +3351,14 @@
   function playAvatarEmotion(cue, requestAgentId, replyRow) {
     const agent = findSelectedChatAgent();
     if (!AVATAR_EMOTION_IDS.has(cue) || !agent || String(agent.id) !== String(requestAgentId)) return;
-    const replyAvatar = replyRow?.querySelector('.chat-reply-avatar .agent-avatar-art');
-    if (replyAvatar) enqueueAvatarEmotion(replyAvatar, cue);
+    const avatars = new Set([
+      replyRow?.querySelector('.chat-reply-avatar .agent-avatar-art'),
+      document.getElementById('savedAgentAvatar')?.querySelector('.agent-avatar-art'),
+      document.getElementById('hdrAvatar')?.querySelector('.agent-avatar-art'),
+    ]);
+    for (const avatar of avatars) {
+      if (avatar) enqueueAvatarEmotion(avatar, cue);
+    }
   }
 
   function setChatLiveStatus(row, stage) {
