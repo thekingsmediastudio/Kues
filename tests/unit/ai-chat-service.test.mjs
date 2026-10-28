@@ -252,6 +252,72 @@ test('desktop chat status does not need a provider call when no enabled primary 
   }
 });
 
+test('all agent avatars support allowlisted decorative mood cues that are stripped from visible text', async () => {
+  const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
+  const observed = [];
+  try {
+    const rawReply = ['I do not have feelings, but I can show a curious reaction.', '[[KUES_AVATAR_CUE:curious]]'].join(String.fromCharCode(10));
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsImpl: async (request) => {
+        observed.push(request);
+        return {
+          status: 200,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify({ choices: [{ message: { content: rawReply } }] })),
+        };
+      },
+    });
+    const result = await chat.complete({ agent: { name: 'Idea Generator', role: 'Creative helper', avatar: 'bulb' }, messages });
+    assert.equal(result.text, 'I do not have feelings, but I can show a curious reaction.');
+    assert.deepEqual(result.avatarCues, ['curious']);
+    assert.doesNotMatch(result.text, /KUES_AVATAR_CUE/);
+    const requestBody = JSON.parse(observed[0].body.toString('utf8'));
+    const system = requestBody.messages[0].content;
+    assert.match(system, /Allowed mood IDs: happy, curious, thoughtful, empathetic, excited, concerned/);
+    assert.match(system, /If the user explicitly asks for an avatar reaction/);
+    assert.match(system, /rather than refusing the request/);
+    assert.match(system, /you do not have subjective emotions/);
+    assert.doesNotMatch(system, /For Scout's UI-only avatar/);
+  } finally {
+    await db.close();
+  }
+});
+
+test('streaming mood cues are delivered for non-Scout avatars through the allowlisted UI channel', async () => {
+  const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
+  try {
+    const { Readable } = await import('node:stream');
+    const deltas = [];
+    const avatarCues = [];
+    const chat = createAiChatService({
+      aiProviderService,
+      resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+      requestHttpsStreamImpl: async () => ({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: Readable.from([
+          'data: {"choices":[{"delta":{"content":"[[KUES_AVATAR_CUE:curious]]A curious reaction."},"finish_reason":null}]}\n\n',
+          'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        ]),
+      }),
+    });
+    const result = await chat.stream({
+      agent: { name: 'Idea Generator', role: 'Creative helper', avatar: 'bulb' },
+      messages,
+      onDelta: async (text) => deltas.push(text),
+      onAvatarCue: async (cue) => avatarCues.push(cue),
+    });
+    assert.equal(result.text, 'A curious reaction.');
+    assert.deepEqual(result.avatarCues, ['curious']);
+    assert.deepEqual(avatarCues, ['curious']);
+    assert.deepEqual(deltas, ['A curious reaction.']);
+  } finally {
+    await db.close();
+  }
+});
+
 test('Scout cue control tokens are allowlisted, stripped from answer text, and instructed as UI-only', async () => {
   const { db, aiProviderService } = await createProvider('openai_chat', 'https://api.example-provider.com/v1');
   const observed = [];
