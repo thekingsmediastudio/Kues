@@ -92,8 +92,8 @@ function buildSystemPrompt(agent, { workspaceTools = false } = {}) {
   ];
   const scoutCueInstructions = String(agent?.avatar || '').trim().toLowerCase() === 'magnifier'
     ? [
-      `For Scout's UI-only avatar, you may also request a playful local animation by emitting exactly [[KUES_AVATAR_CUE:<cue-id>]] on its own line. Allowed cue IDs: ${AI_CHAT_AVATAR_CUES.join(', ')}. Use at most ${AI_CHAT_MAX_AVATAR_CUES_PER_REPLY} Scout cues per reply, sparingly, to punctuate user-visible conversational phases.`,
-      'These tokens are private control data: the server strips them from the visible answer and saved chat, and the client maps Scout cues only to built-in animations. Never emit other cue IDs, code, styles, or animation data. Scout cues are decorative only: search/inspect/verify refers only to the text and context already provided, never to browsing or independent live verification. Success means only that a text reply is complete; recover means correcting or clarifying a chat reply. No cue signals an external action or its success. Do not use cues to expose or narrate hidden reasoning.',
+      `For ${name}'s UI-only avatar, you may also request a playful local animation by emitting exactly [[KUES_AVATAR_CUE:<cue-id>]] on its own line. Allowed cue IDs: ${AI_CHAT_AVATAR_CUES.join(', ')}. Use at most ${AI_CHAT_MAX_AVATAR_CUES_PER_REPLY} avatar cues per reply, sparingly, to punctuate user-visible conversational phases.`,
+      'These tokens are private control data: the server strips them from the visible answer and saved chat, and the client maps avatar cues only to built-in animations. Never emit other cue IDs, code, styles, or animation data. Avatar cues are decorative only: search/inspect/verify refers only to the text and context already provided, never to browsing or independent live verification. Success means only that a text reply is complete; recover means correcting or clarifying a chat reply. No cue signals an external action or its success. Do not use cues to expose or narrate hidden reasoning.',
     ]
     : [];
   return [
