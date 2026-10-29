@@ -16,6 +16,8 @@ import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CU
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
 import { WorkspaceToolError, parseWorkspaceToolCall, prepareWorkspaceToolCall, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
+import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1934,6 +1936,116 @@ async function handleSettingsRequest(req, res, url, { config, authService, works
   }
 }
 
+async function handleProductDiscoveryRequest(req, res, url, {
+  config,
+  authService,
+  workspaceService,
+  channel3Client,
+  db,
+}) {
+  if (url.pathname !== '/api/products/search' && url.pathname !== '/api/products/offers') {
+    sendJson(res, 404, { error: 'product_route_not_found' });
+    return true;
+  }
+
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    sendJson(res, 405, { error: 'method_not_allowed' });
+    return true;
+  }
+
+  if (!authService) {
+    sendJson(res, 503, { error: 'auth_storage_not_configured' });
+    return true;
+  }
+
+  const sessionToken = cookieValue(req, sessionCookieName(config));
+  let user = null;
+  try {
+    user = sessionToken ? await authService.getSession({ token: sessionToken }) : null;
+  } catch {
+    user = null;
+  }
+
+  if (!user) {
+    sendJson(res, 401, { error: 'authentication_required' });
+    return true;
+  }
+
+  let workspaceId = null;
+  let agentId = null;
+  if (workspaceService) {
+    try {
+      const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+      workspaceId = bootstrap?.workspace?.id || null;
+      agentId = bootstrap?.agents?.[0]?.id || null;
+    } catch {}
+  }
+
+  if (url.pathname === '/api/products/offers') {
+    const runId = (url.searchParams.get('runId') || '').trim();
+    if (!runId) {
+      sendJson(res, 400, { error: 'run_id_required' });
+      return true;
+    }
+    if (!db || !workspaceId) {
+      sendJson(res, 503, { error: 'database_not_configured' });
+      return true;
+    }
+    try {
+      const offers = await getProductOffersForRun({ db, workspaceId, runId });
+      sendJson(res, 200, { ok: true, runId, count: offers.length, offers });
+      return true;
+    } catch (err) {
+      console.error('Product offers query failed:', err?.message || err);
+      sendJson(res, 500, { error: 'product_offers_query_failed' });
+      return true;
+    }
+  }
+
+  const query = (url.searchParams.get('q') || '').trim();
+  if (!query) {
+    sendJson(res, 400, { error: 'query_required', message: 'Query parameter q is required' });
+    return true;
+  }
+
+  const limitRaw = parseInt(url.searchParams.get('limit') || '10', 10);
+  const limit = Math.max(1, Math.min(Number.isFinite(limitRaw) ? limitRaw : 10, 50));
+
+  try {
+    const result = await discoverProducts({
+      channel3Client: channel3Client || createChannel3Client({ apiKey: '' }),
+      query,
+      limit,
+      db,
+      workspaceId,
+      userId: user.id,
+      agentId,
+      allowFixtureFallback: !channel3Client?.isConfigured?.(),
+    });
+
+    sendJson(res, 200, {
+      ok: true,
+      query: result.query,
+      count: result.count,
+      products: result.products,
+      isLive: result.isLive,
+      source: result.source,
+      notice: result.notice || null,
+      runId: result.runId || null,
+    });
+    return true;
+  } catch (err) {
+    if (err instanceof Channel3Error) {
+      sendJson(res, err.status, { error: err.code, message: err.message });
+      return true;
+    }
+    console.error('Product discovery error:', err?.message || err);
+    sendJson(res, 500, { error: 'product_discovery_failed' });
+    return true;
+  }
+}
+
 export function createServer({
   config = loadServerConfig(),
   authService = null,
@@ -1944,8 +2056,13 @@ export function createServer({
   aiChatService = null,
   aiChatHistoryService = null,
   usageService = null,
+  channel3Client = null,
+  db = null,
   signInOnlyPreview = false,
 } = {}) {
+  const activeChannel3Client = channel3Client || (config.channel3Configured
+    ? createChannel3Client({ apiKey: process.env.CHANNEL3_API_KEY })
+    : createChannel3Client({ apiKey: '' }));
   const runtime = {
     config,
     workosAuth,
@@ -2085,6 +2202,17 @@ export function createServer({
           config: activeConfig,
           authService,
           workspaceService,
+        });
+        if (handled) return;
+      }
+
+      if (url.pathname.startsWith('/api/products/')) {
+        const handled = await handleProductDiscoveryRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          workspaceService,
+          channel3Client: activeChannel3Client,
+          db,
         });
         if (handled) return;
       }
@@ -2410,6 +2538,9 @@ if (isMain) {
           });
         }
       }
+      const channel3Client = config.channel3Configured
+        ? createChannel3Client({ apiKey: process.env.CHANNEL3_API_KEY })
+        : createChannel3Client({ apiKey: '' });
       const server = createServer({
         config,
         authService,
@@ -2420,6 +2551,8 @@ if (isMain) {
         aiChatService,
         aiChatHistoryService,
         usageService,
+        channel3Client,
+        db,
         signInOnlyPreview,
       });
       server.on('close', () => { void db?.close(); });
