@@ -18,6 +18,13 @@ import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service
 import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
+import {
+  MandatePolicyError,
+  createPurchaseMandate,
+  authorizePurchaseMandate,
+  getMandateDetails,
+  evaluateSpendPolicy,
+} from './lib/channel3/mandate-service.mjs';
 import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -177,12 +184,17 @@ function workspaceToolFailureMessage(error) {
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
 }
 
-async function executeProductSearchTool(query, { channel3Client, db, workspaceId, userId, agentId }) {
+async function executeProductSearchTool(preparedSearch, { channel3Client, db, workspaceId, userId, agentId }) {
+  const query = typeof preparedSearch === 'string' ? preparedSearch : preparedSearch?.query;
+  const filters = (preparedSearch && typeof preparedSearch === 'object' && preparedSearch.filters) || {};
+  const limit = Number.isSafeInteger(preparedSearch?.limit) ? preparedSearch.limit : 9;
+
   try {
     const discovery = await discoverProducts({
       channel3Client,
       query,
-      limit: 9,
+      limit,
+      filters,
       db,
       workspaceId,
       userId,
@@ -192,8 +204,31 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
 
     const lines = [];
     const sourceLabel = discovery.isLive ? 'Channel3 (Live Search)' : 'Channel3 (Sample Fixtures)';
-    lines.push(`Discovered ${discovery.products.length} product${discovery.products.length === 1 ? '' : 's'} matching "${escapeMarkdown(query)}":\n`);
+    lines.push(`Discovered ${discovery.products.length} product${discovery.products.length === 1 ? '' : 's'} matching "${escapeMarkdown(query)}":`);
+
+    const filterBadges = [];
+    if (Number.isFinite(filters.min_price) && Number.isFinite(filters.max_price)) {
+      filterBadges.push(`$${filters.min_price}–$${filters.max_price} USD`);
+    } else if (Number.isFinite(filters.min_price)) {
+      filterBadges.push(`From $${filters.min_price} USD`);
+    } else if (Number.isFinite(filters.max_price)) {
+      filterBadges.push(`Under $${filters.max_price} USD`);
+    }
+    if (filters.availability === 'in_stock') filterBadges.push('In Stock Only');
+    if (filters.sort_by === 'price_asc') filterBadges.push('Price: Low to High');
+    else if (filters.sort_by === 'price_desc') filterBadges.push('Price: High to Low');
+    if (filters.merchant_domain) filterBadges.push(`Merchant: ${filters.merchant_domain}`);
+
+    if (filterBadges.length > 0) {
+      lines.push(`*Filters applied:* ${filterBadges.map((b) => `\`${b}\``).join(' · ')}\n`);
+    } else {
+      lines.push('');
+    }
+
     lines.push(':::products-grid');
+    if (filterBadges.length > 0) {
+      lines.push(`[Filters: ${filterBadges.join(' · ')}]`);
+    }
     for (let i = 0; i < discovery.products.length; i++) {
       const p = discovery.products[i];
       const stock = p.availability === 'in_stock' ? 'In Stock' : (p.availability === 'out_of_stock' ? 'Out of Stock' : p.availability);
@@ -205,6 +240,7 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
       lines.push(`   - **Price:** ${p.priceFormatted}`);
       lines.push(`   - **Seller:** ${escapeMarkdown(p.merchantName)}${sellerDomain}`);
       lines.push(`   - **Status:** ${stock}`);
+      if (p.offerId) lines.push(`   - **Offer ID:** \`${p.offerId}\``);
       if (p.url) lines.push(`   - **Link:** [View product](${p.url})`);
       lines.push(`   - **Evidence:** \`${p.evidenceHash.slice(0, 19)}...\``);
       lines.push('');
@@ -221,11 +257,122 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
   }
 }
 
+async function executePurchaseProductTool(toolCall, { db, workspaceId, userId, agentId }) {
+  if (!db || !workspaceId) {
+    return {
+      kind: 'text',
+      text: 'Cannot formulate purchase mandate: workspace database is unavailable.',
+    };
+  }
+  try {
+    const mandateResult = await createPurchaseMandate({
+      db,
+      workspaceId,
+      userId,
+      agentId,
+      offerId: toolCall.offerId,
+      product: toolCall.product,
+      items: toolCall.items,
+    });
+
+    if (!mandateResult.allowed) {
+      const blockedLines = [
+        '⚠️ **Purchase Blocked by Spend Policy**',
+        '',
+        mandateResult.failureReason,
+        '',
+      ];
+      if (mandateResult.isBundle && Array.isArray(mandateResult.items)) {
+        blockedLines.push(`- **Bundle Items (${mandateResult.items.length}):**`);
+        mandateResult.items.forEach((item, idx) => {
+          blockedLines.push(`  ${idx + 1}. ${escapeMarkdown(item.title)} ($${(item.amountMinor / 100).toFixed(2)} ${item.currency})`);
+        });
+        blockedLines.push(`- **Subtotal:** $${(mandateResult.product.amountMinor / 100).toFixed(2)} ${mandateResult.product.currency}`);
+      } else {
+        blockedLines.push(`- **Item:** ${escapeMarkdown(mandateResult.product.title)}`);
+        blockedLines.push(`- **Merchant:** ${escapeMarkdown(mandateResult.product.merchantDomain)}`);
+      }
+      blockedLines.push(`- **Per-Order Cap:** $${(mandateResult.limits.maxPerOrderMinor / 100).toFixed(2)} USD`);
+      blockedLines.push(`- **Daily Budget:** $${(mandateResult.limits.dailyBudgetMinor / 100).toFixed(2)} USD (Spent today: $${(mandateResult.limits.dailySpentMinor / 100).toFixed(2)} USD)`);
+
+      return {
+        kind: 'text',
+        text: blockedLines.join('\n'),
+      };
+    }
+
+    const priceText = `$${(mandateResult.product.amountMinor / 100).toFixed(2)} ${mandateResult.product.currency}`;
+    const isBundle = Boolean(mandateResult.isBundle && Array.isArray(mandateResult.items));
+
+    const fields = [];
+    if (isBundle) {
+      mandateResult.items.forEach((item, idx) => {
+        fields.push({
+          label: `Item ${idx + 1}`,
+          value: `${item.title} ($${(item.amountMinor / 100).toFixed(2)} ${item.currency})`,
+        });
+      });
+      fields.push({ label: 'Bundle Total', value: priceText });
+      fields.push({ label: 'Merchants', value: mandateResult.product.merchantDomain });
+    } else {
+      fields.push({ label: 'Item', value: mandateResult.product.title });
+      fields.push({ label: 'Price', value: priceText });
+      fields.push({ label: 'Merchant', value: mandateResult.product.merchantDomain });
+    }
+    fields.push({ label: 'Policy Status', value: `Approved (Within $${(mandateResult.limits.maxPerOrderMinor / 100).toFixed(2)} limit)` });
+    fields.push({ label: 'Mandate ID', value: mandateResult.mandateId });
+    fields.push({ label: 'Evidence Hash', value: `${mandateResult.product.evidenceHash.slice(0, 24)}…` });
+
+    const title = isBundle ? 'Authorize Bundle Purchase Mandate' : 'Authorize Purchase Mandate';
+    const summary = isBundle
+      ? `Authorize bundle purchase of ${mandateResult.items.length} items for ${priceText} across ${mandateResult.product.merchantDomain}.`
+      : `Authorize purchase of “${mandateResult.product.title}” for ${priceText} from ${mandateResult.product.merchantDomain}.`;
+
+    const prepared = {
+      type: 'purchase_product',
+      payload: {
+        mandateId: mandateResult.mandateId,
+        approvalId: mandateResult.approvalId,
+        amountMinor: mandateResult.product.amountMinor,
+        currency: mandateResult.product.currency,
+        productTitle: mandateResult.product.title,
+        merchantDomain: mandateResult.product.merchantDomain,
+        evidenceHash: mandateResult.product.evidenceHash,
+        isBundle,
+        bundleItems: isBundle ? mandateResult.items : undefined,
+      },
+      display: {
+        title,
+        summary,
+        fields,
+      },
+    };
+
+    return {
+      kind: 'proposal',
+      prepared,
+      mandateResult,
+    };
+  } catch (err) {
+    if (err instanceof MandatePolicyError) {
+      return {
+        kind: 'text',
+        text: `Unable to prepare purchase mandate: ${err.message}`,
+      };
+    }
+    return {
+      kind: 'text',
+      text: `Purchase mandate error: ${err.message || 'unknown error'}`,
+    };
+  }
+}
+
 async function handleWorkspaceToolApprovalRequest(req, res, {
   user,
   workspaceService,
   aiChatHistoryService,
   pendingApprovals,
+  db = null,
 }) {
   let body;
   try { body = await readJsonBody(req, 4096); }
@@ -260,44 +407,67 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
   try {
     let message;
     if (body.decision === 'reject') {
-      message = 'Cancelled the proposed change. Nothing was changed.';
-    } else {
-      const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
-      const workspace = bootstrap?.workspace;
-      if (!workspace || workspace.id !== approval.workspaceId || workspace.status !== 'active') {
-        throw new WorkspaceError('workspace_tool_proposal_stale', 409);
-      }
-      const currentAgents = Array.isArray(bootstrap.agents) ? [...bootstrap.agents] : [];
-      if (bootstrap.onboarding?.agent && !currentAgents.some((agent) => agent?.id === bootstrap.onboarding.agent.id)) {
-        currentAgents.push(bootstrap.onboarding.agent);
-      }
-      if (!currentAgents.some((agent) => String(agent?.id) === approval.chatAgentId && agent.status !== 'archived')) {
-        throw new WorkspaceError('workspace_tool_proposal_stale', 409);
-      }
-      if (approval.type === 'create_agent') {
-        const input = approval.payload?.input;
-        const duplicate = currentAgents.some((agent) => String(agent?.name || '').trim().toLowerCase() === String(input?.name || '').toLowerCase());
-        if (duplicate) throw new WorkspaceError('agent_name_conflict', 409);
-        await workspaceService.createAgent({ userId: user.id, input });
-        message = `Created “${String(input.name).slice(0, 80)}”. The agent is Active for chat and remains preview-only.`;
-      } else if (approval.type === 'update_agent') {
-        const agent = currentAgents.find((entry) => String(entry?.id) === String(approval.payload?.agentId));
-        if (!agent || workspaceAgentFingerprint(agent) !== approval.payload?.expectedFingerprint) {
-          throw new WorkspaceError('workspace_tool_proposal_stale', 409);
-        }
-        await workspaceService.updateAgent({ userId: user.id, agentId: agent.id, input: approval.payload.input });
-        const newName = approval.payload?.input?.name;
-        message = newName && newName !== agent.name
-          ? `Renamed “${String(agent.name || '').slice(0, 40)}” to “${String(newName).slice(0, 40)}”.`
-          : `Updated “${String(agent.name || '').slice(0, 80)}”.`;
-      } else if (approval.type === 'rename_workspace') {
-        if (workspaceNameFingerprint(workspace) !== approval.payload?.expectedFingerprint) {
-          throw new WorkspaceError('workspace_tool_proposal_stale', 409);
-        }
-        await workspaceService.updateWorkspaceName({ userId: user.id, name: approval.payload.name });
-        message = `Renamed the workspace to “${String(approval.payload.name).slice(0, 100)}”.`;
+      if (approval.type === 'purchase_product' && db) {
+        await authorizePurchaseMandate({
+          db,
+          workspaceId: approval.workspaceId,
+          userId: user.id,
+          mandateId: approval.payload.mandateId,
+          decision: 'reject',
+        });
+        message = `Declined purchase mandate \`${approval.payload.mandateId}\` for “${String(approval.payload.productTitle).slice(0, 50)}”. Nothing was charged.`;
       } else {
-        throw new WorkspaceError('workspace_tool_not_allowed', 400);
+        message = 'Cancelled the proposed change. Nothing was changed.';
+      }
+    } else {
+      if (approval.type === 'purchase_product') {
+        if (!db) throw new WorkspaceError('database_not_configured', 503);
+        const mandateAuth = await authorizePurchaseMandate({
+          db,
+          workspaceId: approval.workspaceId,
+          userId: user.id,
+          mandateId: approval.payload.mandateId,
+          decision: 'approve',
+        });
+        message = `Authorized purchase mandate \`${mandateAuth.mandateId}\` for “${String(approval.payload.productTitle).slice(0, 50)}” ($${(mandateAuth.amountMinor / 100).toFixed(2)} ${mandateAuth.currency}).`;
+      } else {
+        const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+        const workspace = bootstrap?.workspace;
+        if (!workspace || workspace.id !== approval.workspaceId || workspace.status !== 'active') {
+          throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+        }
+        const currentAgents = Array.isArray(bootstrap.agents) ? [...bootstrap.agents] : [];
+        if (bootstrap.onboarding?.agent && !currentAgents.some((agent) => agent?.id === bootstrap.onboarding.agent.id)) {
+          currentAgents.push(bootstrap.onboarding.agent);
+        }
+        if (!currentAgents.some((agent) => String(agent?.id) === approval.chatAgentId && agent.status !== 'archived')) {
+          throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+        }
+        if (approval.type === 'create_agent') {
+          const input = approval.payload?.input;
+          const duplicate = currentAgents.some((agent) => String(agent?.name || '').trim().toLowerCase() === String(input?.name || '').toLowerCase());
+          if (duplicate) throw new WorkspaceError('agent_name_conflict', 409);
+          await workspaceService.createAgent({ userId: user.id, input });
+          message = `Created “${String(input.name).slice(0, 80)}”. The agent is Active for chat and remains preview-only.`;
+        } else if (approval.type === 'update_agent') {
+          const agent = currentAgents.find((entry) => String(entry?.id) === String(approval.payload?.agentId));
+          if (!agent || workspaceAgentFingerprint(agent) !== approval.payload?.expectedFingerprint) {
+            throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+          }
+          await workspaceService.updateAgent({ userId: user.id, agentId: agent.id, input: approval.payload.input });
+          const newName = approval.payload?.input?.name;
+          message = newName && newName !== agent.name
+            ? `Renamed “${String(agent.name || '').slice(0, 40)}” to “${String(newName).slice(0, 40)}”.`
+            : `Updated “${String(agent.name || '').slice(0, 80)}”.`;
+        } else if (approval.type === 'rename_workspace') {
+          if (workspaceNameFingerprint(workspace) !== approval.payload?.expectedFingerprint) {
+            throw new WorkspaceError('workspace_tool_proposal_stale', 409);
+          }
+          await workspaceService.updateWorkspaceName({ userId: user.id, name: approval.payload.name });
+          message = `Renamed the workspace to “${String(approval.payload.name).slice(0, 100)}”.`;
+        } else {
+          throw new WorkspaceError('workspace_tool_not_allowed', 400);
+        }
       }
     }
 
@@ -1133,7 +1303,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
 
   if (toolApprovalRoute) {
     await handleWorkspaceToolApprovalRequest(req, res, {
-      user, workspaceService, aiChatHistoryService, pendingApprovals: pendingToolApprovals,
+      user, workspaceService, aiChatHistoryService, pendingApprovals: pendingToolApprovals, db,
     });
     return true;
   }
@@ -1304,13 +1474,31 @@ async function handleDesktopAiChatRequest(req, res, url, {
           if (prepared?.kind === 'read') {
             visibleReply = prepared.text;
           } else if (prepared?.kind === 'search_products') {
-            visibleReply = await executeProductSearchTool(prepared.query, {
+            visibleReply = await executeProductSearchTool(prepared, {
               channel3Client,
               db,
               workspaceId: workspace.id,
               userId: user.id,
               agentId,
             });
+          } else if (prepared?.kind === 'purchase_product') {
+            const purchaseExec = await executePurchaseProductTool(prepared, {
+              db,
+              workspaceId: workspace.id,
+              userId: user.id,
+              agentId,
+            });
+            if (purchaseExec.kind === 'proposal') {
+              pendingApprovalView = createPendingWorkspaceToolApproval(pendingToolApprovals, {
+                userId: user.id,
+                workspaceId: workspace.id,
+                chatAgentId: agentId,
+                prepared: purchaseExec.prepared,
+              });
+              visibleReply = `I evaluated our spend policy and formulated an autonomous purchase mandate for **${escapeMarkdown(purchaseExec.prepared.payload.productTitle)}** ($${(purchaseExec.prepared.payload.amountMinor / 100).toFixed(2)} ${purchaseExec.prepared.payload.currency}). Please review and authorize the purchase below:`;
+            } else {
+              visibleReply = purchaseExec.text;
+            }
           } else if (prepared?.kind === 'proposal') {
             pendingApprovalView = createPendingWorkspaceToolApproval(pendingToolApprovals, {
               userId: user.id,
@@ -1407,13 +1595,26 @@ async function handleDesktopAiChatRequest(req, res, url, {
         if (prepared?.kind === 'read') {
           visibleReply = prepared.text;
         } else if (prepared?.kind === 'search_products') {
-          visibleReply = await executeProductSearchTool(prepared.query, {
+          visibleReply = await executeProductSearchTool(prepared, {
             channel3Client,
             db,
             workspaceId: workspace.id,
             userId: user.id,
             agentId,
           });
+        } else if (prepared?.kind === 'purchase_product') {
+          const purchaseExec = await executePurchaseProductTool(prepared, {
+            db,
+            workspaceId: workspace.id,
+            userId: user.id,
+            agentId,
+          });
+          if (purchaseExec.kind === 'proposal') {
+            preparedWorkspaceProposal = { workspaceId: workspace.id, prepared: purchaseExec.prepared };
+            visibleReply = `I evaluated our spend policy and formulated an autonomous purchase mandate for **${escapeMarkdown(purchaseExec.prepared.payload.productTitle)}** ($${(purchaseExec.prepared.payload.amountMinor / 100).toFixed(2)} ${purchaseExec.prepared.payload.currency}). Please review and authorize the purchase below:`;
+          } else {
+            visibleReply = purchaseExec.text;
+          }
         } else if (prepared?.kind === 'proposal') {
           preparedWorkspaceProposal = { workspaceId: workspace.id, prepared };
           visibleReply = 'I prepared a workspace change for your review. Nothing will be changed unless you approve it.';
@@ -2075,11 +2276,24 @@ async function handleProductDiscoveryRequest(req, res, url, {
   const limitRaw = parseInt(url.searchParams.get('limit') || '10', 10);
   const limit = Math.max(1, Math.min(Number.isFinite(limitRaw) ? limitRaw : 10, 50));
 
+  const filters = {};
+  const minPrice = parseFloat(url.searchParams.get('minPrice') || url.searchParams.get('min_price') || '');
+  if (Number.isFinite(minPrice) && minPrice >= 0) filters.min_price = minPrice;
+  const maxPrice = parseFloat(url.searchParams.get('maxPrice') || url.searchParams.get('max_price') || '');
+  if (Number.isFinite(maxPrice) && maxPrice > 0) filters.max_price = maxPrice;
+  const availability = (url.searchParams.get('availability') || '').trim().toLowerCase();
+  if (availability) filters.availability = availability;
+  const sortBy = (url.searchParams.get('sortBy') || url.searchParams.get('sort_by') || '').trim().toLowerCase();
+  if (sortBy) filters.sort_by = sortBy;
+  const merchantDomain = (url.searchParams.get('merchantDomain') || url.searchParams.get('merchant_domain') || '').trim().toLowerCase();
+  if (merchantDomain) filters.merchant_domain = merchantDomain;
+
   try {
     const result = await discoverProducts({
       channel3Client: channel3Client || createChannel3Client({ apiKey: '' }),
       query,
       limit,
+      filters,
       db,
       workspaceId,
       userId: user.id,
@@ -2091,6 +2305,7 @@ async function handleProductDiscoveryRequest(req, res, url, {
       ok: true,
       query: result.query,
       count: result.count,
+      filters,
       products: result.products,
       isLive: result.isLive,
       source: result.source,
@@ -2107,6 +2322,115 @@ async function handleProductDiscoveryRequest(req, res, url, {
     sendJson(res, 500, { error: 'product_discovery_failed' });
     return true;
   }
+}
+
+async function handleCommerceRequest(req, res, url, {
+  config,
+  authService,
+  workspaceService,
+  db,
+}) {
+  if (!url.pathname.startsWith('/api/commerce/')) return false;
+
+  if (!authService) {
+    sendJson(res, 503, { error: 'auth_storage_not_configured' });
+    return true;
+  }
+
+  const sessionToken = cookieValue(req, sessionCookieName(config));
+  let user = null;
+  try {
+    user = sessionToken ? await authService.getSession({ token: sessionToken }) : null;
+  } catch {
+    user = null;
+  }
+  if (!user) {
+    sendJson(res, 401, { error: 'authentication_required' });
+    return true;
+  }
+
+  const bootstrap = await workspaceService?.getBootstrap?.({ userId: user.id });
+  const workspaceId = bootstrap?.workspace?.id;
+  if (!workspaceId || !db) {
+    sendJson(res, 503, { error: 'workspace_database_unavailable' });
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/mandates') {
+    let body;
+    try { body = await readJsonBody(req, 16384); }
+    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
+
+    const agentId = body.agentId ? String(body.agentId).trim() : null;
+    try {
+      const mandateResult = await createPurchaseMandate({
+        db,
+        workspaceId,
+        userId: user.id,
+        agentId,
+        offerId: body.offerId,
+        product: body.product,
+        items: body.items,
+      });
+      sendJson(res, mandateResult.allowed ? 201 : 403, { ok: mandateResult.allowed, mandate: mandateResult });
+      return true;
+    } catch (err) {
+      if (err instanceof MandatePolicyError) {
+        sendJson(res, err.status, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'mandate_creation_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/api/commerce/mandates/')) {
+    const mandateId = url.pathname.slice('/api/commerce/mandates/'.length).trim();
+    if (!mandateId) {
+      sendJson(res, 400, { error: 'mandate_id_required' });
+      return true;
+    }
+    const mandate = await getMandateDetails({ db, workspaceId, mandateId });
+    if (!mandate) {
+      sendJson(res, 404, { error: 'mandate_not_found' });
+      return true;
+    }
+    sendJson(res, 200, { ok: true, mandate });
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/evaluate') {
+    let body;
+    try { body = await readJsonBody(req, 4096); }
+    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
+
+    const amountMinor = Number(body.amountMinor);
+    const merchantDomain = String(body.merchantDomain || '').trim();
+    const agentId = body.agentId ? String(body.agentId).trim() : null;
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0 || !merchantDomain) {
+      sendJson(res, 400, { error: 'amount_and_domain_required' });
+      return true;
+    }
+
+    try {
+      const evaluation = await evaluateSpendPolicy({
+        db,
+        workspaceId,
+        agentId,
+        amountMinor,
+        merchantDomain,
+        currency: body.currency || 'USD',
+      });
+      sendJson(res, 200, { ok: true, evaluation });
+      return true;
+    } catch (err) {
+      sendJson(res, 400, { error: 'policy_evaluation_failed', message: err.message });
+      return true;
+    }
+  }
+
+  sendJson(res, 404, { error: 'commerce_route_not_found' });
+  return true;
 }
 
 export function createServer({
@@ -2275,6 +2599,16 @@ export function createServer({
           authService,
           workspaceService,
           channel3Client: activeChannel3Client,
+          db,
+        });
+        if (handled) return;
+      }
+
+      if (url.pathname.startsWith('/api/commerce/')) {
+        const handled = await handleCommerceRequest(req, res, url, {
+          config: activeConfig,
+          authService,
+          workspaceService,
           db,
         });
         if (handled) return;
