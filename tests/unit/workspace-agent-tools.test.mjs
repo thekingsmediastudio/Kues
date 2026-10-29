@@ -47,8 +47,8 @@ test('creating an agent returns a conservative paused proposal but performs no w
     name: 'Planning Helper', role: 'Planning assistant', avatar: 'laptop', color: '#32d583',
     approvalPath: 'desktop', orderCap: 20, dailyCap: 100, apps: [], memoryPills: [],
   });
-  assert.match(view.display.summary, /paused and preview-only/);
-  assert.equal(view.display.fields.at(-1).value, 'Paused · preview-only');
+  assert.match(view.display.summary, /Active for chat and remain preview-only/);
+  assert.equal(view.display.fields.at(-1).value, 'Active · preview-only');
 });
 
 test('agent edits are exact patches against a workspace-owned agent and cannot change status or external permissions', () => {
