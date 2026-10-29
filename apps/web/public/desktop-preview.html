@@ -577,6 +577,7 @@
   .chat-answer-text table { display:block; width:max-content; max-width:100%; margin:.5em 0 .75em; overflow-x:auto; border-collapse:collapse; }
   .chat-answer-text th,.chat-answer-text td { padding:5px 8px; border:1px solid var(--border-strong); text-align:left; vertical-align:top; }
   .chat-answer-text [data-chat-align="center"] { text-align:center; }.chat-answer-text [data-chat-align="right"] { text-align:right; }
+  .chat-answer-text img { display:block; max-width:240px; max-height:180px; width:auto; height:auto; object-fit:cover; border-radius:10px; border:1px solid var(--border-strong); margin:8px 0; background:rgba(255,255,255,.04); box-shadow:0 4px 14px rgba(0,0,0,.25); }
   .chat-streaming .chat-answer-text::after { content:'▍'; display:inline-block; margin-left:2px; color:var(--cue-gold); animation:chatStreamCaret 1s steps(2,start) infinite; }
   @keyframes chatStreamCaret { to { visibility:hidden; } }
   @media (prefers-reduced-motion: reduce) {
@@ -1513,6 +1514,7 @@
 :root[data-theme="light"] .msg-text strong{color:#1e3225}
 :root[data-theme="light"] .chat-suggestion-list button{background:#fff;border-color:#dce5dc;color:#57665c}
 :root[data-theme="light"] .chat-suggestion-list button:hover{background:#f2f6ef;color:#1e3225}
+:root[data-theme="light"] .chat-answer-text img{border-color:#dce5dc;background:#fff;box-shadow:0 4px 12px rgba(25,45,30,.08)}
   :root[data-theme="light"] .grok-computer-card,:root[data-theme="light"] .cue-hold-card,:root[data-theme="light"] .settings-modal,:root[data-theme="light"] .new-agent-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
   :root[data-theme="light"] .new-agent-preview-active{border-color:#b8e5ca;background:#edf8f1;color:#267347}
   :root[data-theme="light"] .d-card,:root[data-theme="light"] .app-tile,:root[data-theme="light"] .pay-card-item{background:#f7f9f6;border-color:#dfe7df;color:#243629}
@@ -3070,13 +3072,29 @@
       appendChatMarkdownText(parent, source);
       return;
     }
-    const tokenPattern = /(`[^`\n]+`|\[[^\]\n]+\]\([^\n)]*\)|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/g;
+    const tokenPattern = /(!?\[[^\]\n]*\]\([^\n)]*\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/g;
     let cursor = 0;
     let match;
     while ((match = tokenPattern.exec(source))) {
       appendChatMarkdownText(parent, source.slice(cursor, match.index));
       const token = match[0];
-      if (token.startsWith('`')) {
+      if (token.startsWith('![')) {
+        const imgParts = token.match(/^!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\)$/);
+        const src = imgParts ? safeChatMarkdownHref(imgParts[2]) : '';
+        if (!imgParts || !src) {
+          appendChatMarkdownText(parent, token);
+        } else {
+          const img = document.createElement('img');
+          img.setAttribute('src', src);
+          img.setAttribute('alt', imgParts[1] || 'Product image');
+          img.setAttribute('loading', 'lazy');
+          img.className = 'chat-product-image';
+          img.onerror = () => { img.style.display = 'none'; };
+          const title = imgParts[3] ?? imgParts[4];
+          if (title) img.setAttribute('title', title);
+          parent.append(img);
+        }
+      } else if (token.startsWith('`')) {
         const code = document.createElement('code');
         code.textContent = token.slice(1, -1);
         parent.append(code);
