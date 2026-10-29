@@ -554,6 +554,8 @@
   .workspace-tool-approval-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px}
   .workspace-tool-approval-buttons button{min-height:32px;padding:6px 11px;border:1px solid var(--border-strong);border-radius:8px;background:transparent;color:var(--text-main);font:650 10px var(--font);cursor:pointer}
   .workspace-tool-approval-buttons .workspace-tool-approve{border-color:rgba(50,213,131,.5);background:rgba(50,213,131,.13);color:var(--green)}
+  .workspace-tool-approval-buttons .workspace-tool-void-hold-btn{border-color:rgba(255,107,107,.5);background:rgba(255,107,107,.13);color:#ff7b7b}
+  .workspace-tool-approval-buttons .workspace-tool-void-hold-btn:hover{background:rgba(255,107,107,.25)}
   .workspace-tool-approval-buttons button:disabled{opacity:.55;cursor:not-allowed}
   .chat-live-status { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
   .chat-typing-indicator { display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:48px; height:30px; padding:0 10px; border:1px solid var(--border); border-radius:14px 14px 14px 4px; background:rgba(255,255,255,.045); color:var(--text-sec); }
@@ -2904,6 +2906,37 @@
               <div class="app-settings-service"><div><strong>Inbox</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
               <div class="app-settings-service"><div><strong>Instagram Shops</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
             </div>
+            <div class="app-settings-card" id="paypalWalletCard">
+              <div class="app-settings-card-header">
+                <h3>Autonomous Purchasing Wallet</h3>
+                <span class="app-settings-status neutral" id="paypalWalletStatusBadge">Checking wallet...</span>
+              </div>
+              <p>Link a PayPal Sandbox Vault payment method to this workspace once. Once linked, autonomous purchase mandates authorized by you will place temporary Sandbox authorization holds using this workspace&#39;s distinct Vault token without requiring repeated PayPal logins.</p>
+
+              <div id="paypalWalletActiveDetails" hidden style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <div class="app-settings-facts">
+                  <div class="app-settings-fact"><span>Payer Sandbox Email</span><strong id="paypalWalletPayerEmail">-</strong></div>
+                  <div class="app-settings-fact"><span>Vault Token ID</span><strong id="paypalWalletMaskedToken">-</strong></div>
+                  <div class="app-settings-fact"><span>Status</span><strong style="color: var(--cue-gold);" id="paypalWalletStatusText">Active Vault Link</strong></div>
+                  <div class="app-settings-fact"><span>Linked At</span><strong id="paypalWalletLinkedAtText">-</strong></div>
+                </div>
+                <div class="settings-form-actions" style="margin-top: 6px;">
+                  <button class="pill-btn dark" id="paypalWalletUnlinkBtn" type="button">Unlink Sandbox Wallet</button>
+                </div>
+              </div>
+
+              <div id="paypalWalletSetupDetails" style="margin-top: 10px;">
+                <form class="settings-form" id="paypalWalletLinkForm" onsubmit="event.preventDefault();">
+                  <label for="paypalWalletBuyerEmailInput">Sandbox Buyer Email
+                    <input class="form-input" id="paypalWalletBuyerEmailInput" name="buyerEmail" type="email" placeholder="sb-buyer@personal.example.com" value="test-buyer@personal.example.com" required>
+                  </label>
+                  <p class="settings-form-status" id="paypalWalletFormStatus" role="status" aria-live="polite"></p>
+                  <div class="settings-form-actions">
+                    <button class="pill-btn light" id="paypalWalletLinkBtn" type="button">One-Time Link Sandbox Wallet</button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </section>
           <section class="app-settings-pane" id="settingsPaneUsage" role="tabpanel" aria-labelledby="settingsTabUsage" hidden>
             <div class="app-settings-card">
@@ -3191,6 +3224,9 @@
       pane.classList.toggle('is-active', active);
       pane.hidden = !active;
     });
+    if (selected === 'apps' && typeof loadPayPalWalletStatus === 'function') {
+      void loadPayPalWalletStatus();
+    }
   }
   function openGeneralOverlay(pane = 'workspace') {
     setSettingsPane(pane);
@@ -5126,6 +5162,37 @@
       }
       if (status) status.textContent = String(data.message || 'Approval recorded.');
       card.dataset.state = String(data.status || 'completed');
+      const buttonsContainer = card.querySelector('.workspace-tool-approval-buttons');
+      if (data.paymentHold && buttonsContainer) {
+        const voidBtn = document.createElement('button');
+        voidBtn.type = 'button';
+        voidBtn.className = 'workspace-tool-void-hold-btn';
+        voidBtn.textContent = 'Void Sandbox Hold';
+        voidBtn.setAttribute('title', 'Safely void this test authorization in PayPal Sandbox');
+        voidBtn.addEventListener('click', async () => {
+          voidBtn.disabled = true;
+          if (status) status.textContent = 'Voiding PayPal Sandbox hold…';
+          try {
+            const vRes = await fetch('/api/commerce/paypal/void', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mandateId: data.paymentHold.mandateId, transactionId: data.paymentHold.id }),
+            });
+            const vData = await vRes.json();
+            if (vRes.ok) {
+              if (status) status.textContent = `PayPal Sandbox authorization hold ${data.paymentHold.authorizationId} voided safely.`;
+              voidBtn.remove();
+            } else {
+              if (status) status.textContent = `Could not void hold: ${vData.message || vData.error}`;
+              voidBtn.disabled = false;
+            }
+          } catch {
+            if (status) status.textContent = 'Could not void hold. Please retry.';
+            voidBtn.disabled = false;
+          }
+        });
+        buttonsContainer.append(voidBtn);
+      }
       let workspaceRefreshed = true;
       if (data.status === 'approved') {
         workspaceRefreshed = await loadAuthenticatedWorkspace({ quiet: true });
@@ -6388,7 +6455,125 @@
     });
   });
 
+  async function loadPayPalWalletStatus() {
+    const badge = document.getElementById('paypalWalletStatusBadge');
+    const activeDetails = document.getElementById('paypalWalletActiveDetails');
+    const setupDetails = document.getElementById('paypalWalletSetupDetails');
+    const statusText = document.getElementById('paypalWalletFormStatus');
+    if (!badge || !activeDetails || !setupDetails) return;
+
+    try {
+      const res = await fetch('/api/commerce/paypal/wallet');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.linked && data.wallet) {
+        badge.textContent = 'Vault Linked';
+        badge.className = 'app-settings-status';
+        activeDetails.hidden = false;
+        activeDetails.style.display = 'flex';
+        setupDetails.hidden = true;
+        setupDetails.style.display = 'none';
+
+        const emailEl = document.getElementById('paypalWalletPayerEmail');
+        if (emailEl) emailEl.textContent = data.wallet.payerEmail || 'Sandbox Payer';
+        const tokenEl = document.getElementById('paypalWalletMaskedToken');
+        if (tokenEl) tokenEl.textContent = data.wallet.maskedVaultId || 'VAULT-SANDBOX';
+        const dateEl = document.getElementById('paypalWalletLinkedAtText');
+        if (dateEl) dateEl.textContent = data.wallet.createdAt ? new Date(data.wallet.createdAt).toLocaleDateString() : 'Active';
+      } else {
+        badge.textContent = 'Not linked';
+        badge.className = 'app-settings-status neutral';
+        activeDetails.hidden = true;
+        activeDetails.style.display = 'none';
+        setupDetails.hidden = false;
+        setupDetails.style.display = 'block';
+      }
+    } catch (_err) {
+      badge.textContent = 'Offline Preview';
+      badge.className = 'app-settings-status neutral';
+    }
+  }
+
+  async function handleLinkPayPalWallet() {
+    const btn = document.getElementById('paypalWalletLinkBtn');
+    const statusEl = document.getElementById('paypalWalletFormStatus');
+    const emailInput = document.getElementById('paypalWalletBuyerEmailInput');
+    const payerEmail = (emailInput?.value || 'test-buyer@personal.example.com').trim();
+
+    if (btn) btn.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = 'Requesting Vault setup token...';
+      statusEl.dataset.state = 'loading';
+    }
+
+    try {
+      const setupRes = await fetch('/api/commerce/paypal/wallet/setup-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ simulate: true }),
+      });
+      if (!setupRes.ok) throw new Error('Failed to create Vault setup token');
+      const setupData = await setupRes.json();
+
+      if (statusEl) statusEl.textContent = 'Exchanging for permanent Vault ID...';
+
+      const linkRes = await fetch('/api/commerce/paypal/wallet/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          setupTokenId: setupData.setupTokenId,
+          payerEmail,
+          simulate: true,
+        }),
+      });
+      if (!linkRes.ok) throw new Error('Failed to link Vault ID');
+
+      if (statusEl) {
+        statusEl.textContent = 'Sandbox Wallet linked successfully!';
+        statusEl.dataset.state = 'success';
+      }
+      await loadPayPalWalletStatus();
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || 'Error linking Sandbox Wallet';
+        statusEl.dataset.state = 'error';
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function handleUnlinkPayPalWallet() {
+    const btn = document.getElementById('paypalWalletUnlinkBtn');
+    const statusEl = document.getElementById('paypalWalletFormStatus');
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/commerce/paypal/wallet/unlink', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to unlink wallet');
+      await loadPayPalWalletStatus();
+      if (statusEl) {
+        statusEl.textContent = 'Wallet unlinked.';
+        statusEl.dataset.state = 'success';
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || 'Error unlinking wallet';
+        statusEl.dataset.state = 'error';
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  document.getElementById('paypalWalletLinkBtn')?.addEventListener('click', handleLinkPayPalWallet);
+  document.getElementById('paypalWalletUnlinkBtn')?.addEventListener('click', handleUnlinkPayPalWallet);
+
   loadAuthenticatedWorkspace();
+  void loadPayPalWalletStatus();
 </script>
 </body>
 </html>
