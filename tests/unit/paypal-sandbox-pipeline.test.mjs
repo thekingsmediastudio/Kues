@@ -251,6 +251,17 @@ test('voidSandboxPaymentAuthorization voids an active authorization and logs run
   const eventTypes = events.rows.map((r) => r.event_type);
   assert.ok(eventTypes.includes('payment_authorized'));
   assert.ok(eventTypes.includes('payment_voided'));
+
+  // Verify voiding directly by authorizationId is also supported
+  const voidByAuthId = await voidSandboxPaymentAuthorization({
+    db,
+    workspaceId: wsId,
+    userId,
+    authorizationId: tx.authorizationId,
+    reason: 'Test void by authorizationId',
+  });
+  assert.equal(voidByAuthId.status, 'voided');
+  assert.equal(voidByAuthId.idempotent, true);
 });
 
 test('captureSandboxPaymentAuthorization captures hold and records receipt', async () => {

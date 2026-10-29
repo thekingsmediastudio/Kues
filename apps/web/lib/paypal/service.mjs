@@ -482,6 +482,7 @@ export async function voidSandboxPaymentAuthorization({
   userId,
   mandateId = null,
   transactionId = null,
+  authorizationId = null,
   reason = 'User requested void of test hold',
   simulate = false,
   now = Date.now(),
@@ -490,8 +491,8 @@ export async function voidSandboxPaymentAuthorization({
 
   if (!db) throw new PayPalSandboxError('database_required', 500, 'Database is required');
   if (!workspaceId) throw new PayPalSandboxError('workspace_id_required', 400, 'Workspace ID is required');
-  if (!mandateId && !transactionId) {
-    throw new PayPalSandboxError('target_required', 400, 'mandateId or transactionId must be provided');
+  if (!mandateId && !transactionId && !authorizationId) {
+    throw new PayPalSandboxError('target_required', 400, 'mandateId, transactionId, or authorizationId must be provided');
   }
 
   const timestamp = isoNow(now);
@@ -505,12 +506,18 @@ export async function voidSandboxPaymentAuthorization({
                FROM agent_payment_transactions
                WHERE workspace_id = ? AND id = ?`;
       args = [workspaceId, transactionId];
-    } else {
+    } else if (mandateId) {
       query = `SELECT id, workspace_id, run_id, mandate_id, external_order_id,
                       authorization_id, status, amount_minor, currency
                FROM agent_payment_transactions
                WHERE workspace_id = ? AND mandate_id = ?`;
       args = [workspaceId, mandateId];
+    } else {
+      query = `SELECT id, workspace_id, run_id, mandate_id, external_order_id,
+                      authorization_id, status, amount_minor, currency
+               FROM agent_payment_transactions
+               WHERE workspace_id = ? AND authorization_id = ?`;
+      args = [workspaceId, authorizationId];
     }
     const res = await tx.execute({ sql: query, args });
     return res.rows[0] || null;
