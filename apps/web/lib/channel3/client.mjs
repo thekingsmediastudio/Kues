@@ -32,6 +32,13 @@ function extractDomain(urlOrDomain) {
   }
 }
 
+function formatDomainToName(domain) {
+  if (!domain || domain === 'unknown.example') return '';
+  const base = domain.replace(/^www\./, '').split('.')[0];
+  if (!base) return '';
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
 /**
  * Computes deterministic canonical evidence hash for a product offer.
  * Conforms to the sha256:<hex> standard used across mandates and receipts.
@@ -69,34 +76,123 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
 
   const title = safeString(raw.title || raw.name || 'Untitled product', 200);
   const description = safeString(raw.description || '', 1000);
-  const brand = safeString(raw.brand || '', 100);
+  const brand = safeString(
+    (typeof raw.brand === 'object' && raw.brand ? (raw.brand.name || raw.brand.title || '') : raw.brand) || '',
+    100
+  );
 
   let imageUrl = null;
   if (Array.isArray(raw.images) && raw.images.length) {
     const first = raw.images[0];
-    imageUrl = typeof first === 'string' ? safeString(first, 1000) : safeString(first?.url, 1000);
+    imageUrl = typeof first === 'string'
+      ? safeString(first, 1000)
+      : safeString(first?.url || first?.src || first?.link || '', 1000);
   } else if (typeof raw.image === 'string') {
     imageUrl = safeString(raw.image, 1000);
+  } else if (typeof raw.image === 'object' && raw.image) {
+    imageUrl = safeString(raw.image.url || raw.image.src || '', 1000);
   }
 
   // Extract offer / pricing details
   const offers = Array.isArray(raw.offers) ? raw.offers : [];
   const primaryOffer = offers[0] || (isRecord(raw.offer) ? raw.offer : {});
 
-  const url = safeString(primaryOffer.url || primaryOffer.merchant_url || raw.url || raw.link || '', 1000);
-  const merchantName = safeString(primaryOffer.merchant || primaryOffer.seller || raw.merchant || raw.seller || brand || 'Unknown seller', 120);
-  const merchantDomain = extractDomain(primaryOffer.merchant_domain || url || merchantName);
-
-  let amountMinor = 0;
-  const rawPrice = primaryOffer.price !== undefined ? primaryOffer.price : raw.price;
-  if (typeof rawPrice === 'number' && Number.isFinite(rawPrice)) {
-    amountMinor = Math.round(rawPrice * 100);
-  } else if (typeof rawPrice === 'string') {
-    const cleanNum = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
-    if (Number.isFinite(cleanNum)) amountMinor = Math.round(cleanNum * 100);
+  if (!imageUrl && (primaryOffer.image || primaryOffer.imageUrl)) {
+    imageUrl = safeString(primaryOffer.image || primaryOffer.imageUrl, 1000);
   }
 
-  const rawCurrency = safeString(primaryOffer.currency || raw.currency || 'USD', 3).toUpperCase();
+  const url = safeString(
+    primaryOffer.url
+    || primaryOffer.merchant_url
+    || primaryOffer.link
+    || raw.url
+    || raw.link
+    || '',
+    1000
+  );
+
+  const rawMerchant = primaryOffer.merchant_name
+    || (typeof primaryOffer.merchant === 'object' ? primaryOffer.merchant?.name : primaryOffer.merchant)
+    || primaryOffer.seller_name
+    || (typeof primaryOffer.seller === 'object' ? primaryOffer.seller?.name : primaryOffer.seller)
+    || primaryOffer.retailer_name
+    || (typeof primaryOffer.retailer === 'object' ? primaryOffer.retailer?.name : primaryOffer.retailer)
+    || primaryOffer.store_name
+    || (typeof primaryOffer.store === 'object' ? primaryOffer.store?.name : primaryOffer.store)
+    || raw.merchant_name
+    || (typeof raw.merchant === 'object' ? raw.merchant?.name : raw.merchant)
+    || raw.seller_name
+    || (typeof raw.seller === 'object' ? raw.seller?.name : raw.seller)
+    || raw.retailer_name
+    || (typeof raw.retailer === 'object' ? raw.retailer?.name : raw.retailer)
+    || raw.store_name
+    || (typeof raw.store === 'object' ? raw.store?.name : raw.store)
+    || '';
+
+  const merchantDomain = extractDomain(
+    primaryOffer.merchant_domain
+    || primaryOffer.domain
+    || raw.merchant_domain
+    || raw.domain
+    || url
+    || (typeof rawMerchant === 'string' && rawMerchant.includes('.') ? rawMerchant : '')
+  );
+
+  const domainName = formatDomainToName(merchantDomain);
+  const merchantName = safeString(
+    (typeof rawMerchant === 'string' && rawMerchant.trim() && !/^unknown(\s*seller)?$/i.test(rawMerchant.trim()))
+      ? rawMerchant.trim()
+      : (brand || domainName || 'Verified Merchant'),
+    120
+  );
+
+  let amountMinor = 0;
+  const priceCandidates = [
+    primaryOffer.price,
+    primaryOffer.price?.price,
+    primaryOffer.price?.amount,
+    primaryOffer.price?.value,
+    primaryOffer.amount,
+    primaryOffer.price_amount,
+    raw.price,
+    raw.price?.price,
+    raw.price?.amount,
+    raw.price?.value,
+    raw.min_price,
+    raw.max_price,
+    raw.low_price,
+  ];
+
+  for (const c of priceCandidates) {
+    if (typeof c === 'number' && Number.isFinite(c) && c > 0) {
+      amountMinor = Math.round(c * 100);
+      break;
+    }
+    if (typeof c === 'string' && c.trim()) {
+      const cleanNum = parseFloat(c.replace(/[^0-9.]/g, ''));
+      if (Number.isFinite(cleanNum) && cleanNum > 0) {
+        amountMinor = Math.round(cleanNum * 100);
+        break;
+      }
+    }
+  }
+  if (!amountMinor) {
+    if (typeof primaryOffer.price_cents === 'number' && primaryOffer.price_cents > 0) amountMinor = Math.round(primaryOffer.price_cents);
+    else if (typeof primaryOffer.amount_minor === 'number' && primaryOffer.amount_minor > 0) amountMinor = Math.round(primaryOffer.amount_minor);
+    else if (typeof raw.price_cents === 'number' && raw.price_cents > 0) amountMinor = Math.round(raw.price_cents);
+    else if (typeof raw.amount_minor === 'number' && raw.amount_minor > 0) amountMinor = Math.round(raw.amount_minor);
+  }
+
+  const rawCurrency = safeString(
+    primaryOffer.currency
+    || primaryOffer.priceCurrency
+    || primaryOffer.price?.currency
+    || primaryOffer.price?.priceCurrency
+    || raw.currency
+    || raw.priceCurrency
+    || 'USD',
+    3
+  ).toUpperCase();
   const currency = /^[A-Z]{3}$/.test(rawCurrency) ? rawCurrency : 'USD';
 
   let availability = 'unknown';
@@ -132,7 +228,7 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
     merchantDomain,
     url,
     amountMinor,
-    priceFormatted: `$${(amountMinor / 100).toFixed(2)} ${currency}`,
+    priceFormatted: amountMinor > 0 ? `$${(amountMinor / 100).toFixed(2)} ${currency}` : 'Price on request',
     currency,
     availability,
     source,
