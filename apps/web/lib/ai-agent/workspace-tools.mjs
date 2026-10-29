@@ -16,8 +16,9 @@ export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","approvalPath":"desktop"|"keyfob","orderCap":integer,"dailyCap":integer,"apps":string[],"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
   '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, approvalPath, orderCap, dailyCap, apps, or memoryPills. Include only fields the user asked to change.',
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
-  '- search_products: arguments {"query":string}; discovers real products matching a query, with merchant, price, availability, and verifiable source evidence. Use this when the user asks to find, search for, or buy products, goods, or items.',
-  'For create_agent, update_agent, and rename_workspace, the application will show the exact proposed change and wait for an explicit user approval. Do not claim that a change happened before approval. New agents start Active for chat but remain preview-only; do not invent permissions, capabilities, or external integrations. No tool can activate an existing paused agent, grant external access, or bypass per-write approval. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
+  '- search_products: arguments {"query":string,"minPrice":number,"maxPrice":number,"currency":"USD","availability":"in_stock"|"any","sortBy":"relevance"|"price_asc"|"price_desc","merchantDomain":string,"limit":integer}; discovers real products matching a query with optional structured price limits, availability, sorting, and merchant filters. Use this when the user asks to find, search for, or buy products, goods, or items.',
+  '- purchase_product: arguments {"offerId":string} or {"productTitle":string,"merchantDomain":string,"amountMinor":integer,"currency":"USD","evidenceHash":string} or {"items":[{"offerId":string}, ...]}; evaluates autonomous spend policies and formulates a cryptographically signed purchase mandate requiring explicit user approval. Use this when the user asks to buy or purchase a specific discovered product or a bundle of products.',
+  'For create_agent, update_agent, rename_workspace, and purchase_product, the application will show the exact proposed change or purchase mandate and wait for explicit user approval. Do not claim that an action happened before approval. New agents start Active for chat but remain preview-only; do not invent permissions, capabilities, or external integrations. No tool can activate an existing paused agent, grant external access, or bypass per-write approval. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
 ].join('\n');
 
 export class WorkspaceToolError extends Error {
@@ -288,11 +289,100 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
     };
   }
   if (call.name === 'search_products') {
-    assertOnlyKeys(args, ['query']);
+    assertOnlyKeys(args, ['query', 'minPrice', 'maxPrice', 'currency', 'availability', 'sortBy', 'merchantDomain', 'limit']);
     const query = cleanText(args.query, 'query', 200);
+    const preparedSearch = { kind: 'search_products', query, filters: {} };
+    if (args.minPrice !== undefined) {
+      if (typeof args.minPrice !== 'number' || args.minPrice < 0 || !Number.isFinite(args.minPrice)) {
+        throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+      }
+      preparedSearch.filters.min_price = args.minPrice;
+    }
+    if (args.maxPrice !== undefined) {
+      if (typeof args.maxPrice !== 'number' || args.maxPrice <= 0 || !Number.isFinite(args.maxPrice)) {
+        throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+      }
+      preparedSearch.filters.max_price = args.maxPrice;
+    }
+    if (args.availability !== undefined) {
+      const avail = cleanText(args.availability, 'availability', 20).toLowerCase();
+      if (!['in_stock', 'any'].includes(avail)) throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+      preparedSearch.filters.availability = avail;
+    }
+    if (args.sortBy !== undefined) {
+      const sort = cleanText(args.sortBy, 'sort_by', 20).toLowerCase();
+      if (!['relevance', 'price_asc', 'price_desc'].includes(sort)) throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+      preparedSearch.filters.sort_by = sort;
+    }
+    if (args.merchantDomain !== undefined) {
+      preparedSearch.filters.merchant_domain = cleanText(args.merchantDomain, 'merchant_domain', 100).toLowerCase();
+    }
+    if (args.limit !== undefined) {
+      if (!Number.isSafeInteger(args.limit) || args.limit < 1 || args.limit > 50) {
+        throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+      }
+      preparedSearch.limit = args.limit;
+    }
+    return preparedSearch;
+  }
+  if (call.name === 'purchase_product' || call.name === 'purchase_bundle') {
+    if (args.items && Array.isArray(args.items)) {
+      assertOnlyKeys(args, ['items']);
+      if (args.items.length < 1 || args.items.length > 10) {
+        throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+      }
+      const sanitizedItems = args.items.map((item) => {
+        if (!isRecord(item)) throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+        if (item.offerId) {
+          assertOnlyKeys(item, ['offerId']);
+          return { offerId: cleanText(item.offerId, 'offer_id', 64) };
+        }
+        assertOnlyKeys(item, ['productTitle', 'merchantDomain', 'amountMinor', 'currency', 'evidenceHash']);
+        const productTitle = cleanText(item.productTitle, 'product_title', 200);
+        const merchantDomain = cleanText(item.merchantDomain, 'merchant_domain', 100);
+        if (!Number.isSafeInteger(item.amountMinor) || item.amountMinor <= 0) {
+          throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+        }
+        const currency = cleanText(item.currency || 'USD', 'currency', 3).toUpperCase();
+        const evidenceHash = cleanText(item.evidenceHash, 'evidence_hash', 100);
+        return {
+          productTitle,
+          merchantDomain,
+          amountMinor: item.amountMinor,
+          currency,
+          evidenceHash,
+        };
+      });
+      return {
+        kind: 'purchase_product',
+        items: sanitizedItems,
+      };
+    }
+    if (args.offerId) {
+      assertOnlyKeys(args, ['offerId']);
+      const offerId = cleanText(args.offerId, 'offer_id', 64);
+      return {
+        kind: 'purchase_product',
+        offerId,
+      };
+    }
+    assertOnlyKeys(args, ['productTitle', 'merchantDomain', 'amountMinor', 'currency', 'evidenceHash']);
+    const productTitle = cleanText(args.productTitle, 'product_title', 200);
+    const merchantDomain = cleanText(args.merchantDomain, 'merchant_domain', 100);
+    if (!Number.isSafeInteger(args.amountMinor) || args.amountMinor <= 0) {
+      throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+    }
+    const currency = cleanText(args.currency || 'USD', 'currency', 3).toUpperCase();
+    const evidenceHash = cleanText(args.evidenceHash, 'evidence_hash', 100);
     return {
-      kind: 'search_products',
-      query,
+      kind: 'purchase_product',
+      product: {
+        title: productTitle,
+        merchantDomain,
+        amountMinor: args.amountMinor,
+        currency,
+        evidenceHash,
+      },
     };
   }
   throw new WorkspaceToolError('workspace_tool_not_allowed');
