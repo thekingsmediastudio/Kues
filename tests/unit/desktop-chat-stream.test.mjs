@@ -862,6 +862,7 @@ test('products card grid renders 3-per-row layout and collapses items beyond two
       this.children = [];
       this.attributes = {};
       this.classList = new MockClassList();
+      this.style = {};
       this.value = '';
       this.listeners = {};
     }
@@ -989,4 +990,39 @@ test('products card grid renders 3-per-row layout and collapses items beyond two
   const rootGrid = root.querySelector('.products-grid-container');
   assert.ok(rootGrid, 'renderChatMarkdown should render .products-grid-container');
   assert.equal(rootGrid.querySelectorAll('.product-card').length, 9);
+
+  // 4. Test zero price and unknown seller sanitation, plus media preview click behavior
+  let modalOpenedItem = null;
+  const mockWindow = {
+    location: { href: 'https://kues.example/chat' },
+  };
+  const mockGlobal = {
+    openProductImageModal: (item) => { modalOpenedItem = item; },
+  };
+
+  const edgeProducts = [
+    ':::products-grid',
+    '1. **Zero Price Product**\n   ![Zero](https://example.com/z.jpg)\n   - **Price:** $0.00 USD\n   - **Seller:** Unknown seller (vendor.example.com)\n   - **Status:** In Stock',
+    ':::',
+  ].join('\n\n');
+
+  const edgeGrid = buildProductsCardGrid(edgeProducts);
+  assert.ok(edgeGrid);
+  const edgeCard = edgeGrid.querySelector('.product-card');
+  assert.ok(edgeCard);
+
+  const priceNode = edgeCard.querySelector('.product-card-price');
+  assert.equal(priceNode.textContent, 'Price on request', 'Zero dollar price should be sanitized to Price on request');
+
+  const merchantNode = edgeCard.querySelector('.product-card-merchant');
+  assert.doesNotMatch(merchantNode.textContent, /Unknown seller/i, 'Unknown seller should never be displayed on card');
+  assert.match(merchantNode.textContent, /vendor\.example\.com/, 'Should display merchant domain when seller is unknown');
+
+  const mediaNode = edgeCard.querySelector('.product-card-media');
+  assert.equal(mediaNode.getAttribute('role'), 'button');
+  assert.ok(edgeCard.querySelector('.product-card-zoom-badge'), 'Zoom preview badge should be present');
+
+  // Verify lightbox modal exists in the HTML page
+  assert.ok(desktopHtml.includes('id="productImageOverlayBackdrop"'), 'Lightbox backdrop modal must exist in HTML');
+  assert.ok(desktopHtml.includes('id="productModalImage"'), 'Modal image container must exist');
 });
