@@ -166,7 +166,7 @@ test('completed onboarding stays linked to the same workspace on a new WorkOS id
 
     const saved = await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now });
     assert.equal(saved.onboarding.status, 'completed');
-    assert.equal(saved.onboarding.agent.status, 'paused');
+    assert.equal(saved.onboarding.agent.status, 'active');
     assert.equal(saved.onboarding.agent.name, onboardingInput.name);
     assert.equal(saved.onboarding.agent.settings.previewOnly, true);
     assert.equal(saved.onboarding.profile.agent.avatar, onboardingInput.avatar);
@@ -207,7 +207,34 @@ test('completed onboarding stays linked to the same workspace on a new WorkOS id
   }
 });
 
-test('additional agents are persisted in the same workspace, returned in bootstrap, and start paused', async () => {
+test('recompleting onboarding keeps an existing paused agent paused when the default changes', async () => {
+  const db = await createDb();
+  const now = '2026-10-26T09:00:00.000Z';
+  try {
+    const auth = createAuthService({ db, competition });
+    const login = await auth.createWorkOSSession({
+      providerSubject: 'workos_existing_paused_1',
+      email: 'existing-paused@example.test',
+      emailVerified: true,
+      displayName: 'Existing Agent Owner',
+      now,
+    });
+    const workspaces = createWorkspaceService({ db, competition });
+    const created = await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now });
+    assert.equal(created.onboarding.agent.status, 'active');
+
+    await db.execute({
+      sql: "UPDATE agents SET status = 'paused' WHERE id = ?",
+      args: [created.onboarding.agent.id],
+    });
+    const completedAgain = await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now });
+    assert.equal(completedAgain.onboarding.agent.status, 'paused', 'the new default does not reactivate an existing paused agent');
+  } finally {
+    await db.close();
+  }
+});
+
+test('additional agents are persisted in the same workspace, returned in bootstrap, and start active', async () => {
   const db = await createDb();
   const now = '2026-10-26T09:00:00.000Z';
   try {
@@ -244,7 +271,7 @@ test('additional agents are persisted in the same workspace, returned in bootstr
     assert.equal(created.name, input.name);
     assert.equal(created.role, input.role);
     assert.equal(created.avatar, input.avatar);
-    assert.equal(created.status, 'paused');
+    assert.equal(created.status, 'active');
     assert.equal(created.settings.color, input.color);
     assert.equal(created.settings.approvalPath, input.approvalPath);
     assert.equal(created.settings.orderCap, input.orderCap);
@@ -256,7 +283,7 @@ test('additional agents are persisted in the same workspace, returned in bootstr
 
     const reloaded = await workspaces.getBootstrap({ userId: login.user.id, now });
     assert.equal(reloaded.agents.length, 2);
-    assert.equal(reloaded.agents.find((agent) => agent.id === saved.createdAgentId).status, 'paused');
+    assert.equal(reloaded.agents.find((agent) => agent.id === saved.createdAgentId).status, 'active');
     await assert.rejects(
       workspaces.createAgent({ userId: login.user.id, input: { ...input, name: 'supply scout' }, now }),
       (error) => error.code === 'agent_name_conflict' && error.status === 409,
@@ -334,7 +361,7 @@ test('onboarding API requires a session and same-origin write, and persists data
       assert.equal(reloaded.status, 200);
       const reloadedBody = await reloaded.json();
       assert.equal(reloadedBody.onboarding.profile.agent.name, onboardingInput.name);
-      assert.equal(reloadedBody.onboarding.agent.status, 'paused');
+      assert.equal(reloadedBody.onboarding.agent.status, 'active');
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
@@ -410,7 +437,7 @@ test('agent creation API is same-origin and authenticated, persists settings, an
       assert.equal(createdBody.agents.length, 1);
       assert.equal(createdBody.createdAgentId, createdBody.agents[0].id);
       assert.equal(createdBody.agents[0].name, input.name);
-      assert.equal(createdBody.agents[0].status, 'paused');
+      assert.equal(createdBody.agents[0].status, 'active');
       assert.deepEqual(createdBody.agents[0].settings.apps, input.apps);
       assert.deepEqual(createdBody.agents[0].settings.memoryPills, input.memoryPills);
       assert.equal(createdBody.agents[0].settings.previewOnly, true);
