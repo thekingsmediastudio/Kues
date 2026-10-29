@@ -103,3 +103,116 @@ test('unsupported tools, extra arguments, and out-of-policy settings fail closed
     name: 'create_agent', arguments: { name: 'Bad Cap', role: 'helper', avatar: 'bulb', dailyCap: 230 },
   }, source), /invalid_daily_spend_cap/);
 });
+
+test('search_products tool accepts structured price, availability, sort, and merchant filters', () => {
+  const source = bootstrap();
+  const search1 = prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: {
+      query: 'mechanical keyboard',
+      minPrice: 50,
+      maxPrice: 150,
+      currency: 'USD',
+      availability: 'in_stock',
+      sortBy: 'price_asc',
+      merchantDomain: 'keychron.com',
+      limit: 12,
+    },
+  }, source);
+
+  assert.equal(search1.kind, 'search_products');
+  assert.equal(search1.query, 'mechanical keyboard');
+  assert.equal(search1.limit, 12);
+  assert.deepEqual(search1.filters, {
+    min_price: 50,
+    max_price: 150,
+    availability: 'in_stock',
+    sort_by: 'price_asc',
+    merchant_domain: 'keychron.com',
+  });
+
+  const search2 = prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: {
+      query: 'ergonomic mouse',
+      sortBy: 'price_desc',
+      availability: 'any',
+    },
+  }, source);
+  assert.equal(search2.query, 'ergonomic mouse');
+  assert.equal(search2.filters.sort_by, 'price_desc');
+  assert.equal(search2.filters.availability, 'any');
+
+  // Fails closed on invalid filters
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: { query: 'laptop', minPrice: -10 },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: { query: 'laptop', maxPrice: 0 },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: { query: 'laptop', sortBy: 'unknown_sort' },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: { query: 'laptop', availability: 'invalid_avail' },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: { query: 'laptop', limit: 100 },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'search_products',
+    arguments: { query: 'laptop', unexpectedKey: true },
+  }, source), /workspace_tool_arguments_invalid/);
+});
+
+test('purchase_product tool accepts multi-product bundles and enforces structural validation', () => {
+  const source = bootstrap();
+  const bundleCall = prepareWorkspaceToolCall({
+    name: 'purchase_product',
+    arguments: {
+      items: [
+        { offerId: 'off_item1' },
+        {
+          productTitle: 'Desk Pad',
+          merchantDomain: 'grovemade.com',
+          amountMinor: 4500,
+          currency: 'USD',
+          evidenceHash: 'sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234',
+        },
+      ],
+    },
+  }, source);
+
+  assert.equal(bundleCall.kind, 'purchase_product');
+  assert.equal(bundleCall.items.length, 2);
+  assert.equal(bundleCall.items[0].offerId, 'off_item1');
+  assert.equal(bundleCall.items[1].productTitle, 'Desk Pad');
+  assert.equal(bundleCall.items[1].amountMinor, 4500);
+
+  // Fails closed on empty items or > 10 items
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'purchase_product',
+    arguments: { items: [] },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'purchase_product',
+    arguments: { items: Array.from({ length: 11 }, () => ({ offerId: 'off_1' })) },
+  }, source), /workspace_tool_arguments_invalid/);
+
+  // Fails on invalid item structure
+  assert.throws(() => prepareWorkspaceToolCall({
+    name: 'purchase_product',
+    arguments: { items: [{ unexpectedKey: true }] },
+  }, source), /workspace_tool_arguments_invalid/);
+});
