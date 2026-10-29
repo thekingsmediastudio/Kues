@@ -186,6 +186,7 @@ export async function discoverProducts({
   channel3Client,
   query,
   limit = 10,
+  filters = {},
   db = null,
   workspaceId = null,
   userId = null,
@@ -200,9 +201,9 @@ export async function discoverProducts({
 
   let searchResult;
   if (channel3Client.isConfigured()) {
-    searchResult = await channel3Client.searchProducts({ query, limit });
+    searchResult = await channel3Client.searchProducts({ query, limit, filters });
   } else if (allowFixtureFallback || mode === 'demo') {
-    searchResult = channel3Client.searchSampleProducts({ query, limit });
+    searchResult = channel3Client.searchSampleProducts({ query, limit, filters });
   } else {
     throw new Channel3Error('channel3_not_configured', 503, 'Channel3 API key is not configured');
   }
@@ -225,13 +226,14 @@ export async function discoverProducts({
     }
 
     if (effectiveRunId && searchResult.products.length > 0) {
-      await recordDiscoveredOffers({
+      const recorded = await recordDiscoveredOffers({
         db,
         workspaceId,
         runId: effectiveRunId,
         products: searchResult.products,
         now,
       });
+      searchResult.products = recorded;
       offersPersisted = true;
     }
   }

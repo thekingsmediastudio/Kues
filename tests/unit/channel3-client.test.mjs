@@ -298,3 +298,53 @@ test('searchSampleProducts returns distinct fixtures with isLive: false and vali
   assert.equal(first.amountMinor, 7850);
   assert.match(first.evidenceHash, /^sha256:[a-f0-9]{64}$/);
 });
+
+test('searchSampleProducts filters by maxPrice and sorts by price ascending and descending', () => {
+  const client = createChannel3Client({ apiKey: '' });
+
+  // 1. Filter by max_price: 30
+  const under30 = client.searchSampleProducts({
+    query: '',
+    filters: { max_price: 30 },
+  });
+  assert.ok(under30.products.length > 0);
+  for (const prod of under30.products) {
+    assert.ok(prod.amountMinor <= 3000, `Expected price minor <= 3000, got ${prod.amountMinor}`);
+  }
+
+  // 2. Sort by price ascending
+  const sortedAsc = client.searchSampleProducts({
+    query: '',
+    filters: { sort_by: 'price_asc' },
+  });
+  assert.ok(sortedAsc.products.length >= 2);
+  for (let i = 1; i < sortedAsc.products.length; i++) {
+    assert.ok(
+      sortedAsc.products[i].amountMinor >= sortedAsc.products[i - 1].amountMinor,
+      `Expected ${sortedAsc.products[i].amountMinor} >= ${sortedAsc.products[i - 1].amountMinor}`
+    );
+  }
+
+  // 3. Sort by price descending
+  const sortedDesc = client.searchSampleProducts({
+    query: '',
+    filters: { sort_by: 'price_desc' },
+  });
+  assert.ok(sortedDesc.products.length >= 2);
+  for (let i = 1; i < sortedDesc.products.length; i++) {
+    assert.ok(
+      sortedDesc.products[i].amountMinor <= sortedDesc.products[i - 1].amountMinor,
+      `Expected ${sortedDesc.products[i].amountMinor} <= ${sortedDesc.products[i - 1].amountMinor}`
+    );
+  }
+
+  // 4. Filter by availability: in_stock
+  const inStock = client.searchSampleProducts({
+    query: '',
+    filters: { availability: 'in_stock' },
+  });
+  assert.ok(inStock.products.length > 0);
+  for (const prod of inStock.products) {
+    assert.equal(prod.availability, 'in_stock');
+  }
+});

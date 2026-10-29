@@ -468,19 +468,39 @@ export function createChannel3Client({
     };
   }
 
-  function searchSampleProducts({ query, limit = 10 } = {}) {
+  function searchSampleProducts({ query, limit = 10, filters = {} } = {}) {
     const cleanQuery = safeString(query, 200).toLowerCase();
     const cleanLimit = Math.max(1, Math.min(Number.isSafeInteger(limit) ? limit : 10, 50));
     const observedAt = new Date().toISOString();
 
-    const matched = cleanQuery
+    let list = cleanQuery
       ? SAMPLE_CHANNEL3_PRODUCTS.filter((item) => {
         const text = `${item.title} ${item.description} ${item.brand} ${item.merchant}`.toLowerCase();
         return cleanQuery.split(/\s+/).some((token) => token && text.includes(token));
       })
-      : SAMPLE_CHANNEL3_PRODUCTS;
+      : [...SAMPLE_CHANNEL3_PRODUCTS];
 
-    const list = matched.length ? matched : SAMPLE_CHANNEL3_PRODUCTS;
+    if (isRecord(filters)) {
+      if (Number.isFinite(filters.min_price)) {
+        list = list.filter((item) => (item.price || 0) >= filters.min_price);
+      }
+      if (Number.isFinite(filters.max_price)) {
+        list = list.filter((item) => (item.price || 0) <= filters.max_price);
+      }
+      if (filters.availability === 'in_stock') {
+        list = list.filter((item) => String(item.availability || '').toLowerCase().includes('instock'));
+      }
+      if (filters.merchant_domain) {
+        const domainTerm = String(filters.merchant_domain).toLowerCase();
+        list = list.filter((item) => String(item.merchant_domain || '').toLowerCase().includes(domainTerm));
+      }
+      if (filters.sort_by === 'price_asc') {
+        list.sort((a, b) => (a.price || 0) - (b.price || 0));
+      } else if (filters.sort_by === 'price_desc') {
+        list.sort((a, b) => (b.price || 0) - (a.price || 0));
+      }
+    }
+
     const products = list.slice(0, cleanLimit).map((item) => normalizeProduct(item, {
       source: 'channel3_sample',
       isLive: false,
@@ -494,6 +514,7 @@ export function createChannel3Client({
       isLive: false,
       notice: 'sample_fixture',
       source: 'channel3_sample',
+      filters: isRecord(filters) ? filters : {},
     };
   }
 

@@ -1025,4 +1025,97 @@ test('products card grid renders 3-per-row layout and collapses items beyond two
   // Verify lightbox modal exists in the HTML page
   assert.ok(desktopHtml.includes('id="productImageOverlayBackdrop"'), 'Lightbox backdrop modal must exist in HTML');
   assert.ok(desktopHtml.includes('id="productModalImage"'), 'Modal image container must exist');
+  assert.ok(desktopHtml.includes('id="productModalBuyBtn"'), 'Modal Buy with Agent button must exist in HTML');
+
+  // 5. Test Buy action button on product cards
+  const actionsNode = edgeCard.querySelector('.product-card-actions');
+  assert.ok(actionsNode, 'Product card should contain .product-card-actions container');
+  const buyBtn = edgeCard.querySelector('.product-card-buy-btn');
+  assert.ok(buyBtn, 'Product card should render .product-card-buy-btn button');
+  assert.match(buyBtn.textContent, /Buy/i, 'Buy button should have Buy text');
+  assert.ok(desktopHtml.includes('function requestProductPurchase'), 'requestProductPurchase handler must be defined');
+
+  // 6. Test filter badges parsing and live sorting in desktop chat
+  const filteredProductsMarkdown = [
+    ':::products-grid',
+    '[Filters: Under $100 USD · In Stock Only · Price: Low to High]',
+    '1. **Expensive Keyboard**\n   - **Price:** $150.00 USD\n   - **Status:** In Stock',
+    '2. **Cheap Keyboard**\n   - **Price:** $45.00 USD\n   - **Status:** In Stock',
+    '3. **Mid-range Keyboard**\n   - **Price:** $85.00 USD\n   - **Status:** In Stock',
+    '4. **Out of Stock Keyboard**\n   - **Price:** $30.00 USD\n   - **Status:** Out of Stock',
+    ':::',
+  ].join('\n\n');
+
+  const filteredGrid = buildProductsCardGrid(filteredProductsMarkdown);
+  assert.ok(filteredGrid);
+
+  const toolbar = filteredGrid.querySelector('.products-grid-toolbar');
+  assert.ok(toolbar, 'Products grid should render .products-grid-toolbar');
+
+  const filterBadges = filteredGrid.querySelectorAll('.product-filter-badge');
+  assert.equal(filterBadges.length, 3, 'All 3 filter badges should be rendered');
+  assert.equal(filterBadges[0].textContent, 'Under $100 USD');
+  assert.equal(filterBadges[1].textContent, 'In Stock Only');
+  assert.equal(filterBadges[2].textContent, 'Price: Low to High');
+
+  const sortBtns = filteredGrid.querySelectorAll('.products-sort-btn');
+  assert.equal(sortBtns.length, 3, 'Default, Price: Low to High, and Price: High to Low sort buttons should exist');
+
+  const inStockFilterBtn = filteredGrid.querySelector('.products-filter-toggle-btn');
+  assert.ok(inStockFilterBtn, 'In Stock Only toggle button should exist');
+
+  // Initial sort was Low to High with In Stock Only
+  const initialCards = filteredGrid.querySelectorAll('.product-card');
+  assert.equal(initialCards[0].querySelector('.product-card-title').textContent, 'Cheap Keyboard');
+
+  // Test live sorting: click Price: High to Low
+  const descSortBtn = Array.from(sortBtns).find((b) => b.textContent.includes('High to Low'));
+  assert.ok(descSortBtn);
+  descSortBtn.dispatchEvent({ type: 'click', preventDefault() {} });
+
+  const descCards = filteredGrid.querySelectorAll('.product-card');
+  assert.equal(descCards[0].querySelector('.product-card-title').textContent, 'Expensive Keyboard');
+  assert.equal(descSortBtn.classList.contains('is-active'), true);
+
+  // Test live sorting: click Default
+  const defaultSortBtn = Array.from(sortBtns).find((b) => b.textContent === 'Default');
+  assert.ok(defaultSortBtn);
+  defaultSortBtn.dispatchEvent({ type: 'click', preventDefault() {} });
+
+  const defaultCards = filteredGrid.querySelectorAll('.product-card');
+  assert.equal(defaultCards[0].querySelector('.product-card-title').textContent, 'Expensive Keyboard');
+  assert.equal(defaultSortBtn.classList.contains('is-active'), true);
+
+  // Toggle in-stock filter off (should reveal out-of-stock product)
+  inStockFilterBtn.dispatchEvent({ type: 'click', preventDefault() {} });
+  const allCards = filteredGrid.querySelectorAll('.product-card');
+  assert.equal(allCards.length, 4, 'All 4 cards should be visible when in-stock filter is toggled off');
+
+  // 7. Test Multi-Product Bundle Bag and Bundle Bar interactions
+  const bundleBar = filteredGrid.querySelector('.products-bundle-bar');
+  assert.ok(bundleBar, 'Products grid should render .products-bundle-bar container');
+  assert.equal(bundleBar.classList.contains('is-visible'), false, 'Bundle bar should start hidden');
+
+  const bagBtns = filteredGrid.querySelectorAll('.product-card-bag-btn');
+  assert.equal(bagBtns.length, 4, 'Each product card should have a + Bag button');
+  assert.match(bagBtns[0].textContent, /Bag/i);
+
+  // Add first product to bag ($150 Expensive Keyboard)
+  bagBtns[0].dispatchEvent({ type: 'click', preventDefault() {} });
+  assert.equal(bundleBar.classList.contains('is-visible'), true, 'Bundle bar should show when item is added');
+  assert.match(bundleBar.querySelector('.bundle-bar-badge').textContent, /1 item/);
+  assert.match(bundleBar.querySelector('.bundle-bar-total').textContent, /\$150\.00 USD/);
+
+  // Add second product to bag ($45 Cheap Keyboard)
+  bagBtns[1].dispatchEvent({ type: 'click', preventDefault() {} });
+  assert.match(bundleBar.querySelector('.bundle-bar-badge').textContent, /2 items/);
+  assert.match(bundleBar.querySelector('.bundle-bar-total').textContent, /\$195\.00 USD/);
+
+  // Verify Clear button resets bundle
+  const clearBtn = bundleBar.querySelector('.bundle-bar-clear-btn');
+  assert.ok(clearBtn);
+  clearBtn.dispatchEvent({ type: 'click', preventDefault() {} });
+  assert.equal(bundleBar.classList.contains('is-visible'), false, 'Bundle bar should hide when cleared');
+
+  assert.ok(desktopHtml.includes('function requestBundlePurchase'), 'requestBundlePurchase handler must be defined');
 });

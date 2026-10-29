@@ -194,3 +194,26 @@ test('product offers endpoint validates method and runId', async () => {
     assert.equal(json.error, 'run_id_required');
   });
 });
+
+test('product discovery route applies maxPrice, sortBy, and availability query parameters', async () => {
+  const ctx = await setupContext();
+  const config = loadServerConfig({});
+  const client = createChannel3Client({ apiKey: '' });
+
+  await withServer(config, { ...ctx, channel3Client: client }, async (base) => {
+    const res = await fetch(`${base}/api/products/search?q=desk&maxPrice=50&sortBy=price_asc&availability=in_stock`, {
+      headers: { Cookie: `kues_session=${ctx.sessionToken}` },
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.ok, true);
+    assert.equal(json.filters.max_price, 50);
+    assert.equal(json.filters.sort_by, 'price_asc');
+    assert.equal(json.filters.availability, 'in_stock');
+
+    for (const prod of json.products) {
+      assert.ok(prod.amountMinor <= 5000);
+      assert.equal(prod.availability, 'in_stock');
+    }
+  });
+});
