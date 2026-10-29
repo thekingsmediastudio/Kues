@@ -16,6 +16,7 @@ export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","approvalPath":"desktop"|"keyfob","orderCap":integer,"dailyCap":integer,"apps":string[],"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
   '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, approvalPath, orderCap, dailyCap, apps, or memoryPills. Include only fields the user asked to change.',
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
+  '- search_products: arguments {"query":string}; discovers real products matching a query, with merchant, price, availability, and verifiable source evidence. Use this when the user asks to find, search for, or buy products, goods, or items.',
   'For create_agent, update_agent, and rename_workspace, the application will show the exact proposed change and wait for an explicit user approval. Do not claim that a change happened before approval. New agents start Active for chat but remain preview-only; do not invent permissions, capabilities, or external integrations. No tool can activate an existing paused agent, grant external access, or bypass per-write approval. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
 ].join('\n');
 
@@ -82,7 +83,7 @@ function normalizeAgentInput(input) {
   };
 }
 
-function escapeMarkdown(value) {
+export function escapeMarkdown(value) {
   return String(value ?? '').replace(/[\\`*_{}\[\]()#+.!|>~-]/g, '\\$&');
 }
 
@@ -284,6 +285,14 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
         summary: 'Change this workspace’s display name.',
         fields: [{ label: 'Workspace name', before: safeStoredText(workspace.name, 100), value: name }],
       },
+    };
+  }
+  if (call.name === 'search_products') {
+    assertOnlyKeys(args, ['query']);
+    const query = cleanText(args.query, 'query', 200);
+    return {
+      kind: 'search_products',
+      query,
     };
   }
   throw new WorkspaceToolError('workspace_tool_not_allowed');
