@@ -5039,6 +5039,55 @@
       answerText.className = 'chat-answer-text';
       renderChatMarkdown(answerText, content);
       text.append(answerText);
+
+      const holdMatch = /\[PayPal Sandbox Hold Created:\s*(AUTH-SANDBOX-[A-Za-z0-9_-]+)\]/i.exec(content);
+      const mandateMatch = /man_[a-f0-9]{32}/i.exec(content);
+      if (holdMatch) {
+        const holdAuthId = holdMatch[1];
+        const mandateId = mandateMatch ? mandateMatch[0] : null;
+        const holdActions = document.createElement('div');
+        holdActions.className = 'workspace-tool-approval-buttons';
+        holdActions.style.marginTop = '10px';
+
+        const voidBtn = document.createElement('button');
+        voidBtn.type = 'button';
+        voidBtn.className = 'workspace-tool-void-hold-btn';
+        voidBtn.textContent = 'Void Sandbox Hold';
+        voidBtn.setAttribute('title', 'Safely void this test authorization in PayPal Sandbox');
+
+        const voidStatus = document.createElement('span');
+        voidStatus.style.fontSize = '11px';
+        voidStatus.style.color = 'var(--text-sec)';
+        voidStatus.style.marginLeft = '8px';
+        voidStatus.style.alignSelf = 'center';
+
+        voidBtn.addEventListener('click', async () => {
+          voidBtn.disabled = true;
+          voidStatus.textContent = 'Voiding PayPal Sandbox hold...';
+          try {
+            const vRes = await fetch('/api/commerce/paypal/void', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mandateId, authorizationId: holdAuthId }),
+            });
+            const vData = await vRes.json();
+            if (vRes.ok) {
+              voidStatus.textContent = `PayPal Sandbox authorization hold ${holdAuthId} voided safely.`;
+              voidStatus.style.color = 'var(--green)';
+              voidBtn.remove();
+            } else {
+              voidStatus.textContent = `Could not void hold: ${vData.message || vData.error || 'Failed'}`;
+              voidBtn.disabled = false;
+            }
+          } catch {
+            voidStatus.textContent = 'Could not void hold. Please retry.';
+            voidBtn.disabled = false;
+          }
+        });
+
+        holdActions.append(voidBtn, voidStatus);
+        text.append(holdActions);
+      }
     }
     body.append(senderLine, text);
     row.append(avatar, body);
