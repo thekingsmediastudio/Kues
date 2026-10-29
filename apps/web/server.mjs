@@ -25,6 +25,17 @@ import {
   getMandateDetails,
   evaluateSpendPolicy,
 } from './lib/channel3/mandate-service.mjs';
+import {
+  createSandboxPaymentAuthorization,
+  voidSandboxPaymentAuthorization,
+  captureSandboxPaymentAuthorization,
+  getSandboxPaymentTransaction,
+  createWalletSetupToken,
+  linkWorkspaceWallet,
+  getWorkspaceWallet,
+  unlinkWorkspaceWallet,
+  PayPalSandboxError,
+} from './lib/paypal/service.mjs';
 import { WorkOS } from '@workos-inc/node';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -429,7 +440,21 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
           mandateId: approval.payload.mandateId,
           decision: 'approve',
         });
-        message = `Authorized purchase mandate \`${mandateAuth.mandateId}\` for “${String(approval.payload.productTitle).slice(0, 50)}” ($${(mandateAuth.amountMinor / 100).toFixed(2)} ${mandateAuth.currency}).`;
+        let holdNotice = '';
+        let paymentHold = null;
+        try {
+          paymentHold = await createSandboxPaymentAuthorization({
+            db,
+            workspaceId: approval.workspaceId,
+            userId: user.id,
+            mandateId: approval.payload.mandateId,
+          });
+          holdNotice = ` [PayPal Sandbox Hold Created: ${paymentHold.authorizationId}]`;
+        } catch (holdErr) {
+          console.warn('Sandbox hold note:', holdErr.message);
+        }
+        message = `Authorized purchase mandate \`${mandateAuth.mandateId}\` for “${String(approval.payload.productTitle).slice(0, 50)}” ($${(mandateAuth.amountMinor / 100).toFixed(2)} ${mandateAuth.currency}).${holdNotice}`;
+        approval.paymentHold = paymentHold;
       } else {
         const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
         const workspace = bootstrap?.workspace;
@@ -477,6 +502,7 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
       status: body.decision === 'approve' ? 'approved' : 'rejected',
       message,
       historyUserMessage,
+      paymentHold: approval.paymentHold || null,
     };
     approval.status = 'completed';
     approval.result = result;
@@ -2425,6 +2451,198 @@ async function handleCommerceRequest(req, res, url, {
       return true;
     } catch (err) {
       sendJson(res, 400, { error: 'policy_evaluation_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/authorize') {
+    let body;
+    try { body = await readJsonBody(req, 4096); }
+    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
+
+    const mandateId = body.mandateId ? String(body.mandateId).trim() : null;
+    if (!mandateId) {
+      sendJson(res, 400, { error: 'mandate_id_required' });
+      return true;
+    }
+
+    try {
+      const transaction = await createSandboxPaymentAuthorization({
+        db,
+        workspaceId,
+        userId: user.id,
+        mandateId,
+        testPayeeEmail: body.testPayeeEmail || null,
+        vaultId: body.vaultId || null,
+        simulate: Boolean(body.simulate),
+      });
+      sendJson(res, 201, { ok: true, transaction });
+      return true;
+    } catch (err) {
+      if (err instanceof PayPalSandboxError) {
+        sendJson(res, err.statusCode, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'paypal_authorization_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/void') {
+    let body;
+    try { body = await readJsonBody(req, 4096); }
+    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
+
+    const mandateId = body.mandateId ? String(body.mandateId).trim() : null;
+    const transactionId = body.transactionId ? String(body.transactionId).trim() : null;
+    if (!mandateId && !transactionId) {
+      sendJson(res, 400, { error: 'mandate_or_transaction_id_required' });
+      return true;
+    }
+
+    try {
+      const result = await voidSandboxPaymentAuthorization({
+        db,
+        workspaceId,
+        userId: user.id,
+        mandateId,
+        transactionId,
+        reason: body.reason,
+        simulate: Boolean(body.simulate),
+      });
+      sendJson(res, 200, { ok: true, transaction: result });
+      return true;
+    } catch (err) {
+      if (err instanceof PayPalSandboxError) {
+        sendJson(res, err.statusCode, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'paypal_void_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/capture') {
+    let body;
+    try { body = await readJsonBody(req, 4096); }
+    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
+
+    const mandateId = body.mandateId ? String(body.mandateId).trim() : null;
+    const transactionId = body.transactionId ? String(body.transactionId).trim() : null;
+    if (!mandateId && !transactionId) {
+      sendJson(res, 400, { error: 'mandate_or_transaction_id_required' });
+      return true;
+    }
+
+    try {
+      const result = await captureSandboxPaymentAuthorization({
+        db,
+        workspaceId,
+        userId: user.id,
+        mandateId,
+        transactionId,
+        note: body.note,
+        simulate: Boolean(body.simulate),
+      });
+      sendJson(res, 200, { ok: true, transaction: result });
+      return true;
+    } catch (err) {
+      if (err instanceof PayPalSandboxError) {
+        sendJson(res, err.statusCode, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'paypal_capture_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/api/commerce/paypal/transactions/')) {
+    const mandateId = url.pathname.slice('/api/commerce/paypal/transactions/'.length).trim();
+    if (!mandateId) {
+      sendJson(res, 400, { error: 'mandate_id_required' });
+      return true;
+    }
+    const txInfo = await getSandboxPaymentTransaction({ db, workspaceId, mandateId });
+    if (!txInfo) {
+      sendJson(res, 404, { error: 'transaction_not_found' });
+      return true;
+    }
+    sendJson(res, 200, { ok: true, transaction: txInfo });
+    return true;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/commerce/paypal/wallet') {
+    const wallet = await getWorkspaceWallet({ db, workspaceId });
+    if (!wallet) {
+      sendJson(res, 200, { ok: true, linked: false, wallet: null });
+      return true;
+    }
+    sendJson(res, 200, { ok: true, linked: true, wallet });
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/wallet/setup-token') {
+    let body = {};
+    try { body = await readJsonBody(req, 4096); } catch {}
+    try {
+      const result = await createWalletSetupToken({
+        workspaceId,
+        userId: user.id,
+        returnUrl: body.returnUrl,
+        cancelUrl: body.cancelUrl,
+        simulate: Boolean(body.simulate),
+      });
+      sendJson(res, 201, { ok: true, ...result });
+      return true;
+    } catch (err) {
+      if (err instanceof PayPalSandboxError) {
+        sendJson(res, err.statusCode, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'setup_token_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/wallet/link') {
+    let body;
+    try { body = await readJsonBody(req, 4096); }
+    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
+
+    try {
+      const wallet = await linkWorkspaceWallet({
+        db,
+        workspaceId,
+        userId: user.id,
+        setupTokenId: body.setupTokenId,
+        vaultTokenId: body.vaultTokenId,
+        payerEmail: body.payerEmail,
+        payerId: body.payerId,
+        simulate: Boolean(body.simulate),
+      });
+      sendJson(res, 200, { ok: true, wallet });
+      return true;
+    } catch (err) {
+      if (err instanceof PayPalSandboxError) {
+        sendJson(res, err.statusCode, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'wallet_link_failed', message: err.message });
+      return true;
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/wallet/unlink') {
+    try {
+      const result = await unlinkWorkspaceWallet({ db, workspaceId, userId: user.id });
+      sendJson(res, 200, { ok: true, ...result });
+      return true;
+    } catch (err) {
+      if (err instanceof PayPalSandboxError) {
+        sendJson(res, err.statusCode, { error: err.code, message: err.message });
+        return true;
+      }
+      sendJson(res, 500, { error: 'wallet_unlink_failed', message: err.message });
       return true;
     }
   }
