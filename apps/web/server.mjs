@@ -2495,7 +2495,8 @@ async function handleCommerceRequest(req, res, url, {
 
     const mandateId = body.mandateId ? String(body.mandateId).trim() : null;
     const transactionId = body.transactionId ? String(body.transactionId).trim() : null;
-    if (!mandateId && !transactionId) {
+    const authorizationId = body.authorizationId ? String(body.authorizationId).trim() : null;
+    if (!mandateId && !transactionId && !authorizationId) {
       sendJson(res, 400, { error: 'mandate_or_transaction_id_required' });
       return true;
     }
@@ -2507,6 +2508,7 @@ async function handleCommerceRequest(req, res, url, {
         userId: user.id,
         mandateId,
         transactionId,
+        authorizationId,
         reason: body.reason,
         simulate: Boolean(body.simulate),
       });
