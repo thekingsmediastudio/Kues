@@ -201,8 +201,9 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
       if (p.imageUrl) {
         lines.push(`   ![${escapeMarkdown(p.title)}](${p.imageUrl})`);
       }
+      const sellerDomain = p.merchantDomain && p.merchantDomain !== 'unknown.example' ? ` (${p.merchantDomain})` : '';
       lines.push(`   - **Price:** ${p.priceFormatted}`);
-      lines.push(`   - **Seller:** ${escapeMarkdown(p.merchantName)} (${p.merchantDomain})`);
+      lines.push(`   - **Seller:** ${escapeMarkdown(p.merchantName)}${sellerDomain}`);
       lines.push(`   - **Status:** ${stock}`);
       if (p.url) lines.push(`   - **Link:** [View product](${p.url})`);
       lines.push(`   - **Evidence:** \`${p.evidenceHash.slice(0, 19)}...\``);
