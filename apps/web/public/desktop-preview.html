@@ -26,6 +26,7 @@
     --cue-red: #ff5b5b;
     --cue-gold: #f5b942;
     --green: #32d583;
+    --agent-accent: #32d583;
     --amber: #f5a623;
     --purple: #b57cff;
     --font: -apple-system, BlinkMacSystemFont, "Inter", "SF Pro Text", system-ui, sans-serif;
@@ -876,7 +877,7 @@
   .composer-pill {
     height: 48px;
     background: #1c1c20;
-    border: 1px solid var(--border-strong);
+    border: 1px solid color-mix(in srgb, var(--agent-accent) 42%, var(--border-strong));
     border-radius: 999px;
     padding: 0 8px 0 10px;
     display: flex;
@@ -884,7 +885,7 @@
     gap: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   }
-  .composer-pill:focus-within { border-color: rgba(255, 255, 255, 0.28); }
+  .composer-pill:focus-within { border-color: var(--agent-accent); box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 20%,transparent); }
   .comp-plus {
     width: 32px;
     height: 32px;
@@ -1370,8 +1371,8 @@
   .composer-extras { margin-bottom:9px; }
   .memory-pill,.mode-pill { background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.075); }
   .memory-pill { padding:5px 9px; }
-  .composer-pill { height:48px;background:#1f2022;border-color:rgba(255,255,255,.12);box-shadow:none;padding:0 7px;gap:7px; }
-  .composer-pill:focus-within { border-color:rgba(255,255,255,.2);box-shadow:none; }
+  .composer-pill { height:48px;background:#1f2022;border-color:color-mix(in srgb,var(--agent-accent) 42%,rgba(255,255,255,.12));box-shadow:none;padding:0 7px;gap:7px;transition:border-color .18s ease,box-shadow .18s ease; }
+  .composer-pill:focus-within { border-color:var(--agent-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 20%,transparent); }
   .comp-send { width:32px;height:32px;background:#303136;color:#7b7d84;box-shadow:none; }
   .comp-send:hover { background:#303136;transform:none; }
   .comp-plus { width:auto;min-width:64px;height:34px;padding:0 10px;gap:6px;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.085);color:#c7c8cd;font:600 10.5px var(--font); }
@@ -1506,11 +1507,13 @@
 :root[data-theme="light"] .chat-suggestion-list button{background:#fff;border-color:#dce5dc;color:#57665c}
 :root[data-theme="light"] .chat-suggestion-list button:hover{background:#f2f6ef;color:#1e3225}
   :root[data-theme="light"] .grok-computer-card,:root[data-theme="light"] .cue-hold-card,:root[data-theme="light"] .settings-modal,:root[data-theme="light"] .new-agent-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
+  :root[data-theme="light"] .new-agent-preview-active{border-color:#b8e5ca;background:#edf8f1;color:#267347}
   :root[data-theme="light"] .d-card,:root[data-theme="light"] .app-tile,:root[data-theme="light"] .pay-card-item{background:#f7f9f6;border-color:#dfe7df;color:#243629}
   :root[data-theme="light"] .modal-sidebar{background:#f1f5ef;border-color:#e1e8df}
   :root[data-theme="light"] .modal-header,:root[data-theme="light"] .modal-sidebar{border-color:#e1e8df}
   :root[data-theme="light"] .modal-header-title,:root[data-theme="light"] .d-card-val,:root[data-theme="light"] .d-card-lbl,:root[data-theme="light"] .agent-modal-title{color:#25382b}
-  :root[data-theme="light"] .form-input,:root[data-theme="light"] .search-box,:root[data-theme="light"] .composer-pill{background:#fff;border-color:#dbe4da;color:#243629}
+  :root[data-theme="light"] .form-input,:root[data-theme="light"] .search-box,:root[data-theme="light"] .composer-pill{background:#fff;border-color:color-mix(in srgb,var(--agent-accent) 42%,#dbe4da);color:#243629}
+  :root[data-theme="light"] .composer-pill:focus-within{border-color:var(--agent-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 20%,transparent)}
   :root[data-theme="light"] .composer-pill input,:root[data-theme="light"] .form-input{color:#243629}
   :root[data-theme="light"] .account-menu,:root[data-theme="light"] .plus-popover{background:#fff;border-color:#dce5dc;box-shadow:0 18px 45px rgba(25,45,30,.16)}
   :root[data-theme="light"] .account-menu-user{border-color:#e3e9e1}
@@ -1800,8 +1803,8 @@
   .new-agent-preview-card{--preview-color:#32d583;display:flex;flex-direction:column;gap:8px;padding:10px 13px 8px;border:1px solid rgba(255,255,255,.11);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
   .new-agent-preview-topline,.new-agent-preview-identity,.new-agent-color-footer{display:flex;align-items:center}
   .new-agent-preview-topline{justify-content:space-between;color:var(--text-dim);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
-  .new-agent-preview-paused{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid rgba(245,185,66,.2);border-radius:999px;background:rgba(245,185,66,.08);color:#e7c77e;font-size:9px;letter-spacing:.04em;text-transform:none}
-  .new-agent-preview-paused svg{width:12px;height:12px}
+  .new-agent-preview-active{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid rgba(50,213,131,.24);border-radius:999px;background:rgba(50,213,131,.09);color:#87e2ae;font-size:9px;letter-spacing:.04em;text-transform:none}
+  .new-agent-preview-active svg{width:12px;height:12px;flex:none}
   .new-agent-preview-identity{gap:12px;min-width:0}
   .new-agent-preview-avatar{width:56px;height:56px;display:grid;place-items:center;flex:0 0 56px;border:1px solid color-mix(in srgb,var(--preview-color) 38%,transparent);border-radius:16px;background:color-mix(in srgb,var(--preview-color) 13%,transparent);transition:background .18s ease,border-color .18s ease}
   .new-agent-preview-avatar .agent-avatar-art{width:46px;height:46px;display:block;overflow:visible;animation:none!important}
@@ -2062,7 +2065,7 @@
               <button class="pill-btn light" id="settingsOpenNewAgentPreview" type="button">Create a new agent</button>
             </div>
             <div class="app-settings-card settings-agent-editor" id="settingsAgentEditorCard" hidden>
-              <div class="app-settings-card-header"><h3 id="settingsAgentEditorTitle">Agent settings</h3><span class="app-settings-status neutral" id="settingsAgentPausedState">Paused</span></div>
+              <div class="app-settings-card-header"><h3 id="settingsAgentEditorTitle">Agent settings</h3><span class="app-settings-status neutral" id="settingsAgentStatusBadge">Status</span></div>
               <form class="settings-form" id="settingsAgentForm">
                 <div class="settings-agent-preview">
                   <span class="settings-agent-preview-avatar" id="settingsAgentPreviewAvatar" aria-hidden="true"></span>
@@ -2202,9 +2205,9 @@
       </div>
       <div class="modal-body">
         <form class="new-agent-form" id="newAgentForm">
-          <p class="new-agent-form-intro">New agents are saved as paused and will not run automatically.</p>
+          <p class="new-agent-form-intro">New agents start Active for chat; integrations stay disconnected and workspace writes still require your approval.</p>
           <section class="new-agent-preview-card" aria-label="Live agent preview">
-            <div class="new-agent-preview-topline"><span>Live preview</span><span class="new-agent-preview-paused"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5h2v9H5zm4 0h2v9H9z" fill="currentColor"/></svg>Paused</span></div>
+            <div class="new-agent-preview-topline"><span>Live preview</span><span class="new-agent-preview-active"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.5" fill="currentColor"/></svg>Active · preview-only</span></div>
             <div class="new-agent-preview-identity">
               <span class="new-agent-preview-avatar" id="newAgentPreviewAvatar" aria-hidden="true"></span>
               <span class="new-agent-preview-copy"><strong id="newAgentPreviewName">New agent</strong><small id="newAgentPreviewRole">Choose a role to preview it here</small></span>
@@ -2667,7 +2670,7 @@
       checkbox.checked = apps.includes(checkbox.value);
     });
     const status = String(agent.status || 'paused').toLowerCase();
-    textById('settingsAgentPausedState', status === 'paused' ? 'Paused' : status.charAt(0).toUpperCase() + status.slice(1));
+    textById('settingsAgentStatusBadge', status.charAt(0).toUpperCase() + status.slice(1));
     textById('settingsAgentEditorTitle', `${agent.name || 'Agent'} settings`);
     textById('settingsAgentPreviewName', agent.name || 'Agent');
     textById('settingsAgentPreviewRole', agent.role || 'Role not set');
@@ -2933,6 +2936,12 @@
       ? data.agents.filter((entry) => entry && entry.id)
       : (data?.onboarding?.agent?.id ? [data.onboarding.agent] : []);
     return agents;
+  }
+
+  function setSelectedAgentComposerAccent(agent) {
+    const profileAgent = currentBootstrap?.onboarding?.profile?.agent || {};
+    const color = safeAvatarColor(agent?.settings?.color || agent?.color || profileAgent.color || '#32d583');
+    document.documentElement.style.setProperty('--agent-accent', color);
   }
 
   function findSelectedChatAgent() {
@@ -3578,6 +3587,7 @@
       renderedChatAgentId = nextId;
     }
     selectedAgentId = nextId;
+    setSelectedAgentComposerAccent(agent);
     renderSavedAgentRows(agentsFromBootstrap(), agent);
     const avatar = document.getElementById('hdrAvatar');
     if (avatar) avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', agent.settings?.color || '#32d583');
@@ -4136,7 +4146,7 @@
       completedAt: '2026-10-27T00:00:00.000Z',
       profile: { agent: { name: 'Route Scout', role: 'Read-only assistant', avatar: 'magnifier', color: '#32d583' } },
       agent: {
-        id: 'onb_review_fixture', name: 'Route Scout', role: 'Read-only assistant', avatar: 'magnifier', status: 'paused',
+        id: 'onb_review_fixture', name: 'Route Scout', role: 'Read-only assistant', avatar: 'magnifier', status: 'active',
         settings: { color: '#32d583' },
       },
     },
@@ -4166,7 +4176,7 @@
     textById('accountMenuLabel', 'Sample review account');
     textById('accountMenuWorkspace', 'Review Workspace - Sample data');
     const row = document.getElementById('savedAgentRow');
-    if (row) row.setAttribute('aria-label', 'Sample review agent profile, active chat, status Paused, display only');
+    if (row) row.setAttribute('aria-label', 'Sample review agent profile, active chat, status Active, display only');
     const createButton = document.getElementById('createNewAgentButton');
     if (createButton) createButton.disabled = true;
     textById('newAgentFormStatus', 'This sample review account is not authenticated and cannot save agents.');
@@ -4178,6 +4188,7 @@
     clearAdminChatControls();
     setAdminChatDiagnostics(null);
     currentBootstrap = null;
+    setSelectedAgentComposerAccent(null);
     chatHistoryLoadVersion += 1;
     chatAvailable = false;
     chatPending = false;
@@ -4229,6 +4240,7 @@
     let agent = selectedAgentId ? agents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
     if (!agent) agent = agents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || agents[0] || onboarding.agent || profileAgent;
     selectedAgentId = agent?.id ? String(agent.id) : null;
+    setSelectedAgentComposerAccent(agent);
     const chatAgentChanged = selectedAgentId !== renderedChatAgentId;
     if (chatAgentChanged) {
       setAdminChatDiagnostics(null);
