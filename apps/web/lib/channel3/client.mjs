@@ -414,10 +414,40 @@ export function createChannel3Client({
       }
     }
 
+    const channel3Filters = {};
+    if (isRecord(filters)) {
+      const priceFilter = {};
+      if (Number.isFinite(filters.min_price)) priceFilter.min_price = filters.min_price;
+      if (Number.isFinite(filters.max_price)) priceFilter.max_price = filters.max_price;
+      if (isRecord(filters.price)) {
+        if (Number.isFinite(filters.price.min_price)) priceFilter.min_price = filters.price.min_price;
+        if (Number.isFinite(filters.price.max_price)) priceFilter.max_price = filters.price.max_price;
+      }
+      if (Object.keys(priceFilter).length > 0) {
+        channel3Filters.price = priceFilter;
+      }
+
+      if (Array.isArray(filters.availability)) {
+        channel3Filters.availability = filters.availability;
+      } else if (filters.availability === 'in_stock') {
+        channel3Filters.availability = ['InStock', 'LimitedAvailability'];
+      }
+
+      if (filters.category && typeof filters.category === 'string') {
+        channel3Filters.category = filters.category;
+      }
+      if (filters.gender && typeof filters.gender === 'string') {
+        channel3Filters.gender = filters.gender;
+      }
+      if (Array.isArray(filters.brand_ids)) {
+        channel3Filters.brand_ids = filters.brand_ids;
+      }
+    }
+
     const payload = {
       query: cleanQuery,
       limit: cleanLimit,
-      ...(isRecord(filters) ? { filters } : {}),
+      ...(Object.keys(channel3Filters).length > 0 ? { filters: channel3Filters } : {}),
     };
 
     let response;
@@ -453,11 +483,24 @@ export function createChannel3Client({
       : (Array.isArray(data?.results) ? data.results : []);
 
     const observedAt = new Date().toISOString();
-    const products = rawList.slice(0, cleanLimit).map((item) => normalizeProduct(item, {
+    let products = rawList.slice(0, cleanLimit).map((item) => normalizeProduct(item, {
       source: 'channel3',
       isLive: true,
       observedAt,
     }));
+
+    if (isRecord(filters)) {
+      if (filters.merchant_domain) {
+        const domainTerm = String(filters.merchant_domain).toLowerCase();
+        const filtered = products.filter((item) => String(item.merchantDomain || '').toLowerCase().includes(domainTerm));
+        if (filtered.length > 0) products = filtered;
+      }
+      if (filters.sort_by === 'price_asc') {
+        products.sort((a, b) => (a.amountMinor || 0) - (b.amountMinor || 0));
+      } else if (filters.sort_by === 'price_desc') {
+        products.sort((a, b) => (b.amountMinor || 0) - (a.amountMinor || 0));
+      }
+    }
 
     return {
       query: cleanQuery,

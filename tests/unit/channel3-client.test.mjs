@@ -254,6 +254,43 @@ test('searchProducts executes POST request with server-only key and normalizes l
   assert.match(result.products[0].evidenceHash, /^sha256:[a-f0-9]{64}$/);
 });
 
+test('searchProducts nests price filters under filters.price and formats availability as an array for Channel3 API', async () => {
+  let capturedBody;
+  const mockFetch = async (_url, opts) => {
+    capturedBody = JSON.parse(opts.body);
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return { query: 'running shoes', products: [] };
+      },
+    };
+  };
+
+  const client = createChannel3Client({
+    apiKey: 'sk_test_key',
+    baseUrl: 'https://api.trychannel3.com',
+    fetchImpl: mockFetch,
+    resolveHost: async () => [{ address: '93.184.216.34', family: 4 }],
+  });
+
+  await client.searchProducts({
+    query: 'running shoes',
+    limit: 10,
+    filters: {
+      min_price: 50,
+      max_price: 150,
+      availability: 'in_stock',
+    },
+  });
+
+  assert.deepEqual(capturedBody.filters, {
+    price: { min_price: 50, max_price: 150 },
+    availability: ['InStock', 'LimitedAvailability'],
+  });
+  assert.equal(capturedBody.filters.max_price, undefined, 'max_price must NOT be at top level of filters');
+});
+
 test('searchProducts propagates upstream HTTP errors honestly without credential leakage', async () => {
   const mockFetch = async () => ({
     ok: false,

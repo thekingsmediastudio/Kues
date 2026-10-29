@@ -201,7 +201,15 @@ export async function discoverProducts({
 
   let searchResult;
   if (channel3Client.isConfigured()) {
-    searchResult = await channel3Client.searchProducts({ query, limit, filters });
+    try {
+      searchResult = await channel3Client.searchProducts({ query, limit, filters });
+    } catch (err) {
+      if (allowFixtureFallback) {
+        searchResult = channel3Client.searchSampleProducts({ query, limit, filters });
+      } else {
+        throw err;
+      }
+    }
   } else if (allowFixtureFallback || mode === 'demo') {
     searchResult = channel3Client.searchSampleProducts({ query, limit, filters });
   } else {
