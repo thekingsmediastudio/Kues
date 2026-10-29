@@ -836,3 +836,157 @@ test('send button is active only when text is typed and turns into a square stop
   assert.equal(sendButton.innerHTML, '<svg class="send"></svg>');
   assert.equal(sendButton.disabled, true);
 });
+
+test('products card grid renders 3-per-row layout and collapses items beyond two rows (6 cards) behind Show more', () => {
+  const start = desktopHtml.indexOf('  function safeChatMarkdownHref');
+  const end = desktopHtml.indexOf('  function createAssistantChatMessage', start);
+  assert.ok(start >= 0 && end > start);
+  const rendererSource = desktopHtml.slice(start, end);
+
+  class MockClassList {
+    constructor() { this.classes = new Set(); }
+    add(c) { this.classes.add(c); }
+    remove(c) { this.classes.delete(c); }
+    has(c) { return this.classes.has(c); }
+    contains(c) { return this.classes.has(c); }
+    toggle(c) {
+      if (this.classes.has(c)) { this.classes.delete(c); return false; }
+      this.classes.add(c); return true;
+    }
+    toString() { return Array.from(this.classes).join(' '); }
+  }
+
+  class MockNode {
+    constructor(tag) {
+      this.tagName = tag;
+      this.children = [];
+      this.attributes = {};
+      this.classList = new MockClassList();
+      this.value = '';
+      this.listeners = {};
+    }
+    get className() { return this.classList.toString(); }
+    set className(val) {
+      this.classList = new MockClassList();
+      for (const c of String(val || '').split(/\s+/).filter(Boolean)) this.classList.add(c);
+    }
+    append(...nodes) {
+      for (const n of nodes) {
+        if (typeof n === 'string') this.children.push(new MockNode('#text'));
+        else this.children.push(n);
+      }
+    }
+    prepend(...nodes) {
+      for (const n of nodes.reverse()) {
+        this.children.unshift(typeof n === 'string' ? new MockNode('#text') : n);
+      }
+    }
+    remove() { this.removed = true; }
+    replaceChildren(...nodes) { this.children = nodes; this.value = ''; }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+    getAttribute(name) { return this.attributes[name] || null; }
+    set textContent(value) { this.value = String(value); this.children = []; }
+    get textContent() { return this.value + this.children.map((node) => node.textContent).join(''); }
+    addEventListener(event, fn) {
+      this.listeners[event] = this.listeners[event] || [];
+      this.listeners[event].push(fn);
+    }
+    dispatchEvent(event) {
+      const e = typeof event === 'string' ? { type: event, preventDefault() {} } : event;
+      for (const fn of (this.listeners[e.type] || [])) fn(e);
+    }
+    querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
+    querySelectorAll(sel) {
+      const results = [];
+      const walk = (node) => {
+        for (const c of node.children) {
+          if (sel.startsWith('.') && c.classList && c.classList.contains(sel.slice(1))) results.push(c);
+          else if (c.tagName === sel) results.push(c);
+          walk(c);
+        }
+      };
+      walk(this);
+      return results;
+    }
+  }
+
+  const doc = {
+    createElement(tag) { return new MockNode(tag); },
+    createElementNS(ns, tag) { return new MockNode(tag); },
+    createTextNode(val) { const n = new MockNode('#text'); n.textContent = val; return n; },
+  };
+
+  const { buildProductsCardGrid, renderChatMarkdown } = new Function(
+    'document',
+    'window',
+    `${rendererSource}; return { buildProductsCardGrid, renderChatMarkdown };`,
+  )(doc, { location: { href: 'https://kues.example/chat' } });
+
+  // 1. Test 9 products (> 6 cards): collapses extra 3 cards and renders toggle button
+  const nineProducts = [
+    ':::products-grid',
+    '1. **Ceramic Tabletop Bundle (4 Pieces)** by Studio Kera\n   ![Ceramic Bundle](https://example.com/c1.jpg)\n   - **Price:** $78.50 USD\n   - **Seller:** Studio Kera (studiokera.example.com)\n   - **Status:** In Stock\n   - **Link:** [View product](https://example.com/c1)\n   - **Evidence:** `sha256:d839bb045bb6...`',
+    '2. **Classic Merino Wool Crewneck Sweater** by Nordic Knitwear\n   - **Price:** $84.00 USD\n   - **Seller:** Nordic Knitwear\n   - **Status:** In Stock',
+    '3. **Dual-Sided Vegan Leather Desk Mat**\n   - **Price:** $38.00 USD',
+    '4. **Solid Brass Architect Ruler 30cm**\n   - **Price:** $24.50 USD',
+    '5. **Hardcover Linen Grid Notebook (A5)**\n   - **Price:** $22.00 USD',
+    '6. **Stoneware Pour-Over Dripper & Mug Set**\n   - **Price:** $46.00 USD',
+    '7. **Precision Mechanical Drafting Pencil**\n   - **Price:** $32.00 USD',
+    '8. **Solid White Oak Desktop Organizer Tray**\n   - **Price:** $54.00 USD',
+    '9. **Ribbed British Lambswool Knit Beanie**\n   - **Price:** $36.00 USD',
+    ':::',
+  ].join('\n\n');
+
+  const grid = buildProductsCardGrid(nineProducts);
+  assert.ok(grid, 'Grid container should be created');
+  assert.ok(grid.classList.contains('products-grid-container'));
+  assert.ok(grid.classList.contains('is-collapsed'), 'Container should start collapsed when cards > 6');
+
+  const cards = grid.querySelectorAll('.product-card');
+  assert.equal(cards.length, 9, 'All 9 product cards should be rendered in the DOM');
+
+  const overflowCards = grid.querySelectorAll('.product-card-overflow');
+  assert.equal(overflowCards.length, 3, 'Cards beyond 2 rows (6 cards) should have overflow class');
+
+  const toggleBtn = grid.querySelector('.products-grid-toggle-btn');
+  assert.ok(toggleBtn, 'Toggle button must be rendered for > 6 products');
+  assert.equal(toggleBtn.getAttribute('aria-expanded'), 'false');
+  assert.match(toggleBtn.textContent, /Show 3 more products/);
+
+  // Click toggle to expand
+  toggleBtn.dispatchEvent({ type: 'click', preventDefault() {} });
+  assert.equal(grid.classList.contains('is-collapsed'), false, 'Grid should not have is-collapsed class after expansion');
+  assert.equal(toggleBtn.getAttribute('aria-expanded'), 'true');
+  assert.equal(toggleBtn.textContent, 'Show less');
+
+  // Click toggle again to collapse
+  toggleBtn.dispatchEvent({ type: 'click', preventDefault() {} });
+  assert.equal(grid.classList.contains('is-collapsed'), true, 'Grid should collapse again on second click');
+  assert.equal(toggleBtn.getAttribute('aria-expanded'), 'false');
+  assert.match(toggleBtn.textContent, /Show 3 more products/);
+
+  // 2. Test <= 6 products (5 products): fits within 2 rows, no toggle button
+  const fiveProducts = [
+    ':::products-grid',
+    '1. **P1** by B1\n   - **Price:** $10.00 USD',
+    '2. **P2** by B2\n   - **Price:** $20.00 USD',
+    '3. **P3** by B3\n   - **Price:** $30.00 USD',
+    '4. **P4** by B4\n   - **Price:** $40.00 USD',
+    '5. **P5** by B5\n   - **Price:** $50.00 USD',
+    ':::',
+  ].join('\n\n');
+
+  const smallGrid = buildProductsCardGrid(fiveProducts);
+  assert.ok(smallGrid);
+  assert.equal(smallGrid.classList.contains('is-collapsed'), false);
+  assert.equal(smallGrid.querySelectorAll('.product-card').length, 5);
+  assert.equal(smallGrid.querySelectorAll('.product-card-overflow').length, 0);
+  assert.equal(smallGrid.querySelector('.products-grid-toggle-btn'), null, 'No toggle button when cards <= 6');
+
+  // 3. Test renderChatMarkdown end-to-end integration with products grid block
+  const root = new MockNode('div');
+  renderChatMarkdown(root, `Discovered products:\n\n${nineProducts}\n\n*Source:* Channel3 (Sample Fixtures)`);
+  const rootGrid = root.querySelector('.products-grid-container');
+  assert.ok(rootGrid, 'renderChatMarkdown should render .products-grid-container');
+  assert.equal(rootGrid.querySelectorAll('.product-card').length, 9);
+});
