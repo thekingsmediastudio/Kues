@@ -97,6 +97,42 @@ test('normalizeProduct extracts structured fields, minor-unit prices, and mercha
   assert.match(normalized.evidenceHash, /^sha256:[a-f0-9]{64}$/);
 });
 
+test('normalizeProduct safely handles object brands, nested price shapes, and derives merchant from domain when unknown', () => {
+  const rawWithNestedPrice = {
+    id: 'prod_nested_123',
+    title: 'Precision Ergonomic Keyboard',
+    brand: { name: 'Keychron' },
+    images: [{ url: 'https://example.com/keyboard.jpg' }],
+    offers: [
+      {
+        merchant_domain: 'keychron.example.com',
+        price: { price: 189.5, currency: 'USD' },
+        availability: 'InStock',
+        url: 'https://keychron.example.com/keyboard',
+      },
+    ],
+  };
+
+  const normalizedNested = normalizeProduct(rawWithNestedPrice);
+  assert.equal(normalizedNested.brand, 'Keychron');
+  assert.equal(normalizedNested.merchantName, 'Keychron');
+  assert.equal(normalizedNested.merchantDomain, 'keychron.example.com');
+  assert.equal(normalizedNested.amountMinor, 18950);
+  assert.equal(normalizedNested.priceFormatted, '$189.50 USD');
+
+  const rawZeroPrice = {
+    id: 'prod_zero_123',
+    title: 'Custom Enterprise Suite',
+    merchant_domain: 'acme-corp.example.com',
+  };
+
+  const normalizedZero = normalizeProduct(rawZeroPrice);
+  assert.equal(normalizedZero.amountMinor, 0);
+  assert.equal(normalizedZero.priceFormatted, 'Price on request');
+  assert.notEqual(normalizedZero.merchantName, 'Unknown seller');
+  assert.equal(normalizedZero.merchantDomain, 'acme-corp.example.com');
+});
+
 test('searchProducts fails honestly when unconfigured or given an empty query', async () => {
   const unconfigured = createChannel3Client({ apiKey: '' });
   await assert.rejects(
