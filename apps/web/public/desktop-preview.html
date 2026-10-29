@@ -586,6 +586,235 @@
   }
 
   /* =========================================================
+     PRODUCT CARD GRID & SHOW MORE
+     ========================================================= */
+  .products-grid-container {
+    margin: 12px 0 16px;
+    width: 100%;
+  }
+
+  .products-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+  }
+
+  .products-grid-container.is-collapsed .product-card-overflow {
+    display: none !important;
+  }
+
+  .product-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card, #171b22);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+    border-radius: 10px;
+    overflow: hidden;
+    height: 100%;
+    box-sizing: border-box;
+    transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  .product-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+  }
+
+  .product-card-media {
+    position: relative;
+    width: 100%;
+    height: 128px;
+    background: rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .product-card-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.22s ease;
+  }
+
+  .product-card:hover .product-card-image {
+    transform: scale(1.04);
+  }
+
+  .product-card-media-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-sec, #94a3b8);
+  }
+
+  .product-card-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 2;
+  }
+
+  .product-card-badge.badge-in-stock {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+  }
+
+  .product-card-badge.badge-status {
+    background: rgba(148, 163, 184, 0.18);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+  }
+
+  .product-card-body {
+    padding: 11px 12px 13px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .product-card-brand {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-sec, #94a3b8);
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .product-card-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-main, #f8fafc);
+    line-height: 1.35;
+    margin: 0 0 6px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 34px;
+  }
+
+  .product-card-price {
+    font-size: 14px;
+    font-weight: 700;
+    color: #38bdf8;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .product-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 10px;
+    font-size: 10.5px;
+    color: var(--text-sec, #94a3b8);
+  }
+
+  .product-card-merchant,
+  .product-card-evidence {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .product-card-evidence {
+    font-family: var(--mono, ui-monospace, monospace);
+    font-size: 9.5px;
+    opacity: 0.75;
+  }
+
+  .product-card-action-btn {
+    margin-top: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.12));
+    color: var(--text-main, #e2e8f0) !important;
+    font-size: 11px;
+    font-weight: 550;
+    text-decoration: none !important;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .product-card-action-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #ffffff !important;
+  }
+
+  .products-grid-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px dashed var(--border-strong, rgba(255, 255, 255, 0.14));
+    border-radius: 8px;
+    color: var(--text-sec, #94a3b8);
+    font-size: 12px;
+    font-weight: 550;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+
+  .products-grid-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: var(--text-sec, #cbd5e1);
+    color: var(--text-main, #f1f5f9);
+  }
+
+  .toggle-btn-chevron {
+    transition: transform 0.2s ease;
+  }
+
+  .products-grid-container:not(.is-collapsed) .toggle-btn-chevron {
+    transform: rotate(180deg);
+  }
+
+  @media (max-width: 960px) {
+    .products-card-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 580px) {
+    .products-card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* =========================================================
      GROK BOT INLINE "COMPUTER" WINDOW CARD
      ========================================================= */
   .grok-computer-card {
@@ -1515,6 +1744,15 @@
 :root[data-theme="light"] .chat-suggestion-list button{background:#fff;border-color:#dce5dc;color:#57665c}
 :root[data-theme="light"] .chat-suggestion-list button:hover{background:#f2f6ef;color:#1e3225}
 :root[data-theme="light"] .chat-answer-text img{border-color:#dce5dc;background:#fff;box-shadow:0 4px 12px rgba(25,45,30,.08)}
+  :root[data-theme="light"] .product-card{background:#fff;border-color:#dce5dc;box-shadow:0 2px 8px rgba(25,45,30,.04)}
+  :root[data-theme="light"] .product-card:hover{border-color:#a7bfae;box-shadow:0 6px 18px rgba(25,45,30,.08)}
+  :root[data-theme="light"] .product-card-media{background:#f1f4f1}
+  :root[data-theme="light"] .product-card-title{color:#1e3225}
+  :root[data-theme="light"] .product-card-price{color:#0284c7}
+  :root[data-theme="light"] .product-card-action-btn{background:#f4f6f4;border-color:#dce5dc;color:#243629!important}
+  :root[data-theme="light"] .product-card-action-btn:hover{background:#e9eee9;color:#111827!important}
+  :root[data-theme="light"] .products-grid-toggle-btn{background:#f7f9f7;border-color:#d2ddd2;color:#4b5d51}
+  :root[data-theme="light"] .products-grid-toggle-btn:hover{background:#eef3ee;color:#1e3225}
   :root[data-theme="light"] .grok-computer-card,:root[data-theme="light"] .cue-hold-card,:root[data-theme="light"] .settings-modal,:root[data-theme="light"] .new-agent-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
   :root[data-theme="light"] .new-agent-preview-active{border-color:#b8e5ca;background:#edf8f1;color:#267347}
   :root[data-theme="light"] .d-card,:root[data-theme="light"] .app-tile,:root[data-theme="light"] .pay-card-item{background:#f7f9f6;border-color:#dfe7df;color:#243629}
@@ -3154,6 +3392,270 @@
     return cells;
   }
 
+  function parseProductItems(text) {
+    const cleanText = (str) => String(str || '').replace(/\\([\\`*_{}\[\]()#+.!|>~-])/g, '$1');
+    const items = [];
+    const lines = String(text || '').split('\n');
+    let current = null;
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const itemStart = line.match(/^\s*(\d+)[.)]\s+\*\*(.*?)\*\*(?:\s+by\s+(.*?))?\s*$/);
+      if (itemStart) {
+        if (current) items.push(current);
+        current = {
+          title: cleanText(itemStart[2]).trim(),
+          brand: itemStart[3] ? cleanText(itemStart[3]).trim() : '',
+          imageUrl: '',
+          price: '',
+          seller: '',
+          domain: '',
+          status: '',
+          link: '',
+          evidence: '',
+        };
+        continue;
+      }
+      if (!current) continue;
+
+      const imgMatch = line.match(/!\[(.*?)\]\((https?:\/\/[^\s)]+)\)/);
+      if (imgMatch) {
+        current.imageUrl = safeChatMarkdownHref(imgMatch[2]);
+        continue;
+      }
+
+      const priceMatch = line.match(/-\s+\*\*Price:?\*\*:?\s*(.+)/i);
+      if (priceMatch) {
+        current.price = cleanText(priceMatch[1]).trim();
+        continue;
+      }
+
+      const sellerMatch = line.match(/-\s+\*\*Seller:?\*\*:?\s*(.*?)(?:\s*\((.*?)\))?$/i);
+      if (sellerMatch) {
+        current.seller = cleanText(sellerMatch[1]).trim();
+        current.domain = sellerMatch[2] ? cleanText(sellerMatch[2]).trim() : '';
+        continue;
+      }
+
+      const statusMatch = line.match(/-\s+\*\*Status:?\*\*:?\s*(.+)/i);
+      if (statusMatch) {
+        current.status = cleanText(statusMatch[1]).trim();
+        continue;
+      }
+
+      const linkMatch = line.match(/-\s+\*\*Link:?\*\*:?\s*\[(.*?)\]\((https?:\/\/[^\s)]+)\)/i);
+      if (linkMatch) {
+        current.link = safeChatMarkdownHref(linkMatch[2]);
+        continue;
+      }
+
+      const evidenceMatch = line.match(/-\s+\*\*Evidence:?\*\*:?\s*`?([a-zA-Z0-9_:.…-]+)`?/i);
+      if (evidenceMatch) {
+        current.evidence = cleanText(evidenceMatch[1]).replace(/[`*]/g, '').trim();
+        continue;
+      }
+    }
+    if (current) items.push(current);
+    return items;
+  }
+
+  function createProductPlaceholder() {
+    const ph = document.createElement('div');
+    ph.className = 'product-card-media-placeholder';
+    ph.setAttribute('aria-hidden', 'true');
+    const svg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
+    svg.setAttribute('width', '32');
+    svg.setAttribute('height', '32');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.6');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('opacity', '0.38');
+    const rect = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'rect') : document.createElement('rect');
+    rect.setAttribute('x', '2');
+    rect.setAttribute('y', '7');
+    rect.setAttribute('width', '20');
+    rect.setAttribute('height', '14');
+    rect.setAttribute('rx', '2');
+    rect.setAttribute('ry', '2');
+    const path = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'path') : document.createElement('path');
+    path.setAttribute('d', 'M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16');
+    svg.append(rect, path);
+    ph.append(svg);
+    return ph;
+  }
+
+  function buildProductsCardGrid(markdownContent) {
+    const items = parseProductItems(markdownContent);
+    if (!items.length) return null;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'products-grid-container';
+
+    const grid = document.createElement('div');
+    grid.className = 'products-card-grid';
+
+    // In a 3-per-row grid, 2 rows = 6 items. If more than 6, collapse excess behind Show More.
+    const COLLAPSED_LIMIT = 6;
+    const hasOverflow = items.length > COLLAPSED_LIMIT;
+    if (hasOverflow) {
+      wrapper.classList.add('is-collapsed');
+    }
+
+    items.forEach((item, index) => {
+      const card = document.createElement('article');
+      card.className = 'product-card';
+      if (index >= COLLAPSED_LIMIT) {
+        card.classList.add('product-card-overflow');
+      }
+
+      const media = document.createElement('div');
+      media.className = 'product-card-media';
+
+      if (item.imageUrl) {
+        const img = document.createElement('img');
+        img.className = 'product-card-image';
+        img.setAttribute('src', item.imageUrl);
+        img.setAttribute('alt', item.title || 'Product image');
+        img.setAttribute('loading', 'lazy');
+        const placeholder = createProductPlaceholder();
+        img.onerror = () => {
+          img.remove();
+          media.prepend(placeholder);
+        };
+        media.append(img);
+      } else {
+        media.append(createProductPlaceholder());
+      }
+
+      if (item.status) {
+        const badge = document.createElement('span');
+        const isAvailable = /in\s*stock/i.test(item.status);
+        badge.className = `product-card-badge ${isAvailable ? 'badge-in-stock' : 'badge-status'}`;
+        badge.textContent = item.status;
+        media.append(badge);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'product-card-body';
+
+      if (item.brand) {
+        const brand = document.createElement('div');
+        brand.className = 'product-card-brand';
+        brand.textContent = item.brand;
+        body.append(brand);
+      }
+
+      const title = document.createElement('h4');
+      title.className = 'product-card-title';
+      title.textContent = item.title;
+      title.setAttribute('title', item.title);
+      body.append(title);
+
+      if (item.price) {
+        const price = document.createElement('div');
+        price.className = 'product-card-price';
+        price.textContent = item.price;
+        body.append(price);
+      }
+
+      const meta = document.createElement('div');
+      meta.className = 'product-card-meta';
+
+      if (item.seller || item.domain) {
+        const seller = document.createElement('div');
+        seller.className = 'product-card-merchant';
+        const merchantDisplay = item.seller || item.domain;
+        seller.textContent = merchantDisplay;
+        if (item.domain && item.domain !== merchantDisplay) {
+          seller.setAttribute('title', item.domain);
+        }
+        meta.append(seller);
+      }
+
+      if (item.evidence) {
+        const evidence = document.createElement('div');
+        evidence.className = 'product-card-evidence';
+        evidence.setAttribute('title', `Verified SHA-256 evidence: ${item.evidence}`);
+        evidence.textContent = item.evidence.length > 20 ? `${item.evidence.slice(0, 16)}…` : item.evidence;
+        meta.append(evidence);
+      }
+      body.append(meta);
+
+      if (item.link) {
+        const link = document.createElement('a');
+        link.className = 'product-card-action-btn';
+        link.setAttribute('href', item.link);
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+        const linkSpan = document.createElement('span');
+        linkSpan.textContent = 'View product';
+        const linkSvg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
+        linkSvg.setAttribute('width', '12');
+        linkSvg.setAttribute('height', '12');
+        linkSvg.setAttribute('viewBox', '0 0 16 16');
+        linkSvg.setAttribute('fill', 'none');
+        linkSvg.setAttribute('stroke', 'currentColor');
+        linkSvg.setAttribute('stroke-width', '2');
+        linkSvg.setAttribute('stroke-linecap', 'round');
+        linkSvg.setAttribute('stroke-linejoin', 'round');
+        const linkPath = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'path') : document.createElement('path');
+        linkPath.setAttribute('d', 'M5 11l6-6M5 5h6v6');
+        linkSvg.append(linkPath);
+        link.append(linkSpan, linkSvg);
+        body.append(link);
+      }
+
+      card.append(media, body);
+      grid.append(card);
+    });
+
+    wrapper.append(grid);
+
+    if (hasOverflow) {
+      const extraCount = items.length - COLLAPSED_LIMIT;
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'products-grid-toggle-btn';
+      toggleBtn.setAttribute('aria-expanded', 'false');
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'toggle-btn-label';
+      labelSpan.textContent = `Show ${extraCount} more product${extraCount === 1 ? '' : 's'}`;
+
+      const iconSvg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
+      iconSvg.setAttribute('class', 'toggle-btn-chevron');
+      iconSvg.setAttribute('viewBox', '0 0 16 16');
+      iconSvg.setAttribute('width', '14');
+      iconSvg.setAttribute('height', '14');
+      iconSvg.setAttribute('fill', 'none');
+      iconSvg.setAttribute('stroke', 'currentColor');
+      iconSvg.setAttribute('stroke-width', '2');
+      iconSvg.setAttribute('stroke-linecap', 'round');
+      iconSvg.setAttribute('stroke-linejoin', 'round');
+      const polyline = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'polyline') : document.createElement('polyline');
+      polyline.setAttribute('points', '4 6 8 10 12 6');
+      iconSvg.append(polyline);
+
+      toggleBtn.append(labelSpan, iconSvg);
+
+      toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isCollapsed = wrapper.classList.toggle('is-collapsed');
+        toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+        labelSpan.textContent = isCollapsed
+          ? `Show ${extraCount} more product${extraCount === 1 ? '' : 's'}`
+          : 'Show less';
+      });
+
+      wrapper.append(toggleBtn);
+    }
+
+    return wrapper;
+  }
+
   function renderChatMarkdown(container, markdown) {
     const lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
     container.replaceChildren();
@@ -3161,6 +3663,7 @@
     const fenceMatch = (line) => /^ {0,3}(`{3,}|~{3,})(?:([A-Za-z0-9_-]+))?[ \t]*$/.exec(line);
     const listMatch = (line) => /^ {0,3}([-+*]|\d+[.)])[ \t]+(.*)$/.exec(line);
     const isRule = (line) => /^ {0,3}(?:-{3,}|_{3,}|\*{3,})[ \t]*$/.test(line);
+    const isProductGridStart = (line) => /^ {0,3}:::products-grid[ \t]*$/.test(line);
     const isTableStart = (index) => {
       if (index + 1 >= lines.length || !lines[index].includes('|')) return false;
       const separators = splitChatMarkdownTableRow(lines[index + 1]);
@@ -3168,13 +3671,30 @@
     };
     const isBlockStart = (line, index) => Boolean(
       headingMatch(line) || fenceMatch(line) || listMatch(line) || isRule(line)
-      || /^ {0,3}>/.test(line) || isTableStart(index)
+      || /^ {0,3}>/.test(line) || isTableStart(index) || isProductGridStart(line)
     );
 
     let index = 0;
     while (index < lines.length) {
       const line = lines[index];
       if (!line.trim()) { index += 1; continue; }
+
+      if (isProductGridStart(line)) {
+        index += 1;
+        const gridLines = [];
+        while (index < lines.length && !/^ {0,3}:::[ \t]*$/.test(lines[index])) {
+          gridLines.push(lines[index]);
+          index += 1;
+        }
+        if (index < lines.length && /^ {0,3}:::[ \t]*$/.test(lines[index])) {
+          index += 1;
+        }
+        const gridNode = buildProductsCardGrid(gridLines.join('\n'));
+        if (gridNode) {
+          container.append(gridNode);
+          continue;
+        }
+      }
 
       const fence = fenceMatch(line);
       if (fence) {
@@ -3265,6 +3785,26 @@
         table.append(tbody);
         container.append(table);
         continue;
+      }
+
+      if (/^\s*\d+[.)]\s+\*\*.*?\*\*/.test(line)) {
+        const lookahead = lines.slice(index, index + 8).join('\n');
+        if (/-\s+\*\*(?:Price|Seller|Status|Link|Evidence):?\*\*/i.test(lookahead)) {
+          const productBlockLines = [];
+          while (index < lines.length) {
+            const cur = lines[index];
+            if (cur.startsWith('*Source:*') || isProductGridStart(cur)) break;
+            if (/^ {0,3}#{1,6}\s/.test(cur) || isRule(cur)) break;
+            if (!cur.trim() && index + 1 < lines.length && !lines[index + 1].trim()) break;
+            productBlockLines.push(cur);
+            index += 1;
+          }
+          const gridNode = buildProductsCardGrid(productBlockLines.join('\n'));
+          if (gridNode) {
+            container.append(gridNode);
+            continue;
+          }
+        }
       }
 
       const firstItem = listMatch(line);
