@@ -15,7 +15,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
-import { WorkspaceToolError, parseWorkspaceToolCall, prepareWorkspaceToolCall, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import { WorkOS } from '@workos-inc/node';
@@ -172,8 +172,49 @@ function workspaceToolFailureMessage(error) {
     invalid_apps: 'One or more proposed apps are not available. Nothing was changed.',
     invalid_memory_pills: 'The proposed memory preferences are invalid. Nothing was changed.',
     invalid_workspace_name: 'The proposed workspace name is invalid. Nothing was changed.',
+    invalid_query: 'The search query is invalid. Please specify a product query.',
   };
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
+}
+
+async function executeProductSearchTool(query, { channel3Client, db, workspaceId, userId, agentId }) {
+  try {
+    const discovery = await discoverProducts({
+      channel3Client,
+      query,
+      limit: 5,
+      db,
+      workspaceId,
+      userId,
+      agentId,
+      allowFixtureFallback: !channel3Client?.isConfigured?.(),
+    });
+
+    const lines = [];
+    const sourceLabel = discovery.isLive ? 'Channel3 (Live Search)' : 'Channel3 (Sample Fixtures)';
+    lines.push(`Discovered ${discovery.products.length} product${discovery.products.length === 1 ? '' : 's'} matching "${escapeMarkdown(query)}":\n`);
+    for (let i = 0; i < discovery.products.length; i++) {
+      const p = discovery.products[i];
+      const stock = p.availability === 'in_stock' ? 'In Stock' : (p.availability === 'out_of_stock' ? 'Out of Stock' : p.availability);
+      lines.push(`${i + 1}. **${escapeMarkdown(p.title)}**${p.brand ? ` by ${escapeMarkdown(p.brand)}` : ''}`);
+      if (p.imageUrl) {
+        lines.push(`   ![${escapeMarkdown(p.title)}](${p.imageUrl})`);
+      }
+      lines.push(`   - **Price:** ${p.priceFormatted}`);
+      lines.push(`   - **Seller:** ${escapeMarkdown(p.merchantName)} (${p.merchantDomain})`);
+      lines.push(`   - **Status:** ${stock}`);
+      if (p.url) lines.push(`   - **Link:** [View product](${p.url})`);
+      lines.push(`   - **Evidence:** \`${p.evidenceHash.slice(0, 19)}...\``);
+      lines.push('');
+    }
+    lines.push(`*Source:* ${sourceLabel}${discovery.runId ? ` · *Run ID:* \`${discovery.runId}\`` : ''}`);
+    return lines.join('\n');
+  } catch (err) {
+    if (err instanceof Channel3Error && err.code === 'channel3_not_configured') {
+      return 'Channel3 product discovery is not configured. Add CHANNEL3_API_KEY to search live products.';
+    }
+    return `Product discovery failed: ${err.message || 'unknown error'}`;
+  }
 }
 
 async function handleWorkspaceToolApprovalRequest(req, res, {
@@ -905,6 +946,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
   usageService,
   rateWindows,
   pendingToolApprovals,
+  channel3Client,
+  db,
 }) {
   const statusRoute = url.pathname === '/api/chat/status';
   const historyRoute = url.pathname === '/api/chat/history';
@@ -1256,6 +1299,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
           }
           if (prepared?.kind === 'read') {
             visibleReply = prepared.text;
+          } else if (prepared?.kind === 'search_products') {
+            visibleReply = await executeProductSearchTool(prepared.query, {
+              channel3Client,
+              db,
+              workspaceId: workspace.id,
+              userId: user.id,
+              agentId,
+            });
           } else if (prepared?.kind === 'proposal') {
             pendingApprovalView = createPendingWorkspaceToolApproval(pendingToolApprovals, {
               userId: user.id,
@@ -1351,6 +1402,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
         }
         if (prepared?.kind === 'read') {
           visibleReply = prepared.text;
+        } else if (prepared?.kind === 'search_products') {
+          visibleReply = await executeProductSearchTool(prepared.query, {
+            channel3Client,
+            db,
+            workspaceId: workspace.id,
+            userId: user.id,
+            agentId,
+          });
         } else if (prepared?.kind === 'proposal') {
           preparedWorkspaceProposal = { workspaceId: workspace.id, prepared };
           visibleReply = 'I prepared a workspace change for your review. Nothing will be changed unless you approve it.';
@@ -2228,6 +2287,8 @@ export function createServer({
           usageService,
           rateWindows: aiChatRateWindows,
           pendingToolApprovals: aiChatPendingToolApprovals,
+          channel3Client: activeChannel3Client,
+          db,
         });
         return;
       }
