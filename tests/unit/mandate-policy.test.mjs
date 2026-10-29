@@ -1,119 +1,673 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createClient } from '@libsql/client';
+import { applyMigrations } from '../../apps/web/lib/db/migrate.mjs';
 import {
-  canonicalJSON,
+  evaluateSpendPolicy,
+  createPurchaseMandate,
+  authorizePurchaseMandate,
+  getMandateDetails,
   computeMandateChallenge,
-  computeEvidenceHash,
-} from '../../packages/shared/src/mandate.mjs';
-import { evaluatePolicy } from '../../packages/shared/src/policy.mjs';
-import { makePayPalRequestId } from '../../apps/web/lib/paypal/idempotency.mjs';
+  MandatePolicyError,
+} from '../../apps/web/lib/channel3/mandate-service.mjs';
+import { discoverProducts } from '../../apps/web/lib/channel3/discovery.mjs';
+import { createChannel3Client } from '../../apps/web/lib/channel3/client.mjs';
 
-const baseMandate = {
-  v: 1,
-  runId: 'run_01JB7F3A9B2C',
-  orderId: '5O190127TN364715T',
-  authorizationId: '0AW987654321',
-  amountCents: 7850,
-  currency: 'USD',
-  payee: 'seller@lagosaudio.example.com',
-  merchantDomain: 'lagosaudio.example.com',
-  evidenceHash: computeEvidenceHash(Buffer.from('screenshot-bytes-v1')),
-  policyCeilingCents: 10000,
-  issuedAt: '2026-10-24T12:00:00Z',
-  nonce: 'nonce_abc123',
-};
+async function setupTestDatabase() {
+  const db = createClient({ url: ':memory:' });
+  await applyMigrations(db);
 
-const basePolicy = {
-  maxPerOrderCents: 10000,
-  maxPerRunCents: 15000,
-  expectedCurrency: 'USD',
-  allowedDomains: ['lagosaudio.example.com', 'channel3.example.com'],
-  blockedPayees: ['attacker@evil.com'],
-};
+  const wsId = 'ws_mandate_test';
+  const userId = 'usr_mandate_test';
+  const agentId = 'ag_commerce_agent';
 
-test('W1/W5: canonicalJSON is key-order invariant and sensitive to 1-cent amount tampering', () => {
-  const reordered = {
-    nonce: baseMandate.nonce,
-    amountCents: baseMandate.amountCents,
-    v: baseMandate.v,
-    runId: baseMandate.runId,
-    orderId: baseMandate.orderId,
-    authorizationId: baseMandate.authorizationId,
-    currency: baseMandate.currency,
-    payee: baseMandate.payee,
-    merchantDomain: baseMandate.merchantDomain,
-    evidenceHash: baseMandate.evidenceHash,
-    policyCeilingCents: baseMandate.policyCeilingCents,
-    issuedAt: baseMandate.issuedAt,
+  await db.execute({
+    sql: 'INSERT INTO users (id, email_normalized, status) VALUES (?, ?, ?)',
+    args: [userId, 'buyer@example.test', 'active'],
+  });
+  await db.execute({
+    sql: 'INSERT INTO workspaces (id, owner_user_id, name, status) VALUES (?, ?, ?, ?)',
+    args: [wsId, userId, 'Commerce Workspace', 'active'],
+  });
+  await db.execute({
+    sql: `INSERT INTO agents (workspace_id, id, name, role, avatar, status, settings_json)
+          VALUES (?, ?, 'Buyer Agent', 'Procurement scout', 'cart', 'active', ?)`,
+    args: [wsId, agentId, JSON.stringify({ color: '#4c8dff', approvalPath: 'desktop', orderCap: 50, dailyCap: 200 })],
+  });
+
+  return { db, wsId, userId, agentId };
+}
+
+test('evaluateSpendPolicy initializes policy from agent settings and approves valid order', async () => {
+  const { db, wsId, agentId } = await setupTestDatabase();
+
+  const result = await evaluateSpendPolicy({
+    db,
+    workspaceId: wsId,
+    agentId,
+    amountMinor: 3500, // $35.00 (under $50 orderCap)
+    merchantDomain: 'keychron.example.com',
+  });
+
+  assert.equal(result.allowed, true);
+  assert.equal(result.decisionCode, 'approved');
+  assert.equal(result.maxPerOrderMinor, 5000);
+  assert.equal(result.dailyBudgetMinor, 20000);
+  assert.equal(result.remainingDailyMinor, 20000);
+  assert.match(result.policyHash, /^sha256:[a-f0-9]{64}$/);
+});
+
+test('evaluateSpendPolicy blocks orders exceeding orderCap', async () => {
+  const { db, wsId, agentId } = await setupTestDatabase();
+
+  const result = await evaluateSpendPolicy({
+    db,
+    workspaceId: wsId,
+    agentId,
+    amountMinor: 7500, // $75.00 (exceeds $50 orderCap)
+    merchantDomain: 'keychron.example.com',
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.decisionCode, 'order_cap_exceeded');
+  assert.match(result.failureReason, /exceeds agent per-order cap/);
+});
+
+test('createPurchaseMandate blocks order and records policy decision when order exceeds limit', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
+
+  const result = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    product: {
+      title: 'Ultra High-End Monitor',
+      merchantDomain: 'screens.example.com',
+      merchantName: 'Screens Pro',
+      amountMinor: 89900, // $899 (exceeds $50 cap)
+      currency: 'USD',
+      evidenceHash: 'sha256:11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff',
+    },
+  });
+
+  assert.equal(result.allowed, false);
+  assert.equal(result.decisionCode, 'order_cap_exceeded');
+  assert.ok(result.policyDecisionId);
+
+  // Verify denied policy decision recorded in DB
+  const decisionRow = await db.execute({
+    sql: 'SELECT * FROM policy_decisions WHERE id = ?',
+    args: [result.policyDecisionId],
+  });
+  assert.equal(decisionRow.rows[0].allowed, 0);
+  assert.equal(decisionRow.rows[0].decision_code, 'order_cap_exceeded');
+
+  // Verify no mandate was inserted
+  const mandateCount = await db.execute({
+    sql: 'SELECT COUNT(*) AS count FROM mandates WHERE workspace_id = ?',
+    args: [wsId],
+  });
+  assert.equal(Number(mandateCount.rows[0].count), 0);
+});
+
+test('createPurchaseMandate generates cryptographically bound mandate and awaiting_approval status', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
+
+  const product = {
+    title: 'Ergonomic Desk Mat',
+    merchantDomain: 'gear.example.com',
+    merchantName: 'Gear Store',
+    amountMinor: 2800, // $28.00 (under $50 cap)
+    currency: 'USD',
+    evidenceHash: 'sha256:aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899',
   };
-  assert.equal(canonicalJSON(baseMandate), canonicalJSON(reordered));
-  assert.equal(computeMandateChallenge(baseMandate), computeMandateChallenge(reordered));
 
-  const tampered = { ...baseMandate, amountCents: 7851 };
-  assert.notEqual(computeMandateChallenge(baseMandate), computeMandateChallenge(tampered));
-});
-
-test('Policy Engine: allows valid order at or below ceiling and blocks prompt-injection $450 over-cap', () => {
-  const ok = evaluatePolicy(basePolicy, baseMandate);
-  assert.equal(ok.allowed, true);
-
-  // Exact ceiling (10000 cents = $100.00) passes
-  const exactCeiling = evaluatePolicy(basePolicy, { ...baseMandate, amountCents: 10000 });
-  assert.equal(exactCeiling.allowed, true);
-
-  // One cent over ceiling (10001 cents = $100.01) fails closed
-  const oneCentOver = evaluatePolicy(basePolicy, { ...baseMandate, amountCents: 10001 });
-  assert.equal(oneCentOver.allowed, false);
-  assert.match(oneCentOver.reason, /^ceiling_exceeded/);
-
-  // Prompt injection ($450.00 to attacker@evil.com) fails closed
-  const injected = evaluatePolicy(basePolicy, {
-    ...baseMandate,
-    amountCents: 45000,
-    payee: 'attacker@evil.com',
+  const result = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    product,
   });
-  assert.equal(injected.allowed, false);
+
+  assert.equal(result.allowed, true);
+  assert.match(result.mandateId, /^man_[a-f0-9]{32}$/);
+  assert.match(result.approvalId, /^mapp_[a-f0-9]{32}$/);
+  assert.match(result.challengeHash, /^sha256:[a-f0-9]{64}$/);
+  assert.ok(result.nonce);
+
+  // Check mandate row
+  const mandateRow = await db.execute({
+    sql: 'SELECT * FROM mandates WHERE id = ?',
+    args: [result.mandateId],
+  });
+  assert.equal(mandateRow.rows[0].status, 'awaiting_approval');
+  assert.equal(mandateRow.rows[0].amount_minor, 2800);
+  assert.equal(mandateRow.rows[0].merchant_domain, 'gear.example.com');
+  assert.equal(mandateRow.rows[0].evidence_hash, product.evidenceHash);
+
+  // Check mandate approval ceremony row
+  const approvalRow = await db.execute({
+    sql: 'SELECT * FROM mandate_approvals WHERE id = ?',
+    args: [result.approvalId],
+  });
+  assert.equal(approvalRow.rows[0].status, 'pending');
+  assert.equal(approvalRow.rows[0].challenge_hash, result.challengeHash);
+
+  // Check run event
+  const eventRows = await db.execute({
+    sql: "SELECT * FROM run_events WHERE event_type = 'mandate_proposed'",
+  });
+  assert.equal(eventRows.rows.length, 1);
 });
 
-test('Policy Engine: rejects malformed money values and missing ceilings by default', () => {
-  for (const amountCents of [-1, 0, 0.5, '100', null, Number.NaN, Number.POSITIVE_INFINITY, undefined]) {
-    assert.equal(evaluatePolicy(basePolicy, { ...baseMandate, amountCents }).allowed, false, `amount ${String(amountCents)} must fail closed`);
+test('authorizePurchaseMandate successfully authorizes pending mandate and prevents replay', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
+
+  const result = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    product: {
+      title: 'Wireless Trackball Mouse',
+      merchantDomain: 'keyboards.example.com',
+      merchantName: 'Keyboards Co',
+      amountMinor: 4500, // $45.00
+      currency: 'USD',
+      evidenceHash: 'sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+    },
+  });
+
+  // Authorize the mandate
+  const authResult = await authorizePurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    mandateId: result.mandateId,
+    decision: 'approve',
+  });
+
+  assert.equal(authResult.status, 'authorized');
+  assert.equal(authResult.decision, 'approve');
+  assert.ok(authResult.authorizedAt);
+
+  // Verify mandate and approval status updated in DB
+  const details = await getMandateDetails({ db, workspaceId: wsId, mandateId: result.mandateId });
+  assert.equal(details.status, 'authorized');
+  assert.equal(details.approval_status, 'verified');
+  assert.ok(details.verified_at);
+
+  // Replaying authorization must fail with conflict (409)
+  await assert.rejects(
+    async () => authorizePurchaseMandate({
+      db,
+      workspaceId: wsId,
+      userId,
+      mandateId: result.mandateId,
+      decision: 'approve',
+    }),
+    (err) => {
+      assert(err instanceof MandatePolicyError);
+      assert.equal(err.code, 'mandate_already_processed');
+      assert.equal(err.status, 409);
+      return true;
+    }
+  );
+});
+
+test('authorizePurchaseMandate marks expired mandate as expired and rejects authorization', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
+  const startTime = Date.now();
+
+  const result = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    product: {
+      title: 'Coffee Beans 1kg',
+      merchantDomain: 'roasters.example.com',
+      merchantName: 'City Roasters',
+      amountMinor: 2200,
+      currency: 'USD',
+      evidenceHash: 'sha256:0011223344556677889900112233445566778899001122334455667788990011',
+    },
+    now: startTime,
+    ttlMs: 60 * 1000, // 1 minute TTL
+  });
+
+  // Attempt authorization 5 minutes later
+  await assert.rejects(
+    async () => authorizePurchaseMandate({
+      db,
+      workspaceId: wsId,
+      userId,
+      mandateId: result.mandateId,
+      decision: 'approve',
+      now: startTime + (5 * 60 * 1000),
+    }),
+    (err) => {
+      assert(err instanceof MandatePolicyError);
+      assert.equal(err.code, 'mandate_expired');
+      assert.equal(err.status, 410);
+      return true;
+    }
+  );
+
+  const mandateRow = await db.execute({
+    sql: 'SELECT status FROM mandates WHERE id = ?',
+    args: [result.mandateId],
+  });
+  assert.equal(mandateRow.rows[0].status, 'expired');
+});
+
+test('createPurchaseMandate resolves offer by offerId discovered in product_offers', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
+  const client = createChannel3Client({ apiKey: '' });
+
+  // 1. Run discovery to populate product_offers
+  const discoveryResult = await discoverProducts({
+    channel3Client: client,
+    query: 'linen apron',
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    allowFixtureFallback: true,
+  });
+
+  const discoveredOffers = await db.execute({
+    sql: 'SELECT * FROM product_offers WHERE run_id = ?',
+    args: [discoveryResult.runId],
+  });
+  assert.ok(discoveredOffers.rows.length > 0);
+  const targetOffer = discoveredOffers.rows[0];
+
+  // 2. Propose mandate by referencing offerId
+  const mandateResult = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    offerId: targetOffer.id,
+  });
+
+  // Since sample apron amount is $48.00 (4800 minor), and cap is $50.00 (5000 minor), it is allowed
+  assert.equal(mandateResult.allowed, true);
+  assert.equal(mandateResult.product.merchantDomain, targetOffer.merchant_domain);
+  assert.equal(mandateResult.product.amountMinor, targetOffer.amount_minor);
+  assert.equal(mandateResult.product.evidenceHash, targetOffer.evidence_hash);
+});
+
+import { loadServerConfig } from '../../apps/web/lib/config.mjs';
+import { createServer } from '../../apps/web/server.mjs';
+import { createAuthService } from '../../apps/web/lib/auth/service.mjs';
+import { createWorkspaceService } from '../../apps/web/lib/workspaces/service.mjs';
+
+async function withServer(config, context, run) {
+  const server = createServer({
+    config,
+    authService: context.authService,
+    workspaceService: context.workspaceService,
+    aiChatService: context.aiChatService,
+    aiChatHistoryService: context.aiChatHistoryService,
+    aiProviderService: context.aiProviderService,
+    usageService: context.usageService,
+    db: context.db,
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  try {
+    await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
-  for (const key of ['maxPerOrderCents', 'maxPerRunCents']) {
-    const invalidPolicy = { ...basePolicy, [key]: undefined };
-    assert.equal(evaluatePolicy(invalidPolicy, { ...baseMandate, amountCents: 999999 }).allowed, false);
+}
+
+test('agent chat flow: purchase_product tool creates pending mandate proposal and user approval authorizes mandate', async () => {
+  const db = createClient({ url: ':memory:' });
+  await applyMigrations(db);
+
+  const authService = createAuthService({ db });
+  const workspaceService = createWorkspaceService({ db });
+
+  const session = await authService.createWorkOSSession({
+    providerSubject: 'sub_test_buyer_mandate',
+    email: 'buyer@example.test',
+    emailVerified: true,
+    displayName: 'Buyer',
+  });
+
+  const bootstrap = await workspaceService.getBootstrap({ userId: session.user.id });
+  let agentId = bootstrap.agents[0]?.id;
+  if (!agentId) {
+    const created = await workspaceService.createAgent({
+      userId: session.user.id,
+      input: {
+        name: 'Procure Scout',
+        role: 'Autonomous buyer',
+        avatar: 'cart',
+        color: '#4c8dff',
+        approvalPath: 'desktop',
+        orderCap: 100,
+        dailyCap: 500,
+        apps: ['channel3'],
+        memoryPills: [],
+      },
+    });
+    agentId = created.createdAgentId || created.agents?.[0]?.id;
   }
-  assert.equal(evaluatePolicy(basePolicy, { ...baseMandate, policyCeilingCents: undefined }).allowed, false);
-  assert.equal(evaluatePolicy(basePolicy, baseMandate, -1).allowed, false);
-  assert.equal(evaluatePolicy(basePolicy, baseMandate, 0.5).allowed, false);
+
+  const usageService = {
+    reserveTokens: async () => ({ allowed: true }),
+    settleTokenReservation: async () => ({ settled: true }),
+    releaseTokenReservation: async () => {},
+  };
+
+  const aiChatHistoryService = {
+    appendExchange: async () => {},
+    getRecentMessages: async () => [],
+    recordPendingToolAction: async () => {},
+  };
+
+  const aiProviderService = {
+    getActiveChatProvider: async () => ({
+      providerKey: 'mock',
+      providerDisplayName: 'Mock Provider',
+      modelId: 'mock-model',
+    }),
+    listProviders: async () => [],
+  };
+
+  const productEvidence = {
+    title: 'Custom Mechanical Keyboard',
+    merchantDomain: 'customkeys.example.com',
+    amountMinor: 8500, // $85.00
+    currency: 'USD',
+    evidenceHash: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+  };
+
+  const aiChatService = {
+    isReady: async () => true,
+    complete: async () => {
+      const toolMarker = `[[KEUS_WORKSPACE_TOOL:{"name":"purchase_product","arguments":{"productTitle":"${productEvidence.title}","merchantDomain":"${productEvidence.merchantDomain}","amountMinor":${productEvidence.amountMinor},"currency":"USD","evidenceHash":"${productEvidence.evidenceHash}"}}]]`;
+      return {
+        text: toolMarker,
+        provider: 'mock-provider',
+        model: 'mock-model',
+        inputTokens: 25,
+        outputTokens: 40,
+      };
+    },
+  };
+
+  const config = loadServerConfig({
+    AI_PROVIDER_CHAT_TEST_ENABLED: '1',
+    AI_PROVIDER_ADMIN_EMAILS: 'buyer@example.test',
+    AI_PROVIDER_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+    AUTH_PROVIDER: 'workos',
+    WORKOS_API_KEY: 'sk_test_wos',
+    WORKOS_CLIENT_ID: 'client_wos',
+    WORKOS_REDIRECT_URI: 'http://localhost:3100/auth/callback',
+    TURSO_DATABASE_URL: 'file:./local.db',
+  });
+
+  const ctx = {
+    db,
+    authService,
+    workspaceService,
+    aiChatService,
+    aiChatHistoryService,
+    aiProviderService,
+    usageService,
+  };
+
+  await withServer(config, ctx, async (base) => {
+    // 1. Send chat message that triggers purchase_product tool
+    const chatRes = await fetch(`${base}/api/chat`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        Origin: base,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId,
+        message: 'Please purchase the custom mechanical keyboard',
+      }),
+    });
+
+    assert.equal(chatRes.status, 200);
+    const chatData = await chatRes.json();
+    assert.ok(chatData.pendingAction);
+    assert.equal(chatData.pendingAction.action.title, 'Authorize Purchase Mandate');
+    assert.match(chatData.reply, /formulated an autonomous purchase mandate/);
+
+    const actionId = chatData.pendingAction.actionId;
+    assert.ok(actionId);
+
+    // 2. User approves the proposed purchase mandate
+    const approvalRes = await fetch(`${base}/api/chat/tool-approval`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        Origin: base,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        actionId,
+        decision: 'approve',
+      }),
+    });
+
+    assert.equal(approvalRes.status, 200);
+    const approvalData = await approvalRes.json();
+    assert.equal(approvalData.status, 'approved');
+    assert.match(approvalData.message, /Authorized purchase mandate/);
+    assert.match(approvalData.message, /\$85\.00 USD/);
+
+    // 3. Verify in database that mandate is now authorized and verified
+    const mandateRows = await db.execute({
+      sql: 'SELECT * FROM mandates WHERE merchant_domain = ?',
+      args: [productEvidence.merchantDomain],
+    });
+    assert.equal(mandateRows.rows.length, 1);
+    assert.equal(mandateRows.rows[0].status, 'authorized');
+
+    const mandateId = mandateRows.rows[0].id;
+
+    // 4. Query /api/commerce/mandates/:mandateId route
+    const mandateDetailRes = await fetch(`${base}/api/commerce/mandates/${mandateId}`, {
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+      },
+    });
+    assert.equal(mandateDetailRes.status, 200);
+    const detailData = await mandateDetailRes.json();
+    assert.equal(detailData.ok, true);
+    assert.equal(detailData.mandate.id, mandateId);
+    assert.equal(detailData.mandate.status, 'authorized');
+    assert.equal(detailData.mandate.approval_status, 'verified');
+
+    // 5. Query /api/commerce/evaluate route for policy limits
+    const evalRes = await fetch(`${base}/api/commerce/evaluate`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId,
+        amountMinor: 2500,
+        merchantDomain: 'gadgets.example.com',
+      }),
+    });
+    assert.equal(evalRes.status, 200);
+    const evalData = await evalRes.json();
+    assert.equal(evalData.ok, true);
+    assert.equal(evalData.evaluation.allowed, true);
+    assert.equal(evalData.evaluation.decisionCode, 'approved');
+  });
 });
 
-test('Policy Engine: enforces domain allowlist, payee blocklist, and currency match', () => {
-  const badDomain = evaluatePolicy(basePolicy, {
-    ...baseMandate,
-    merchantDomain: 'phishing.example.org',
-  });
-  assert.equal(badDomain.allowed, false);
-  assert.match(badDomain.reason, /^domain_not_allowed/);
+test('multi-product bundles evaluate aggregate spend caps and formulate consolidated mandates', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
 
-  const badPayee = evaluatePolicy(basePolicy, {
-    ...baseMandate,
-    payee: 'attacker@evil.com',
-  });
-  assert.equal(badPayee.allowed, false);
-  assert.match(badPayee.reason, /^payee_blocked/);
+  const bundleItems = [
+    {
+      title: 'Precision Wrist Rest',
+      merchantName: 'Grovemade',
+      merchantDomain: 'grovemade.com',
+      amountMinor: 1800, // $18.00
+      currency: 'USD',
+      evidenceHash: 'sha256:1111111111111111111111111111111111111111111111111111111111111111',
+    },
+    {
+      title: 'Hardcover Linen Notebook',
+      merchantName: 'Nordic',
+      merchantDomain: 'nordic.example.com',
+      amountMinor: 2200, // $22.00
+      currency: 'USD',
+      evidenceHash: 'sha256:2222222222222222222222222222222222222222222222222222222222222222',
+    },
+  ];
 
-  const badCurrency = evaluatePolicy(basePolicy, {
-    ...baseMandate,
-    currency: 'EUR',
+  // 1. Bundle within cap: $18 + $22 = $40 (<= $50 cap) -> Approved
+  const bundleResult = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    items: bundleItems,
   });
-  assert.equal(badCurrency.allowed, false);
-  assert.match(badCurrency.reason, /^currency_mismatch/);
+
+  assert.equal(bundleResult.allowed, true);
+  assert.equal(bundleResult.isBundle, true);
+  assert.equal(bundleResult.product.amountMinor, 4000); // $40.00
+  assert.equal(bundleResult.items.length, 2);
+  assert.match(bundleResult.product.title, /Bundle \(2 items\)/);
+  assert.match(bundleResult.product.evidenceHash, /^sha256:[a-f0-9]{64}$/);
+
+  // 2. Authorize bundle mandate
+  const authResult = await authorizePurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    mandateId: bundleResult.mandateId,
+    challengeHash: bundleResult.challengeHash,
+  });
+  assert.equal(authResult.status, 'authorized');
+  assert.equal(authResult.amountMinor, 4000);
+
+  // 3. Bundle exceeding cap: $18 + $22 + $25 = $65 (> $50 cap) -> Blocked
+  const excessiveBundle = [
+    ...bundleItems,
+    {
+      title: 'Desk Mat',
+      merchantName: 'Grovemade',
+      merchantDomain: 'grovemade.com',
+      amountMinor: 2500, // $25.00 -> total $65
+      currency: 'USD',
+      evidenceHash: 'sha256:3333333333333333333333333333333333333333333333333333333333333333',
+    },
+  ];
+
+  const blockedBundle = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    items: excessiveBundle,
+  });
+
+  assert.equal(blockedBundle.allowed, false);
+  assert.equal(blockedBundle.decisionCode, 'order_cap_exceeded');
+  assert.match(blockedBundle.failureReason, /exceeds agent per-order cap/);
+  assert.equal(blockedBundle.product.amountMinor, 6500);
 });
 
-test('P7: PayPal-Request-Id generator produces deterministic clw_<op>_<runIdShort>_<uuid8> keys', () => {
-  const id1 = makePayPalRequestId('cap', 'run_01JB7F3A9B2C', '0AW987654321');
-  const id2 = makePayPalRequestId('cap', 'run_01JB7F3A9B2C', '0AW987654321');
-  assert.equal(id1, id2);
-  assert.match(id1, /^clw_cap_01JB7F3A_[0-9a-f]{8}$/);
+test('POST /api/commerce/mandates creates multi-product bundle mandate over HTTP', async () => {
+  const db = createClient({ url: ':memory:' });
+  await applyMigrations(db);
+
+  const authService = createAuthService({ db });
+  const workspaceService = createWorkspaceService({ db });
+
+  const session = await authService.createWorkOSSession({
+    providerSubject: 'sub_test_buyer_bundle',
+    email: 'bundlebuyer@example.test',
+    emailVerified: true,
+    displayName: 'Bundle Buyer',
+  });
+
+  const bootstrap = await workspaceService.getBootstrap({ userId: session.user.id });
+  let agentId = bootstrap.agents[0]?.id;
+  if (!agentId) {
+    const created = await workspaceService.createAgent({
+      userId: session.user.id,
+      input: {
+        name: 'Bundle Scout',
+        role: 'Autonomous buyer',
+        avatar: 'cart',
+        color: '#4c8dff',
+        approvalPath: 'desktop',
+        orderCap: 100,
+        dailyCap: 500,
+        apps: ['channel3'],
+        memoryPills: [],
+      },
+    });
+    agentId = created.createdAgentId || created.agents?.[0]?.id;
+  }
+
+  const config = loadServerConfig({
+    TURSO_DATABASE_URL: 'file:./local.db',
+  });
+
+  const ctx = {
+    db,
+    authService,
+    workspaceService,
+  };
+
+  await withServer(config, ctx, async (base) => {
+    const res = await fetch(`${base}/api/commerce/mandates`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        agentId,
+        items: [
+          {
+            title: 'Wireless Trackball Mouse',
+            merchantDomain: 'logitech.com',
+            amountMinor: 3000,
+            currency: 'USD',
+            evidenceHash: 'sha256:4444444444444444444444444444444444444444444444444444444444444444',
+          },
+          {
+            title: 'Felt Desk Mat',
+            merchantDomain: 'grovemade.com',
+            amountMinor: 1500,
+            currency: 'USD',
+            evidenceHash: 'sha256:5555555555555555555555555555555555555555555555555555555555555555',
+          },
+        ],
+      }),
+    });
+
+    assert.equal(res.status, 201);
+    const data = await res.json();
+    assert.equal(data.ok, true);
+    assert.equal(data.mandate.isBundle, true);
+    assert.equal(data.mandate.product.amountMinor, 4500);
+    assert.match(data.mandate.mandateId, /^man_[a-f0-9]{32}$/);
+  });
 });
