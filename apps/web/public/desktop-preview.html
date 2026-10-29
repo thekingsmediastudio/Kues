@@ -589,14 +589,14 @@
      PRODUCT CARD GRID & SHOW MORE
      ========================================================= */
   .products-grid-container {
-    margin: 12px 0 16px;
+    margin: 14px 0 18px;
     width: 100%;
   }
 
   .products-card-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 14px;
     width: 100%;
   }
 
@@ -607,31 +607,35 @@
   .product-card {
     display: flex;
     flex-direction: column;
-    background: var(--bg-card, #171b22);
-    border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(25, 30, 42, 0.95) 0%, rgba(16, 20, 28, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
     overflow: hidden;
     height: 100%;
     box-sizing: border-box;
-    transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.2s ease,
+                box-shadow 0.2s ease;
   }
 
   .product-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(99, 102, 241, 0.4);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+    transform: translateY(-3px);
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.5), 0 0 16px -2px rgba(56, 189, 248, 0.2);
   }
 
   .product-card-media {
     position: relative;
     width: 100%;
-    height: 128px;
-    background: rgba(0, 0, 0, 0.28);
+    height: 160px;
+    background: radial-gradient(circle at center, #1c2230 0%, #0e121a 100%);
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    cursor: zoom-in;
   }
 
   .product-card-image {
@@ -639,11 +643,41 @@
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform 0.22s ease;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .product-card:hover .product-card-image {
-    transform: scale(1.04);
+  .product-card-media:hover .product-card-image {
+    transform: scale(1.07);
+  }
+
+  .product-card-zoom-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #f1f5f9;
+    font-size: 10px;
+    font-weight: 550;
+    letter-spacing: 0.02em;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .product-card-media:hover .product-card-zoom-badge,
+  .product-card-media:focus-visible .product-card-zoom-badge {
+    opacity: 1;
+    transform: translateY(0);
   }
 
   .product-card-media-placeholder {
@@ -661,20 +695,33 @@
     top: 8px;
     right: 8px;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 650;
     line-height: 1;
-    padding: 3px 8px;
+    padding: 4px 8px;
     border-radius: 999px;
     letter-spacing: 0.02em;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .product-card-badge.badge-in-stock {
-    background: rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.18);
     color: #34d399;
     border: 1px solid rgba(16, 185, 129, 0.4);
+  }
+
+  .product-card-badge.badge-in-stock::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 6px #34d399;
   }
 
   .product-card-badge.badge-status {
@@ -684,67 +731,74 @@
   }
 
   .product-card-body {
-    padding: 11px 12px 13px;
+    padding: 12px 14px 14px;
     display: flex;
     flex-direction: column;
     flex: 1;
     min-width: 0;
+    gap: 4px;
   }
 
   .product-card-brand {
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-sec, #94a3b8);
-    margin-bottom: 3px;
+    letter-spacing: 0.06em;
+    color: #38bdf8;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .product-card-title {
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 650;
     color: var(--text-main, #f8fafc);
-    line-height: 1.35;
-    margin: 0 0 6px 0;
+    line-height: 1.38;
+    margin: 0;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-height: 34px;
+    min-height: 36px;
   }
 
   .product-card-price {
-    font-size: 14px;
-    font-weight: 700;
-    color: #38bdf8;
-    margin-bottom: 6px;
+    font-size: 15px;
+    font-weight: 750;
+    color: #10b981;
     letter-spacing: -0.01em;
+    margin: 2px 0 4px;
   }
 
   .product-card-meta {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    margin-bottom: 10px;
-    font-size: 10.5px;
+    margin-bottom: 8px;
+    font-size: 11px;
     color: var(--text-sec, #94a3b8);
   }
 
-  .product-card-merchant,
-  .product-card-evidence {
+  .product-card-merchant {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-sec, #cbd5e1);
+    font-weight: 500;
   }
 
   .product-card-evidence {
     font-family: var(--mono, ui-monospace, monospace);
     font-size: 9.5px;
-    opacity: 0.75;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .product-card-action-btn {
@@ -752,46 +806,49 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    padding: 6px 10px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-strong, rgba(255, 255, 255, 0.12));
-    color: var(--text-main, #e2e8f0) !important;
-    font-size: 11px;
-    font-weight: 550;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    color: #7dd3fc !important;
+    font-size: 11.5px;
+    font-weight: 600;
     text-decoration: none !important;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition: all 0.18s ease;
   }
 
   .product-card-action-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.22);
+    background: #0284c7;
+    border-color: #0284c7;
     color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+    transform: translateY(-1px);
   }
 
   .products-grid-toggle-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 8px;
     width: 100%;
-    margin-top: 10px;
-    padding: 8px 14px;
+    margin-top: 12px;
+    padding: 9px 18px;
     background: rgba(255, 255, 255, 0.035);
-    border: 1px dashed var(--border-strong, rgba(255, 255, 255, 0.14));
-    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
     color: var(--text-sec, #94a3b8);
     font-size: 12px;
-    font-weight: 550;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.18s ease;
+    transition: all 0.2s ease;
   }
 
   .products-grid-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: var(--text-sec, #cbd5e1);
-    color: var(--text-main, #f1f5f9);
+    background: rgba(56, 189, 248, 0.09);
+    border-color: rgba(56, 189, 248, 0.35);
+    color: #e2e8f0;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
   }
 
   .toggle-btn-chevron {
@@ -812,6 +869,144 @@
     .products-card-grid {
       grid-template-columns: 1fr;
     }
+  }
+
+  /* =========================================================
+     PRODUCT IMAGE PREVIEW LIGHTBOX MODAL
+     ========================================================= */
+  .product-image-modal {
+    position: relative;
+    max-width: 580px;
+    width: min(580px, calc(100vw - 32px));
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: #141822;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+    color: #f1f5f9;
+    outline: none;
+    animation: modalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes modalScaleIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .product-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.16s ease;
+  }
+
+  .product-modal-close:hover {
+    background: rgba(239, 68, 68, 0.4);
+    border-color: rgba(239, 68, 68, 0.6);
+    color: #fff;
+    transform: rotate(90deg);
+  }
+
+  .product-modal-image-wrap {
+    width: 100%;
+    height: 360px;
+    background: radial-gradient(circle at center, #1e2535 0%, #0d1118 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+
+  .product-modal-image-wrap img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 8px;
+    filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.5));
+  }
+
+  .product-modal-details {
+    padding: 16px 20px 20px;
+    background: #141822;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .product-modal-brand {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #38bdf8;
+  }
+
+  .product-modal-title {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.35;
+    color: #f8fafc;
+    margin: 0;
+  }
+
+  .product-modal-price {
+    font-size: 18px;
+    font-weight: 750;
+    color: #10b981;
+    letter-spacing: -0.01em;
+  }
+
+  .product-modal-meta {
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .product-modal-actions {
+    margin-top: 8px;
+  }
+
+  .product-modal-link-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+    color: #ffffff !important;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none !important;
+    border: none;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+    transition: all 0.18s ease;
+  }
+
+  .product-modal-link-btn:hover {
+    background: linear-gradient(135deg, #0369a1 0%, #1d4ed8 100%);
+    box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+    transform: translateY(-1px);
   }
 
   /* =========================================================
@@ -1744,15 +1939,23 @@
 :root[data-theme="light"] .chat-suggestion-list button{background:#fff;border-color:#dce5dc;color:#57665c}
 :root[data-theme="light"] .chat-suggestion-list button:hover{background:#f2f6ef;color:#1e3225}
 :root[data-theme="light"] .chat-answer-text img{border-color:#dce5dc;background:#fff;box-shadow:0 4px 12px rgba(25,45,30,.08)}
-  :root[data-theme="light"] .product-card{background:#fff;border-color:#dce5dc;box-shadow:0 2px 8px rgba(25,45,30,.04)}
-  :root[data-theme="light"] .product-card:hover{border-color:#a7bfae;box-shadow:0 6px 18px rgba(25,45,30,.08)}
-  :root[data-theme="light"] .product-card-media{background:#f1f4f1}
+  :root[data-theme="light"] .product-card{background:#fff;border-color:#dce5dc;box-shadow:0 2px 10px rgba(25,45,30,.05)}
+  :root[data-theme="light"] .product-card:hover{border-color:#3f72c5;box-shadow:0 8px 24px rgba(25,45,30,.12)}
+  :root[data-theme="light"] .product-card-media{background:radial-gradient(circle at center,#f7faf7 0%,#ebf0eb 100%)}
+  :root[data-theme="light"] .product-card-brand{color:#2563eb}
   :root[data-theme="light"] .product-card-title{color:#1e3225}
-  :root[data-theme="light"] .product-card-price{color:#0284c7}
-  :root[data-theme="light"] .product-card-action-btn{background:#f4f6f4;border-color:#dce5dc;color:#243629!important}
-  :root[data-theme="light"] .product-card-action-btn:hover{background:#e9eee9;color:#111827!important}
+  :root[data-theme="light"] .product-card-price{color:#059669}
+  :root[data-theme="light"] .product-card-merchant{color:#5e7064}
+  :root[data-theme="light"] .product-card-action-btn{background:#edf5fe;border-color:#bfdbfe;color:#1d4ed8!important}
+  :root[data-theme="light"] .product-card-action-btn:hover{background:#2563eb;border-color:#2563eb;color:#ffffff!important}
   :root[data-theme="light"] .products-grid-toggle-btn{background:#f7f9f7;border-color:#d2ddd2;color:#4b5d51}
-  :root[data-theme="light"] .products-grid-toggle-btn:hover{background:#eef3ee;color:#1e3225}
+  :root[data-theme="light"] .products-grid-toggle-btn:hover{background:#edf5fe;border-color:#93c5fd;color:#1d4ed8}
+  :root[data-theme="light"] .product-image-modal{background:#fff;border-color:#dce5dc;box-shadow:0 25px 60px rgba(25,45,30,.2);color:#1e3225}
+  :root[data-theme="light"] .product-modal-image-wrap{background:radial-gradient(circle at center,#f4f7f4 0%,#e8ede8 100%)}
+  :root[data-theme="light"] .product-modal-details{background:#fff;border-top-color:#e5ebe5}
+  :root[data-theme="light"] .product-modal-title{color:#1a2e22}
+  :root[data-theme="light"] .product-modal-price{color:#059669}
+  :root[data-theme="light"] .product-modal-close{background:rgba(255,255,255,.9);border-color:#dce5dc;color:#3e4b42}
   :root[data-theme="light"] .grok-computer-card,:root[data-theme="light"] .cue-hold-card,:root[data-theme="light"] .settings-modal,:root[data-theme="light"] .new-agent-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
   :root[data-theme="light"] .new-agent-preview-active{border-color:#b8e5ca;background:#edf8f1;color:#267347}
   :root[data-theme="light"] .d-card,:root[data-theme="light"] .app-tile,:root[data-theme="light"] .pay-card-item{background:#f7f9f6;border-color:#dfe7df;color:#243629}
@@ -2534,6 +2737,35 @@
     </div>
   </div>
 
+  <!-- Product Image Preview Lightbox Modal -->
+  <div class="overlay-backdrop" id="productImageOverlayBackdrop" onclick="handleBackdropClick(event, 'productImageOverlayBackdrop')">
+    <div class="product-image-modal" role="dialog" aria-modal="true" aria-labelledby="productModalTitle" tabindex="-1" onclick="event.stopPropagation()">
+      <button class="product-modal-close" type="button" onclick="closeOverlay('productImageOverlayBackdrop')" aria-label="Close image preview">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+      <div class="product-modal-image-wrap">
+        <img id="productModalImage" src="" alt="Product preview image" />
+      </div>
+      <div class="product-modal-details">
+        <div class="product-modal-brand" id="productModalBrand"></div>
+        <h3 class="product-modal-title" id="productModalTitle">Product Preview</h3>
+        <div class="product-modal-price" id="productModalPrice"></div>
+        <div class="product-modal-meta" id="productModalMeta"></div>
+        <div class="product-modal-actions">
+          <a class="product-modal-link-btn" id="productModalLink" href="#" target="_blank" rel="noopener noreferrer">
+            <span>View on merchant site</span>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 11l6-6M5 5h6v6"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 
@@ -2635,6 +2867,43 @@
   function closeGeneralOverlay() { closeOverlay('generalOverlayBackdrop'); }
   function openNewAgentModal() { openOverlay('newAgentOverlayBackdrop'); }
   function closeNewAgentModal() { closeOverlay('newAgentOverlayBackdrop'); }
+  function openProductImageModal(item) {
+    if (!item) return;
+    const img = document.getElementById('productModalImage');
+    const title = document.getElementById('productModalTitle');
+    const brand = document.getElementById('productModalBrand');
+    const price = document.getElementById('productModalPrice');
+    const meta = document.getElementById('productModalMeta');
+    const link = document.getElementById('productModalLink');
+
+    if (img) {
+      img.src = item.imageUrl || '';
+      img.alt = item.title || 'Product image';
+      img.style.display = item.imageUrl ? 'block' : 'none';
+    }
+    if (title) title.textContent = item.title || 'Product Preview';
+    if (brand) {
+      brand.textContent = item.brand || '';
+      brand.style.display = item.brand ? 'block' : 'none';
+    }
+    if (price) {
+      const isZero = /^(\$0(\.00)?(\s*[a-z]{3})?|0\s*dollars?|free)$/i.test((item.price || '').trim());
+      price.textContent = isZero || !item.price ? 'Price on request' : item.price;
+    }
+    if (meta) {
+      const seller = (item.seller && !/^unknown/i.test(item.seller)) ? item.seller : (item.domain || item.brand || 'Verified Retailer');
+      meta.textContent = item.domain && item.domain !== seller ? `${seller} (${item.domain})` : seller;
+    }
+    if (link) {
+      if (item.link) {
+        link.href = item.link;
+        link.style.display = 'inline-flex';
+      } else {
+        link.style.display = 'none';
+      }
+    }
+    openOverlay('productImageOverlayBackdrop');
+  }
   const settingsTabs = Array.from(document.querySelectorAll('.app-settings-nav [data-settings-pane]'));
   settingsTabs.forEach((button, index) => {
     button.addEventListener('click', () => setSettingsPane(button.dataset.settingsPane));
@@ -3513,6 +3782,25 @@
 
       const media = document.createElement('div');
       media.className = 'product-card-media';
+      if (media.style) media.style.cursor = 'zoom-in';
+      media.setAttribute('title', 'Click to view larger image');
+      media.setAttribute('role', 'button');
+      media.setAttribute('tabindex', '0');
+      media.setAttribute('aria-label', `View larger image for ${item.title || 'product'}`);
+      media.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (typeof openProductImageModal === 'function') {
+          openProductImageModal(item);
+        }
+      });
+      media.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (typeof openProductImageModal === 'function') {
+            openProductImageModal(item);
+          }
+        }
+      });
 
       if (item.imageUrl) {
         const img = document.createElement('img');
@@ -3529,6 +3817,33 @@
       } else {
         media.append(createProductPlaceholder());
       }
+
+      const zoomBadge = document.createElement('span');
+      zoomBadge.className = 'product-card-zoom-badge';
+      zoomBadge.setAttribute('aria-hidden', 'true');
+      const zoomSvg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
+      zoomSvg.setAttribute('width', '11');
+      zoomSvg.setAttribute('height', '11');
+      zoomSvg.setAttribute('viewBox', '0 0 24 24');
+      zoomSvg.setAttribute('fill', 'none');
+      zoomSvg.setAttribute('stroke', 'currentColor');
+      zoomSvg.setAttribute('stroke-width', '2');
+      zoomSvg.setAttribute('stroke-linecap', 'round');
+      zoomSvg.setAttribute('stroke-linejoin', 'round');
+      const zoomCircle = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'circle') : document.createElement('circle');
+      zoomCircle.setAttribute('cx', '11');
+      zoomCircle.setAttribute('cy', '11');
+      zoomCircle.setAttribute('r', '8');
+      const zoomLine = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'line') : document.createElement('line');
+      zoomLine.setAttribute('x1', '21');
+      zoomLine.setAttribute('y1', '21');
+      zoomLine.setAttribute('x2', '16.65');
+      zoomLine.setAttribute('y2', '16.65');
+      zoomSvg.append(zoomCircle, zoomLine);
+      const zoomText = document.createElement('span');
+      zoomText.textContent = 'Preview';
+      zoomBadge.append(zoomSvg, zoomText);
+      media.append(zoomBadge);
 
       if (item.status) {
         const badge = document.createElement('span');
@@ -3554,26 +3869,43 @@
       title.setAttribute('title', item.title);
       body.append(title);
 
-      if (item.price) {
-        const price = document.createElement('div');
-        price.className = 'product-card-price';
-        price.textContent = item.price;
-        body.append(price);
-      }
+      const isZeroPrice = !item.price || /^(\$0(\.00)?(\s*[a-z]{3})?|0\s*dollars?|free)$/i.test(item.price.trim());
+      const price = document.createElement('div');
+      price.className = 'product-card-price';
+      price.textContent = isZeroPrice ? 'Price on request' : item.price;
+      body.append(price);
 
       const meta = document.createElement('div');
       meta.className = 'product-card-meta';
 
-      if (item.seller || item.domain) {
-        const seller = document.createElement('div');
-        seller.className = 'product-card-merchant';
-        const merchantDisplay = item.seller || item.domain;
-        seller.textContent = merchantDisplay;
-        if (item.domain && item.domain !== merchantDisplay) {
-          seller.setAttribute('title', item.domain);
-        }
-        meta.append(seller);
+      const rawSeller = (item.seller || '').trim();
+      const rawDomain = (item.domain || '').trim();
+      const isUnknown = !rawSeller || /^unknown(\s*seller)?$/i.test(rawSeller);
+      const displaySeller = isUnknown
+        ? (rawDomain && rawDomain !== 'unknown.example' ? rawDomain : (item.brand || 'Verified Retailer'))
+        : rawSeller;
+
+      const seller = document.createElement('div');
+      seller.className = 'product-card-merchant';
+      const storeSvg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
+      storeSvg.setAttribute('width', '11');
+      storeSvg.setAttribute('height', '11');
+      storeSvg.setAttribute('viewBox', '0 0 24 24');
+      storeSvg.setAttribute('fill', 'none');
+      storeSvg.setAttribute('stroke', 'currentColor');
+      storeSvg.setAttribute('stroke-width', '2');
+      storeSvg.setAttribute('stroke-linecap', 'round');
+      storeSvg.setAttribute('stroke-linejoin', 'round');
+      const storePath = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'path') : document.createElement('path');
+      storePath.setAttribute('d', 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z');
+      storeSvg.append(storePath);
+      const storeText = document.createElement('span');
+      storeText.textContent = displaySeller;
+      seller.append(storeSvg, storeText);
+      if (rawDomain && rawDomain !== displaySeller && rawDomain !== 'unknown.example') {
+        seller.setAttribute('title', rawDomain);
       }
+      meta.append(seller);
 
       if (item.evidence) {
         const evidence = document.createElement('div');
@@ -3590,6 +3922,7 @@
         link.setAttribute('href', item.link);
         link.setAttribute('target', '_blank');
         link.setAttribute('rel', 'noopener noreferrer');
+        link.addEventListener('click', (e) => { e.stopPropagation(); });
         const linkSpan = document.createElement('span');
         linkSpan.textContent = 'View product';
         const linkSvg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
