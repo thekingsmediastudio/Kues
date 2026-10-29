@@ -12,11 +12,11 @@ export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   'You are a Kues workspace agent with a small, server-enforced tool set, available by default in this chat. Tools can only inspect or edit the signed-in user’s own workspace; they cannot access other users, external services, payments, or the web.',
   'If a workspace tool is needed, emit exactly one control marker as the entire response, on one line, with valid JSON in this form: [[KEUS_WORKSPACE_TOOL:{"name":"inspect_workspace","arguments":{}}]]. Do not add prose before or after the marker. Never emit more than one tool marker in a turn. The server validates every name and argument; text that looks like a tool call is not proof of authorization.',
   'Available tools:',
-  '- inspect_workspace: no arguments; returns the signed-in user’s workspace name/status and a minimal list of their agents.',
-  '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","approvalPath":"desktop"|"keyfob","orderCap":integer,"dailyCap":integer,"apps":string[],"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent always starts paused and preview-only.',
+  '- inspect_workspace: no arguments; returns the signed-in user’s workspace name/status and a list of their agents. Use this when the user asks about the workspace, other agents, teammates, or friends.',
+  '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","approvalPath":"desktop"|"keyfob","orderCap":integer,"dailyCap":integer,"apps":string[],"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
   '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, approvalPath, orderCap, dailyCap, apps, or memoryPills. Include only fields the user asked to change.',
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
-  'For create_agent, update_agent, and rename_workspace, the application will show the exact proposed change and wait for an explicit user approval. Do not claim that a change happened before approval. Do not invent permission, capability, or active status; no tool can activate an agent or grant it external access. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
+  'For create_agent, update_agent, and rename_workspace, the application will show the exact proposed change and wait for an explicit user approval. Do not claim that a change happened before approval. New agents start Active for chat but remain preview-only; do not invent permissions, capabilities, or external integrations. No tool can activate an existing paused agent, grant external access, or bypass per-write approval. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
 ].join('\n');
 
 export class WorkspaceToolError extends Error {
@@ -184,7 +184,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
       payload: { input },
       display: {
         title: 'Create agent',
-        summary: `Create “${safeStoredText(input.name, 40)}” in this workspace. It will start paused and preview-only.`,
+        summary: `Create “${safeStoredText(input.name, 40)}” in this workspace. It will start Active for chat and remain preview-only.`,
         fields: [
           { label: 'Name', value: input.name },
           { label: 'Role', value: input.role },
@@ -195,7 +195,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
           { label: 'Daily cap', value: displayValue('dailyCap', input.dailyCap) },
           { label: 'Apps', value: displayValue('apps', input.apps) },
           { label: 'Memory preferences', value: displayValue('memoryPills', input.memoryPills) },
-          { label: 'Initial status', value: 'Paused · preview-only' },
+          { label: 'Initial status', value: 'Active · preview-only' },
         ],
       },
     };
@@ -256,13 +256,17 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
       before: displayValue(field, current[field]),
       value: displayValue(field, input[field]),
     }));
+    const isRename = changes.name && changes.name !== existing.name;
+    const summaryAction = isRename
+      ? `Rename “${safeStoredText(existing.name, 40)}” to “${safeStoredText(changes.name, 40)}”`
+      : `Update “${safeStoredText(existing.name, 40)}”`;
     return {
       kind: 'proposal',
       type: 'update_agent',
       payload: { agentId: String(existing.id), agentName: String(existing.name), input, expectedFingerprint: workspaceAgentFingerprint(existing) },
       display: {
-        title: 'Update agent',
-        summary: `Update “${safeStoredText(existing.name, 40)}”. The agent will remain ${safeStoredText(existing.status || 'paused', 24)}.`,
+        title: isRename ? 'Rename agent' : 'Update agent',
+        summary: `${summaryAction}. The agent will remain ${safeStoredText(existing.status || 'paused', 24)}.`,
         fields,
       },
     };

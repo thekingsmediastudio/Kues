@@ -246,6 +246,41 @@ test('quiet workspace refresh renders current data without replacing the app on 
   assert.equal(failure.state.unavailable, 1, 'initial non-quiet load still reports a workspace failure');
 });
 
+test('composer accent follows the selected agent color and updates across agent changes', () => {
+  const helperStart = desktopHtml.indexOf('  function setSelectedAgentComposerAccent');
+  const helperEnd = desktopHtml.indexOf('  function findSelectedChatAgent', helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const helperSource = desktopHtml.slice(helperStart, helperEnd);
+  const applied = [];
+  const document = { documentElement: { style: { setProperty(name, value) { applied.push([name, value]); } } } };
+  const safeAvatarColor = (color) => /^#[0-9a-f]{6}$/i.test(color || '') ? color : '#32d583';
+  const setAccent = new Function(
+    'currentBootstrap', 'safeAvatarColor', 'document',
+    `${helperSource}; return setSelectedAgentComposerAccent;`,
+  )({ onboarding: { profile: { agent: { color: '#4c8dff' } } } }, safeAvatarColor, document);
+
+  setAccent({ settings: { color: '#ff7777' } });
+  setAccent({ color: '#b57cff' });
+  setAccent(null);
+  assert.deepEqual(applied, [
+    ['--agent-accent', '#ff7777'],
+    ['--agent-accent', '#b57cff'],
+    ['--agent-accent', '#4c8dff'],
+  ]);
+  assert.match(desktopHtml, /border-color:color-mix\(in srgb,var\(--agent-accent\)/);
+  assert.match(desktopHtml, /\.composer-pill:focus-within\s*\{[^}]*border-color:\s*var\(--agent-accent\)/);
+  assert.match(desktopHtml, /:root\[data-theme="light"\] \.composer-pill:focus-within\{border-color:var\(--agent-accent\)/);
+
+  const selectionStart = desktopHtml.indexOf('  function selectDesktopAgent');
+  const selectionEnd = desktopHtml.indexOf('  function chatErrorCopy', selectionStart);
+  assert.ok(selectionStart >= 0 && selectionEnd > selectionStart);
+  assert.match(desktopHtml.slice(selectionStart, selectionEnd), /setSelectedAgentComposerAccent\(agent\)/);
+  const bootstrapStart = desktopHtml.indexOf('  function renderAuthenticatedWorkspace');
+  const bootstrapEnd = desktopHtml.indexOf('  async function loadAuthenticatedWorkspace', bootstrapStart);
+  assert.ok(bootstrapStart >= 0 && bootstrapEnd > bootstrapStart);
+  assert.match(desktopHtml.slice(bootstrapStart, bootstrapEnd), /setSelectedAgentComposerAccent\(agent\)/);
+});
+
 test('pending assistant messages render three decorative bouncing dots and an accessible typing status', () => {
   const start = desktopHtml.indexOf('  function createAssistantChatMessage');
   const end = desktopHtml.indexOf('  function appendChatProviderAttribution', start);

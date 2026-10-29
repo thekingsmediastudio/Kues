@@ -462,12 +462,11 @@ export function createWorkspaceService({ db, competition = null } = {}) {
       };
       await tx.execute({
         sql: `INSERT INTO agents(id, workspace_id, name, role, avatar, status, settings_json, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, 'paused', ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 role = excluded.role,
                 avatar = excluded.avatar,
-                status = 'paused',
                 settings_json = excluded.settings_json,
                 updated_at = excluded.updated_at
               WHERE agents.workspace_id = excluded.workspace_id`,
@@ -524,7 +523,7 @@ export function createWorkspaceService({ db, competition = null } = {}) {
       };
       await tx.execute({
         sql: `INSERT INTO agents(id, workspace_id, name, role, avatar, status, settings_json, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, 'paused', ?, ?, ?)`,
+              VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
         args: [agentId, workspace.id, payload.name, payload.role, payload.avatar, JSON.stringify(settings), checkedAt, checkedAt],
       });
       const bootstrap = await workspaceBootstrapInTransaction(tx, { userId, now: checkedAt, competition });

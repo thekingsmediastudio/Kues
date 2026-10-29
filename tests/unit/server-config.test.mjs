@@ -333,7 +333,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     for (const pane of ['Workspace', 'Agents', 'Apps', 'Usage', 'Account', 'Appearance']) {
       assert.match(desktopPreview, new RegExp(`id="settingsPane${pane}"`));
     }
-    assert.match(desktopPreview, /New agents are saved as paused and will not run automatically/);
+    assert.match(desktopPreview, /New agents start Active for chat/);
     assert.match(desktopPreview, /7,000,000 AI tokens/);
     for (const app of ['PayPal Sandbox', 'Channel3', 'KERNEL', 'WhatsApp', 'Inbox', 'Instagram Shops']) {
       assert.ok(desktopPreview.includes(app), `settings include preview app label ${app}`);
@@ -405,7 +405,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /\.account-menu-item\{[^}]*font:500 13px var\(--font\)/);
     assert.match(desktopPreview, /\.account-trigger-copy strong\{[^}]*font-size:12px/);
     assert.match(desktopPreview, /\.account-trigger-copy small\{[^}]*font-size:11px/);
-    assert.match(desktopPreview, /New agents are saved as paused and will not run automatically/);
+    assert.match(desktopPreview, /New agents start Active for chat/);
     assert.match(desktopPreview, /This sample review account is not authenticated and cannot save agents/);
     const desktopMarkup = desktopPreview.replace(/<script>[\s\S]*?<\/script>/g, '');
     assert.doesNotMatch(desktopMarkup, /Shopping Crew|Nova|Atlas|Aegis|preview apps|Example prompt|Example receipt|computer preview|Sentinel test unavailable/i);

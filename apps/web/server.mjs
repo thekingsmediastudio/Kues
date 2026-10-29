@@ -232,14 +232,17 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
         const duplicate = currentAgents.some((agent) => String(agent?.name || '').trim().toLowerCase() === String(input?.name || '').toLowerCase());
         if (duplicate) throw new WorkspaceError('agent_name_conflict', 409);
         await workspaceService.createAgent({ userId: user.id, input });
-        message = `Created “${String(input.name).slice(0, 80)}”. The agent is paused and preview-only.`;
+        message = `Created “${String(input.name).slice(0, 80)}”. The agent is Active for chat and remains preview-only.`;
       } else if (approval.type === 'update_agent') {
         const agent = currentAgents.find((entry) => String(entry?.id) === String(approval.payload?.agentId));
         if (!agent || workspaceAgentFingerprint(agent) !== approval.payload?.expectedFingerprint) {
           throw new WorkspaceError('workspace_tool_proposal_stale', 409);
         }
         await workspaceService.updateAgent({ userId: user.id, agentId: agent.id, input: approval.payload.input });
-        message = `Updated “${String(agent.name || '').slice(0, 80)}”.`;
+        const newName = approval.payload?.input?.name;
+        message = newName && newName !== agent.name
+          ? `Renamed “${String(agent.name || '').slice(0, 40)}” to “${String(newName).slice(0, 40)}”.`
+          : `Updated “${String(agent.name || '').slice(0, 80)}”.`;
       } else if (approval.type === 'rename_workspace') {
         if (workspaceNameFingerprint(workspace) !== approval.payload?.expectedFingerprint) {
           throw new WorkspaceError('workspace_tool_proposal_stale', 409);

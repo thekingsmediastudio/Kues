@@ -262,7 +262,7 @@ test('workspace create proposals do not write until same-user approval and appro
     assert.match(approval.actionId, /^[A-Za-z0-9_-]{32}$/);
     assert.match(approval.action.title, /Create agent/);
     assert.match(approval.action.summary, /Budget Helper/);
-    assert.ok(approval.action.fields.some((field) => field.label === 'Initial status' && field.value === 'Paused · preview-only'));
+    assert.ok(approval.action.fields.some((field) => field.label === 'Initial status' && field.value === 'Active · preview-only'));
     const pendingHistory = await fetch(`${base}/api/chat/history?agentId=agent-1`, {
       headers: { Cookie: 'kues_session=admin-session' },
     });
@@ -292,7 +292,7 @@ test('workspace create proposals do not write until same-user approval and appro
     assert.equal(applied.status, 200);
     const result = await applied.json();
     assert.equal(result.status, 'approved');
-    assert.match(result.message, /paused and preview-only/);
+    assert.match(result.message, /Active for chat and remains preview-only/);
     assert.equal(created.length, 1);
     assert.equal(created[0].userId, admin.id);
     assert.equal(created[0].input.name, 'Budget Helper');
