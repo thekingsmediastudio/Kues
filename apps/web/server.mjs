@@ -182,7 +182,7 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
     const discovery = await discoverProducts({
       channel3Client,
       query,
-      limit: 5,
+      limit: 9,
       db,
       workspaceId,
       userId,
@@ -193,6 +193,7 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
     const lines = [];
     const sourceLabel = discovery.isLive ? 'Channel3 (Live Search)' : 'Channel3 (Sample Fixtures)';
     lines.push(`Discovered ${discovery.products.length} product${discovery.products.length === 1 ? '' : 's'} matching "${escapeMarkdown(query)}":\n`);
+    lines.push(':::products-grid');
     for (let i = 0; i < discovery.products.length; i++) {
       const p = discovery.products[i];
       const stock = p.availability === 'in_stock' ? 'In Stock' : (p.availability === 'out_of_stock' ? 'Out of Stock' : p.availability);
@@ -207,6 +208,8 @@ async function executeProductSearchTool(query, { channel3Client, db, workspaceId
       lines.push(`   - **Evidence:** \`${p.evidenceHash.slice(0, 19)}...\``);
       lines.push('');
     }
+    lines.push(':::');
+    lines.push('');
     lines.push(`*Source:* ${sourceLabel}${discovery.runId ? ` · *Run ID:* \`${discovery.runId}\`` : ''}`);
     return lines.join('\n');
   } catch (err) {
