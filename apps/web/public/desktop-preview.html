@@ -915,20 +915,29 @@
     font-family: var(--font);
   }
   .composer-pill input::placeholder { color: var(--text-dim); }
-  .comp-mic, .comp-send {
-    width: 34px;
-    height: 34px;
+  .comp-mic {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     border: none;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    background: transparent;
+    color: var(--text-sec);
   }
-  .comp-mic { background: transparent; color: var(--text-sec); }
   .comp-mic:hover { color: var(--text-main); background: var(--bg-hover); }
-  .comp-send { background: #f3f3f5; color: #111113; }
-  .comp-send:hover { background: #fff; }
+  .comp-send {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  }
 
   /* =========================================================
      CENTERED ROUNDED-BORDER OVERLAY MODALS
@@ -1373,8 +1382,6 @@
   .memory-pill { padding:5px 9px; }
   .composer-pill { height:48px;background:#1f2022;border-color:color-mix(in srgb,var(--agent-accent) 42%,rgba(255,255,255,.12));box-shadow:none;padding:0 7px;gap:7px;transition:border-color .18s ease,box-shadow .18s ease; }
   .composer-pill:focus-within { border-color:var(--agent-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 20%,transparent); }
-  .comp-send { width:32px;height:32px;background:#303136;color:#7b7d84;box-shadow:none; }
-  .comp-send:hover { background:#303136;transform:none; }
   .comp-plus { width:auto;min-width:64px;height:34px;padding:0 10px;gap:6px;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.085);color:#c7c8cd;font:600 10.5px var(--font); }
   .comp-plus .ui-icon { width:14px;height:14px;stroke-width:2; }
   .comp-plus:hover,.comp-plus.active { background:rgba(233,185,93,.12);border-color:rgba(233,185,93,.26);color:#f0d391; }
@@ -1651,7 +1658,15 @@
   .composer-icon-btn{width:28px;height:32px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-sec);padding:0}
   .composer-icon-btn svg{width:16px;height:16px;display:block}
   .composer-icon-btn:disabled{opacity:.72!important;filter:none!important;cursor:not-allowed!important}
-  .comp-send:disabled{opacity:1!important;filter:none!important;cursor:not-allowed!important;background:#303136!important;color:#85868d!important;box-shadow:none!important;transform:none!important}
+  .comp-send:disabled{cursor:not-allowed!important;background:#2a2b30!important;color:#63656d!important;opacity:.65!important;box-shadow:none!important;transform:none!important}
+  .comp-send:not(:disabled):not(.is-stop){cursor:pointer;background:var(--agent-accent,#32d583);color:#111113;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#32d583) 35%,transparent)}
+  .comp-send:not(:disabled):not(.is-stop):hover{transform:scale(1.06);filter:brightness(1.12)}
+  .comp-send.is-stop{cursor:pointer;background:#27282d;color:#f3f3f5;border:1px solid rgba(255,255,255,.22);box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  .comp-send.is-stop:hover{background:#36373e;color:#fff;border-color:rgba(255,255,255,.4);transform:scale(1.06)}
+  :root[data-theme="light"] .comp-send:disabled{background:#e2e7e1!important;color:#9aa79d!important}
+  :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop){background:var(--agent-accent,#1c9760);color:#fff;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#1c9760) 35%,transparent)}
+  :root[data-theme="light"] .comp-send.is-stop{background:#fff;color:#17261c;border:1px solid #cbd7cc;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  :root[data-theme="light"] .comp-send.is-stop:hover{background:#f0f4ef;border-color:#9eb1a0}
   .composer-preview-note{margin:7px 6px 0;color:var(--text-dim);font-size:9px;line-height:1.4;text-align:center}
   @media(max-width:640px){
     .chat-header{height:58px;padding:0 5px;gap:4px}
@@ -2956,6 +2971,17 @@
     if (emptyState) emptyState.hidden = true;
   }
 
+  const CHAT_SEND_ICON_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  const CHAT_STOP_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+  let activeChatAbortController = null;
+
+  function stopChatMessage() {
+    if (!chatPending) return;
+    if (activeChatAbortController) {
+      try { activeChatAbortController.abort(); } catch {}
+    }
+  }
+
   function syncChatComposer() {
     const input = document.getElementById('chatInput');
     const sendButton = document.getElementById('chatSendButton');
@@ -2963,6 +2989,7 @@
     const sampleFixture = document.documentElement.dataset.reviewFixture === 'true';
     const hasAgent = Boolean(agent && agent.status !== 'archived');
     const canChat = Boolean(chatAvailable && chatHistoryReady && hasAgent && currentBootstrap?.user?.id && !sampleFixture);
+    const hasText = Boolean(String(input?.value || '').trim());
     if (input) {
       input.disabled = !canChat || chatPending || chatHistoryLoading;
       input.placeholder = !currentBootstrap?.user?.id
@@ -2970,7 +2997,21 @@
         : hasAgent ? `Message ${String(agent.name || 'your agent')}...` : 'Save an agent to start a chat';
       input.setAttribute('aria-label', input.placeholder);
     }
-    if (sendButton) sendButton.disabled = !canChat || chatPending || chatHistoryLoading || !String(input?.value || '').trim();
+    if (sendButton) {
+      if (chatPending) {
+        sendButton.disabled = false;
+        sendButton.classList.add('is-stop');
+        sendButton.setAttribute('aria-label', 'Stop generating');
+        sendButton.setAttribute('title', 'Stop generating');
+        sendButton.innerHTML = CHAT_STOP_ICON_SVG;
+      } else {
+        sendButton.classList.remove('is-stop');
+        sendButton.setAttribute('aria-label', 'Send message');
+        sendButton.setAttribute('title', 'Send message');
+        sendButton.innerHTML = CHAT_SEND_ICON_SVG;
+        sendButton.disabled = !canChat || chatHistoryLoading || !hasText;
+      }
+    }
 
     if (chatHistoryLoading) {
       textById('chatPreviewNote', 'Loading your saved conversation...');
@@ -3930,13 +3971,24 @@
     }
   }
 
-  async function readChatEventStream(response, onEvent) {
+  async function readChatEventStream(response, onEvent, signal) {
     const reader = response.body?.getReader?.();
     if (!reader) throw Object.assign(new Error('ai_chat_stream_unavailable'), { code: 'ai_chat_stream_unavailable' });
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
     let eventName = 'message';
     let dataLines = [];
+
+    const onAbort = () => {
+      try { reader.cancel(); } catch {}
+    };
+    if (signal) {
+      if (signal.aborted) {
+        try { reader.cancel(); } catch {}
+        throw new DOMException('The user aborted a request.', 'AbortError');
+      }
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
 
     const dispatch = async () => {
       if (!dataLines.length) return;
@@ -3967,6 +4019,7 @@
 
     try {
       while (true) {
+        if (signal?.aborted) throw new DOMException('The user aborted a request.', 'AbortError');
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -3984,6 +4037,7 @@
       try { await reader.cancel(); } catch {}
       throw error;
     } finally {
+      if (signal) signal.removeEventListener('abort', onAbort);
       try { reader.releaseLock(); } catch {}
     }
   }
@@ -4002,6 +4056,8 @@
     const userRow = appendUserChatMessage(content);
     if (input) input.value = '';
     chatPending = true;
+    activeChatAbortController = new AbortController();
+    const abortSignal = activeChatAbortController.signal;
     syncChatComposer();
     const pendingRow = createAssistantChatMessage('Thinking...', { pending: true });
     let assistantRow = null;
@@ -4026,6 +4082,7 @@
         credentials: 'same-origin',
         headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
+        signal: abortSignal,
       });
       if (response.status === 401) {
         pendingRow?.remove();
@@ -4086,7 +4143,7 @@
           error.adminDiagnostics = payload?.adminDiagnostics;
           throw error;
         }
-      });
+      }, abortSignal);
       if (!completed || !replyText.trim()) {
         const error = new Error('ai_chat_stream_interrupted');
         error.code = 'ai_chat_stream_interrupted';
@@ -4106,9 +4163,10 @@
       chatMessages.push({ role: 'assistant', content: reply });
       while (chatMessages.length > 100) chatMessages.shift();
     } catch (error) {
+      const wasAborted = Boolean(abortSignal?.aborted || error?.name === 'AbortError');
       assistantRow?.classList.remove('chat-streaming');
       if (requestAgentId === String(selectedAgentId || '') && requestViewVersion === chatHistoryLoadVersion) {
-        setAdminChatDiagnostics(error.adminDiagnostics);
+        if (!wasAborted) setAdminChatDiagnostics(error.adminDiagnostics);
         if (replyText.trim()) {
           const partialReply = replyText.trim();
           if (!assistantRow) {
@@ -4122,16 +4180,17 @@
           chatMessages.push({ role: 'assistant', content: partialReply });
           while (chatMessages.length > 100) chatMessages.shift();
           const reference = error.requestId ? ` Reference: ${error.requestId}` : '';
-          chatNotice = `The reply was interrupted. Check the saved conversation before retrying.${reference}`;
+          chatNotice = wasAborted ? 'Generation stopped.' : `The reply was interrupted. Check the saved conversation before retrying.${reference}`;
         } else {
           pendingRow?.remove();
           userRow?.remove();
           if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
-          chatNotice = chatErrorCopy(error.code, error.requestId);
+          chatNotice = wasAborted ? 'Generation stopped.' : chatErrorCopy(error.code, error.requestId);
           if (input && !input.value) input.value = content;
         }
       }
     } finally {
+      activeChatAbortController = null;
       chatPending = false;
       syncChatComposer();
       if (requestAgentId === String(selectedAgentId || '')) input?.focus();
@@ -4624,13 +4683,21 @@
 
   const chatInput = document.getElementById('chatInput');
   chatInput?.addEventListener('input', syncChatComposer);
+  chatInput?.addEventListener('keyup', syncChatComposer);
+  chatInput?.addEventListener('change', syncChatComposer);
   chatInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.isComposing) {
       event.preventDefault();
       void sendChatMessage();
     }
   });
-  document.getElementById('chatSendButton')?.addEventListener('click', () => void sendChatMessage());
+  document.getElementById('chatSendButton')?.addEventListener('click', () => {
+    if (chatPending) {
+      stopChatMessage();
+    } else {
+      void sendChatMessage();
+    }
+  });
   document.querySelectorAll('[data-chat-suggestion]').forEach((button) => {
     button.addEventListener('click', () => {
       if (!chatInput || !chatAvailable) return;

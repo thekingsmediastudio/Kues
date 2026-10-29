@@ -743,3 +743,96 @@ test('desktop agent avatars are enlarged and use transparent backplates', () => 
   assert.match(desktopHtml, /\.chat-reply-avatar svg \{ width: 46px; height: 46px;/);
   assert.match(desktopHtml, /body\.typing-mode #hdrAvatar \{[^}]*box-shadow:none;/);
 });
+
+test('send button is active only when text is typed and turns into a square stop button while awaiting a reply', () => {
+  assert.match(desktopHtml, /\.comp-send:not\(:disabled\):not\(\.is-stop\)\{cursor:pointer;background:var\(--agent-accent/);
+  assert.match(desktopHtml, /\.comp-send\.is-stop\{cursor:pointer;/);
+  assert.match(desktopHtml, /const CHAT_SEND_ICON_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"/);
+  assert.match(desktopHtml, /const CHAT_STOP_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"[^>]*><rect x="6" y="6" width="12" height="12"/);
+  assert.match(desktopHtml, /sendButton\.classList\.add\('is-stop'\)/);
+  assert.match(desktopHtml, /sendButton\.classList\.remove\('is-stop'\)/);
+  assert.match(desktopHtml, /sendButton\.setAttribute\('aria-label', 'Stop generating'\)/);
+  assert.match(desktopHtml, /stopChatMessage\(\)/);
+
+  const syncStart = desktopHtml.indexOf('  function syncChatComposer');
+  const syncEnd = desktopHtml.indexOf('  function appendUserChatMessage', syncStart);
+  assert.ok(syncStart >= 0 && syncEnd > syncStart);
+  const syncSource = desktopHtml.slice(syncStart, syncEnd);
+
+  const input = { value: '', disabled: false, placeholder: '', setAttribute() {} };
+  const sendButton = {
+    disabled: true,
+    classes: new Set(),
+    classList: {
+      add(cls) { sendButton.classes.add(cls); },
+      remove(cls) { sendButton.classes.delete(cls); },
+    },
+    attrs: {},
+    setAttribute(name, val) { sendButton.attrs[name] = val; },
+    innerHTML: '',
+  };
+  const document = {
+    getElementById(id) {
+      if (id === 'chatInput') return input;
+      if (id === 'chatSendButton') return sendButton;
+      return null;
+    },
+    documentElement: { dataset: {} },
+  };
+
+  let chatPending = false;
+  let chatAvailable = true;
+  let chatHistoryReady = true;
+  let chatHistoryLoading = false;
+  let chatNotice = '';
+  const currentBootstrap = { user: { id: 'usr-1' } };
+  const findSelectedChatAgent = () => ({ id: 'agt-1', status: 'active' });
+  const textById = () => {};
+  const syncAdminChatControlsAvailability = () => {};
+
+  const makeSync = (pendingState) => new Function(
+    'document', 'findSelectedChatAgent', 'currentBootstrap', 'chatAvailable', 'chatHistoryReady',
+    'chatHistoryLoading', 'chatPending', 'chatNotice', 'textById', 'syncAdminChatControlsAvailability',
+    'CHAT_SEND_ICON_SVG', 'CHAT_STOP_ICON_SVG',
+    `${syncSource}; return syncChatComposer;`,
+  )(
+    document, findSelectedChatAgent, currentBootstrap, chatAvailable, chatHistoryReady,
+    chatHistoryLoading, pendingState, chatNotice, textById, syncAdminChatControlsAvailability,
+    '<svg class="send"></svg>', '<svg class="stop"></svg>',
+  );
+
+  // 1. Initial state: input empty -> sendButton disabled, not stop
+  input.value = '';
+  makeSync(false)();
+  assert.equal(sendButton.disabled, true);
+  assert.equal(sendButton.classes.has('is-stop'), false);
+  assert.equal(sendButton.innerHTML, '<svg class="send"></svg>');
+
+  // 2. Text typed -> sendButton active (enabled), not stop
+  input.value = 'Hello agent';
+  makeSync(false)();
+  assert.equal(sendButton.disabled, false);
+  assert.equal(sendButton.classes.has('is-stop'), false);
+  assert.equal(sendButton.innerHTML, '<svg class="send"></svg>');
+
+  // 3. Text removed -> sendButton disabled again
+  input.value = '   ';
+  makeSync(false)();
+  assert.equal(sendButton.disabled, true);
+  assert.equal(sendButton.classes.has('is-stop'), false);
+
+  // 4. Message sent, waiting for reply (chatPending = true) -> square stop button, enabled
+  input.value = '';
+  makeSync(true)();
+  assert.equal(sendButton.disabled, false);
+  assert.equal(sendButton.classes.has('is-stop'), true);
+  assert.equal(sendButton.attrs['aria-label'], 'Stop generating');
+  assert.equal(sendButton.innerHTML, '<svg class="stop"></svg>');
+
+  // 5. Reply finished (chatPending = false) -> back to send button
+  makeSync(false)();
+  assert.equal(sendButton.classes.has('is-stop'), false);
+  assert.equal(sendButton.attrs['aria-label'], 'Send message');
+  assert.equal(sendButton.innerHTML, '<svg class="send"></svg>');
+  assert.equal(sendButton.disabled, true);
+});
