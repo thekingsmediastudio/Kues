@@ -210,7 +210,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
       workspaceId,
       userId,
       agentId,
-      allowFixtureFallback: !channel3Client?.isConfigured?.(),
+      allowFixtureFallback: true,
     });
 
     const lines = [];
