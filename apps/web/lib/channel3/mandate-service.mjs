@@ -557,6 +557,7 @@ export async function createPurchaseMandate({
       decisionCode: 'approved',
       mandateId,
       approvalId,
+      runId: targetRunId,
       challengeHash,
       nonce,
       expiresAt,
