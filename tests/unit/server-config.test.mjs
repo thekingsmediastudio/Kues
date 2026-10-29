@@ -24,11 +24,14 @@ test('server config defaults to sandbox and does not expose secrets', () => {
   const config = loadServerConfig({
     PAYPAL_CLIENT_ID: 'not-returned',
     PAYPAL_CLIENT_SECRET: 'also-not-returned',
+    CHANNEL3_API_KEY: 'secret-c3-key',
   });
   assert.equal(config.paypalMode, 'sandbox');
   assert.equal(config.paypalConfigured, true);
+  assert.equal(config.channel3Configured, true);
   assert.deepEqual(config.allowedOrigins, []);
   assert.equal(JSON.stringify(config).includes('not-returned'), false);
+  assert.equal(JSON.stringify(config).includes('secret-c3-key'), false);
 });
 
 test('competition configuration requires a complete timezone-explicit window and positive daily token cap', () => {

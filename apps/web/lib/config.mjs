@@ -231,10 +231,12 @@ export function loadServerConfig(env = process.env) {
   if (issues.length) throw new ConfigError(issues);
 
   const workosConfigured = authProvider === 'workos' && Boolean(workosApiKey && workosClientId && workosRedirectUri);
+  const channel3ApiKey = String(env.CHANNEL3_API_KEY || '').trim();
   return Object.freeze({
     nodeEnv: String(env.NODE_ENV || 'development').trim(),
     paypalMode,
     paypalConfigured: Boolean(clientId && clientSecret),
+    channel3Configured: Boolean(channel3ApiKey),
     databaseConfigured: Boolean(databaseUrl),
     authProvider: authProvider || null,
     workosConfigured,
