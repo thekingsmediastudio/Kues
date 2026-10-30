@@ -1129,5 +1129,7 @@ test('admin model panel anchors below its header picker and composer accent swee
   assert.match(desktopHtml, /conic-gradient\(from 270deg,var\(--agent-accent\) 0 var\(--composer-progress\)/);
   assert.match(desktopHtml, /pill\.style\.setProperty\('--composer-progress', `\$\{outlineProgress\}%`\)/);
   assert.match(desktopHtml, /outlineProgress - 50/);
+  assert.match(desktopHtml, /@property --composer-progress\{syntax:"<percentage>";inherits:true/);
+  assert.match(desktopHtml, /trigger\.addEventListener\('click', \(event\) => \{\s*event\.stopPropagation\(\)/);
   assert.doesNotMatch(desktopHtml, /Show me the available providers/);
 });
