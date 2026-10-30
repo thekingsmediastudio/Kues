@@ -1119,3 +1119,15 @@ test('products card grid renders 3-per-row layout and collapses items beyond two
 
   assert.ok(desktopHtml.includes('function requestBundlePurchase'), 'requestBundlePurchase handler must be defined');
 });
+
+test('admin model panel anchors below its header picker and composer accent sweeps with input length', () => {
+  const headerStart = desktopHtml.indexOf('<header class="chat-header">');
+  const panelStart = desktopHtml.indexOf('id="adminChatControls"');
+  const composerStart = desktopHtml.indexOf('<footer class="composer-area"');
+  assert.ok(headerStart >= 0 && panelStart > headerStart && panelStart < composerStart, 'provider panel belongs to the header, not after the composer');
+  assert.match(desktopHtml, /id="adminProviderAccordion"/);
+  assert.match(desktopHtml, /conic-gradient\(from 270deg,var\(--agent-accent\) 0 var\(--composer-progress\)/);
+  assert.match(desktopHtml, /pill\.style\.setProperty\('--composer-progress', `\$\{outlineProgress\}%`\)/);
+  assert.match(desktopHtml, /outlineProgress - 50/);
+  assert.doesNotMatch(desktopHtml, /Show me the available providers/);
+});
