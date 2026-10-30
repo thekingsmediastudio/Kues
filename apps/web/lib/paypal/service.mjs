@@ -7,6 +7,7 @@ import {
   createAuthorizedOrder,
   voidAuthorization,
   captureAuthorization,
+  refundCapture,
 } from './endpoints.mjs';
 
 export class PayPalSandboxError extends Error {
@@ -745,6 +746,151 @@ export async function captureSandboxPaymentAuthorization({
     receiptId,
     receiptHash,
     capturedAt: timestamp,
+  };
+}
+
+/**
+ * Refunds a captured PayPal Sandbox payment (full or partial).
+ * Fails closed if transaction is not in 'captured' state.
+ */
+export async function refundSandboxPaymentCapture({
+  db,
+  workspaceId,
+  transactionId = null,
+  mandateId = null,
+  captureId = null,
+  amountValue = null,
+  currencyCode = null,
+  note = 'Refunded from Kues Flight-Recorder receipt',
+  simulate = false,
+  now = Date.now(),
+}) {
+  assertSandboxMode();
+
+  if (!db) throw new PayPalSandboxError('database_required', 500, 'Database is required');
+  if (!workspaceId) throw new PayPalSandboxError('workspace_id_required', 400, 'Workspace ID is required');
+  if (!transactionId && !mandateId && !captureId) {
+    throw new PayPalSandboxError('identifier_required', 400, 'transactionId, mandateId, or captureId is required');
+  }
+
+  const timestamp = isoNow(now);
+
+  const txRecord = await withReadTransaction(db, async (tx) => {
+    let query;
+    let args;
+    if (transactionId) {
+      query = `SELECT id, workspace_id, run_id, mandate_id, external_order_id,
+                      authorization_id, capture_id, status, amount_minor, currency
+               FROM agent_payment_transactions
+               WHERE workspace_id = ? AND id = ?`;
+      args = [workspaceId, transactionId];
+    } else if (mandateId) {
+      query = `SELECT id, workspace_id, run_id, mandate_id, external_order_id,
+                      authorization_id, capture_id, status, amount_minor, currency
+               FROM agent_payment_transactions
+               WHERE workspace_id = ? AND mandate_id = ?`;
+      args = [workspaceId, mandateId];
+    } else {
+      query = `SELECT id, workspace_id, run_id, mandate_id, external_order_id,
+                      authorization_id, capture_id, status, amount_minor, currency
+               FROM agent_payment_transactions
+               WHERE workspace_id = ? AND capture_id = ?`;
+      args = [workspaceId, captureId];
+    }
+    const res = await tx.execute({ sql: query, args });
+    return res.rows[0] || null;
+  });
+
+  if (!txRecord) {
+    throw new PayPalSandboxError('transaction_not_found', 404, 'Payment transaction not found');
+  }
+
+  if (txRecord.status === 'refunded') {
+    return {
+      id: txRecord.id,
+      mandateId: txRecord.mandate_id,
+      captureId: txRecord.capture_id,
+      status: 'refunded',
+      refundedAt: timestamp,
+      idempotent: true,
+    };
+  }
+
+  if (txRecord.status !== 'captured' || !txRecord.capture_id) {
+    throw new PayPalSandboxError(
+      'transaction_not_refundable',
+      409,
+      `Cannot refund transaction in status: ${txRecord.status}. Only captured payments can be refunded.`
+    );
+  }
+
+  let refundId;
+  const canUseLiveCredentials = hasLivePayPalCredentials() && !simulate && !txRecord.capture_id.startsWith('CAP-SANDBOX-');
+
+  if (canUseLiveCredentials) {
+    try {
+      const ref = await refundCapture({
+        runId: txRecord.run_id,
+        captureId: txRecord.capture_id,
+        amountValue,
+        currencyCode: currencyCode || txRecord.currency,
+        note,
+      });
+      refundId = ref.refundId;
+    } catch (err) {
+      throw new PayPalSandboxError(
+        'paypal_refund_failed',
+        502,
+        `PayPal Sandbox refund failed: ${err.message}`,
+        { error: err.message }
+      );
+    }
+  } else {
+    refundId = `REF-SANDBOX-${crypto.randomUUID().slice(0, 16).toUpperCase()}`;
+  }
+
+  await withWriteTransaction(db, async (tx) => {
+    await tx.execute({
+      sql: `UPDATE agent_payment_transactions
+            SET status = 'refunded', updated_at = ?
+            WHERE workspace_id = ? AND id = ?`,
+      args: [timestamp, workspaceId, txRecord.id],
+    });
+
+    await tx.execute({
+      sql: `UPDATE receipts
+            SET status = 'refunded'
+            WHERE workspace_id = ? AND mandate_id = ?`,
+      args: [workspaceId, txRecord.mandate_id],
+    });
+
+    await tx.execute({
+      sql: `INSERT INTO run_events (id, workspace_id, run_id, event_type, details_json, created_at)
+            VALUES (?, ?, ?, 'payment_refunded', ?, ?)`,
+      args: [
+        `evt_${crypto.randomUUID().replaceAll('-', '')}`,
+        workspaceId,
+        txRecord.run_id,
+        JSON.stringify({
+          transactionId: txRecord.id,
+          mandateId: txRecord.mandate_id,
+          captureId: txRecord.capture_id,
+          refundId,
+          amountValue,
+          note,
+        }),
+        timestamp,
+      ],
+    });
+  });
+
+  return {
+    id: txRecord.id,
+    mandateId: txRecord.mandate_id,
+    captureId: txRecord.capture_id,
+    refundId,
+    status: 'refunded',
+    refundedAt: timestamp,
   };
 }
 
