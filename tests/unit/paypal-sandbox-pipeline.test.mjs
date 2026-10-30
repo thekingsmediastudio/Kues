@@ -15,6 +15,7 @@ import {
   createSandboxPaymentAuthorization,
   voidSandboxPaymentAuthorization,
   captureSandboxPaymentAuthorization,
+  refundSandboxPaymentCapture,
   getSandboxPaymentTransaction,
   createWalletSetupToken,
   linkWorkspaceWallet,
@@ -706,5 +707,187 @@ test('HTTP Wallet Routes: setup-token, link, get, and unlink work over REST', as
     assert.equal(finalRes.status, 200);
     const finalData = await finalRes.json();
     assert.equal(finalData.linked, false);
+  });
+});
+
+test('refundSandboxPaymentCapture refunds captured payment and updates receipts and audit events', async () => {
+  const { db, wsId, userId, agentId } = await setupTestEnvironment();
+
+  const mandateResult = await createPurchaseMandate({
+    db,
+    workspaceId: wsId,
+    userId,
+    agentId,
+    product: {
+      title: 'Studio Monitor Speakers',
+      merchantDomain: 'soundgear.example.com',
+      amountMinor: 8900,
+      currency: 'USD',
+      evidenceHash: 'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    },
+  });
+  await authorizePurchaseMandate({
+    db,
+    workspaceId: wsId,
+    mandateId: mandateResult.mandateId,
+    userId,
+    note: 'Approved for studio setup',
+  });
+
+  // 1. Authorize hold
+  const auth = await createSandboxPaymentAuthorization({
+    db,
+    workspaceId: wsId,
+    userId,
+    mandateId: mandateResult.mandateId,
+    simulate: true,
+  });
+
+  // 2. Reject refund when not captured yet
+  await assert.rejects(
+    refundSandboxPaymentCapture({
+      db,
+      workspaceId: wsId,
+      mandateId: mandateResult.mandateId,
+      simulate: true,
+    }),
+    /Only captured payments can be refunded/
+  );
+
+  // 3. Capture payment
+  const cap = await captureSandboxPaymentAuthorization({
+    db,
+    workspaceId: wsId,
+    mandateId: mandateResult.mandateId,
+    simulate: true,
+  });
+  assert.equal(cap.status, 'captured');
+
+  // 4. Refund payment
+  const refund = await refundSandboxPaymentCapture({
+    db,
+    workspaceId: wsId,
+    mandateId: mandateResult.mandateId,
+    simulate: true,
+    note: 'Customer return within Sandbox policy',
+  });
+  assert.equal(refund.status, 'refunded');
+  assert.match(refund.refundId, /^REF-SANDBOX-/);
+
+  // 5. Verify transaction status in db
+  const tx = await getSandboxPaymentTransaction({
+    db,
+    workspaceId: wsId,
+    mandateId: mandateResult.mandateId,
+  });
+  assert.equal(tx.status, 'refunded');
+});
+
+test('HTTP Commerce Routes: /api/commerce/paypal/refund, /receipts/:id, and /skills/export work over REST', async () => {
+  const env = await setupTestEnvironment();
+  const { db, wsId, userId, agentId, session } = env;
+  const config = loadServerConfig({
+    TURSO_DATABASE_URL: 'file:./local.db',
+  });
+
+  await withServer(config, env, async (base) => {
+    // 1. Setup authorized mandate
+    const mandateResult = await createPurchaseMandate({
+      db,
+      workspaceId: wsId,
+      userId,
+      agentId,
+      product: {
+        title: 'Ergonomic Mouse',
+        merchantDomain: 'ergodesk.example.com',
+        amountMinor: 4999,
+        currency: 'USD',
+        evidenceHash: 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+      },
+    });
+    await authorizePurchaseMandate({
+      db,
+      workspaceId: wsId,
+      mandateId: mandateResult.mandateId,
+      userId,
+      note: 'Authorized for desk ergonomics',
+    });
+
+    // 2. Authorize
+    const authRes = await fetch(`${base}/api/commerce/paypal/authorize`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mandateId: mandateResult.mandateId,
+        simulate: true,
+      }),
+    });
+    assert.equal(authRes.status, 201);
+
+    // 3. Capture
+    const capRes = await fetch(`${base}/api/commerce/paypal/capture`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mandateId: mandateResult.mandateId,
+        simulate: true,
+      }),
+    });
+    assert.equal(capRes.status, 200);
+
+    // 4. Refund over REST
+    const refundRes = await fetch(`${base}/api/commerce/paypal/refund`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        mandateId: mandateResult.mandateId,
+        simulate: true,
+        note: 'Rest mock refund test',
+      }),
+    });
+    assert.equal(refundRes.status, 200);
+    const refundData = await refundRes.json();
+    assert.equal(refundData.ok, true);
+    assert.equal(refundData.refund.status, 'refunded');
+
+    // 5. Query receipt over REST
+    const receiptRes = await fetch(`${base}/api/commerce/receipts/${mandateResult.mandateId}`, {
+      headers: { Cookie: `kues_session=${session.sessionToken}` },
+    });
+    assert.equal(receiptRes.status, 200);
+    const receiptData = await receiptRes.json();
+    assert.equal(receiptData.ok, true);
+    assert.equal(receiptData.receipt.status, 'refunded');
+    assert.match(receiptData.receipt.receiptHash, /^sha256:/);
+
+    // 6. Export SKILL.md over REST
+    const skillRes = await fetch(`${base}/api/commerce/skills/export`, {
+      method: 'POST',
+      headers: {
+        Cookie: `kues_session=${session.sessionToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        skillName: 'Office Ergonomics Scout',
+        description: 'Autonomously procure desk accessories up to $100 with passkey confirmation',
+        maxPerOrderCents: 10000,
+        allowedDomains: ['ergodesk.example.com', 'channel3.example.com'],
+      }),
+    });
+    assert.equal(skillRes.status, 200);
+    const skillData = await skillRes.json();
+    assert.equal(skillData.ok, true);
+    assert.ok(skillData.skill.markdown.includes('office-ergonomics-scout'));
+    assert.ok(skillData.skill.markdown.includes('desk accessories'));
+    assert.ok(skillData.skill.policyHash.length === 64);
   });
 });
