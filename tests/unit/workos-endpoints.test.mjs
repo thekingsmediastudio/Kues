@@ -14,6 +14,8 @@ const config = loadServerConfig({
 async function withServer({
   authService,
   workosAuth,
+  workspaceService = null,
+  db = null,
   serverConfig = config,
   signInOnlyPreview = false,
 }, run) {
@@ -21,8 +23,10 @@ async function withServer({
     config: serverConfig,
     authService,
     workosAuth,
+    workspaceService,
+    db,
     signInOnlyPreview,
-    });
+  });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
@@ -444,5 +448,53 @@ test('auth config endpoint reports WorkOS activation without returning secrets',
       otherMethodsEnabled: false,
     });
     assert.equal(response.headers.get('cache-control'), 'no-store');
+  });
+});
+
+test('demo-fastlane creates judge session and redirects to /app with established workspace', async () => {
+  let created = null;
+  const authService = {
+    async createWorkOSSession(payload) {
+      created = payload;
+      return {
+        sessionToken: 'token_judge_fastlane_test',
+        user: { id: 'usr_judge_123', email_normalized: payload.email, display_name: payload.displayName },
+      };
+    },
+    async getSession({ token }) {
+      if (token === 'token_judge_fastlane_test') {
+        return {
+          sessionToken: token,
+          user: { id: 'usr_judge_123', email_normalized: 'judge@paypal.sandbox', status: 'active' },
+        };
+      }
+      return null;
+    },
+  };
+
+  await withServer({ authService, workosAuth: {} }, async (base) => {
+    const res = await fetch(`${base}/api/auth/demo-fastlane`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: base,
+      },
+    });
+
+    assert.equal(res.status, 200);
+    const data = await res.json();
+    assert.equal(data.authenticated, true);
+    assert.equal(data.redirect, '/app');
+    assert.equal(created?.email, 'judge@paypal.sandbox');
+
+    const cookie = res.headers.get('set-cookie');
+    assert.match(cookie, /kues_session=token_judge_fastlane_test/);
+
+    const appRes = await fetch(`${base}/app`, {
+      headers: {
+        Cookie: 'kues_session=token_judge_fastlane_test',
+      },
+    });
+    assert.equal(appRes.status, 200);
   });
 });
