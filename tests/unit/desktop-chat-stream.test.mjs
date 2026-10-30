@@ -1126,7 +1126,9 @@ test('admin model panel anchors below its header picker and composer accent swee
   const composerStart = desktopHtml.indexOf('<footer class="composer-area"');
   assert.ok(headerStart >= 0 && panelStart > headerStart && panelStart < composerStart, 'provider panel belongs to the header, not after the composer');
   assert.match(desktopHtml, /id="adminProviderAccordion"/);
-  assert.match(desktopHtml, /conic-gradient\(from 270deg,var\(--agent-accent\) 0 var\(--composer-progress\)/);
+  assert.match(desktopHtml, /class="composer-border-trace" viewBox="0 0 100 48" preserveAspectRatio="none"/);
+  assert.match(desktopHtml, /stroke-dasharray:100/);
+  assert.match(desktopHtml, /borderTrace\.style\.strokeDashoffset = String\(100 - outlineProgress\)/);
   assert.match(desktopHtml, /pill\.style\.setProperty\('--composer-progress', `\$\{outlineProgress\}%`\)/);
   assert.match(desktopHtml, /outlineProgress - 50/);
   assert.match(desktopHtml, /@property --composer-progress\{syntax:"<percentage>";inherits:true/);
