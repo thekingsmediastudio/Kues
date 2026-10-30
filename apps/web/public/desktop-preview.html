@@ -2778,8 +2778,8 @@
   .sidebar .sidebar-bottom-tile:hover{background:rgba(255,255,255,.06)!important;background-image:none!important;border-color:rgba(255,255,255,.13)!important}
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile{background:rgba(255,255,255,.58)!important;background-image:none!important;border-color:#dce5dc!important;color:#5e7064!important}
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile:hover{background:#fff!important;border-color:#cbd7cc!important}
-  @property --composer-progress{syntax:"<percentage>";inherits:false;initial-value:0%}
-  @property --composer-button-progress{syntax:"<percentage>";inherits:false;initial-value:0%}
+  @property --composer-progress{syntax:"<percentage>";inherits:true;initial-value:0%}
+  @property --composer-button-progress{syntax:"<percentage>";inherits:true;initial-value:0%}
   .composer-pill{--composer-progress:0%;--composer-button-progress:0%;--composer-send-idle:#2a2b30;isolation:isolate;border-color:rgba(255,255,255,.12)!important;box-shadow:0 4px 20px rgba(0,0,0,.25)!important;transition:box-shadow .18s ease}
   .composer-pill::before{content:"";position:absolute;z-index:0;inset:-1px;padding:1px;border-radius:inherit;pointer-events:none;background:conic-gradient(from 270deg,var(--agent-accent) 0 var(--composer-progress),transparent var(--composer-progress) 100%);mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude}
   .composer-pill>*:not(.plus-popover):not(.emoji-popover){position:relative;z-index:1}
@@ -6482,7 +6482,8 @@
       caretPath.setAttribute('d', 'm4 6 4 4 4-4');
       caret.append(caretPath);
       trigger.append(icon, name, state, caret);
-      trigger.addEventListener('click', () => {
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
         if (selected && expanded) {
           chatAdminExpandedProviderKey = '';
           renderAdminProviderAccordion();
@@ -6521,7 +6522,8 @@
             const meta = document.createElement('small');
             meta.textContent = modelSelect.value === option.value ? 'Selected' : 'Available';
             button.append(title, meta);
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (event) => {
+              event.stopPropagation();
               modelSelect.value = option.value;
               chatAdminModelWasEdited = option.value !== chatAdminConfiguredModelId;
               renderAdminProviderAccordion();
