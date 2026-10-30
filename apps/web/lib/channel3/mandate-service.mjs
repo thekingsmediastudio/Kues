@@ -530,6 +530,32 @@ export async function createPurchaseMandate({
       ],
     });
 
+    // If target product has an offerId, ensure it is recorded in product_offers
+    if (targetProduct.offerId) {
+      await tx.execute({
+        sql: `INSERT OR IGNORE INTO product_offers (
+               id, workspace_id, run_id, source, source_listing_id, source_url,
+               merchant_name, merchant_domain, title, amount_minor, currency,
+               availability, evidence_hash, observed_at, created_at
+             ) VALUES (?, ?, ?, 'channel3', ?, ?, ?, ?, ?, ?, ?, 'in_stock', ?, ?, ?)`,
+        args: [
+          targetProduct.offerId,
+          workspaceId,
+          targetRunId,
+          targetProduct.offerId,
+          targetProduct.url || '',
+          targetProduct.merchantName,
+          targetProduct.merchantDomain,
+          targetProduct.title,
+          targetProduct.amountMinor,
+          targetProduct.currency,
+          targetProduct.evidenceHash,
+          timestamp,
+          timestamp,
+        ],
+      });
+    }
+
     // Record run event
     await tx.execute({
       sql: `INSERT INTO run_events (id, workspace_id, run_id, event_type, details_json, created_at)
