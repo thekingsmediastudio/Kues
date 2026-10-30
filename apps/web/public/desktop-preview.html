@@ -163,21 +163,12 @@
     border-color: rgba(255, 255, 255, 0.1);
   }
   .agent-row.active {
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.04));
-    border-color: rgba(255, 255, 255, 0.14);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #32d583)) 12%, rgba(255, 255, 255, 0.04)), color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #32d583)) 4%, rgba(255, 255, 255, 0.015)));
+    border-color: color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #32d583)) 40%, rgba(255, 255, 255, 0.1));
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
   }
   .agent-row.active::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 3.5px;
-    height: 26px;
-    border-radius: 0 999px 999px 0;
-    background: var(--card-agent-color, var(--agent-accent, #32d583));
-    box-shadow: 0 0 10px var(--card-agent-color, var(--agent-accent, #32d583));
+    display: none !important;
   }
 
   .dot-avatar {
@@ -1662,7 +1653,7 @@
   .composer-pill {
     height: 48px;
     background: #1c1c20;
-    border: 1px solid color-mix(in srgb, var(--agent-accent) 42%, var(--border-strong));
+    border: 1px solid var(--border-strong);
     border-radius: 999px;
     padding: 0 8px 0 10px;
     display: flex;
@@ -2125,10 +2116,10 @@
   .search-wrap { padding:5px 12px 13px; }
   .search-box { height:37px;border-radius:11px;background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.075); }
   .agent-list { padding:5px 9px 12px;gap:4px; }
-  .agent-row { min-height:62px;padding:10px 11px;border:1px solid transparent;border-radius:13px;transition:background .2s,border-color .2s,transform .2s; }
-  .agent-row:hover { background:rgba(255,255,255,.045);transform:translateX(1px); }
-  .agent-row.active { background:linear-gradient(100deg,rgba(233,185,93,.095),rgba(255,255,255,.025));border-color:rgba(233,185,93,.12); }
-  .agent-row.active::before { content:"";position:absolute;left:-1px;top:14px;bottom:14px;width:2px;border-radius:2px;background:var(--cue-gold);box-shadow:0 0 10px rgba(233,185,93,.55); }
+  .agent-row { min-height:62px;padding:10px 11px;border:1px solid rgba(255,255,255,.06);border-radius:13px;transition:background .2s,border-color .2s,transform .2s; }
+  .agent-row:hover { background:rgba(255,255,255,.045);transform:translateX(1px);border-color:rgba(255,255,255,.1); }
+  .agent-row.active { background:linear-gradient(135deg,color-mix(in srgb,var(--card-agent-color,var(--agent-accent,#32d583)) 12%,rgba(255,255,255,.04)),color-mix(in srgb,var(--card-agent-color,var(--agent-accent,#32d583)) 4%,rgba(255,255,255,.015)));border-color:color-mix(in srgb,var(--card-agent-color,var(--agent-accent,#32d583)) 40%,rgba(255,255,255,.12));box-shadow:0 4px 18px rgba(0,0,0,.22); }
+  .agent-row.active::before { display:none!important;content:none!important; }
   .agent-name { letter-spacing:-.015em; }
   .agent-time { color:#81838d; }
   .agent-preview { font-size:11.5px;color:#888b95; }
@@ -2165,8 +2156,9 @@
   .composer-extras { margin-bottom:9px; }
   .memory-pill,.mode-pill { background:rgba(255,255,255,.025);border-color:rgba(255,255,255,.075); }
   .memory-pill { padding:5px 9px; }
-  .composer-pill { height:48px;background:#1f2022;border-color:color-mix(in srgb,var(--agent-accent) 42%,rgba(255,255,255,.12));box-shadow:none;padding:0 7px;gap:7px;transition:border-color .18s ease,box-shadow .18s ease; }
+  .composer-pill { height:48px;background:#1f2022;border:1px solid rgba(255,255,255,.12);box-shadow:none;padding:0 7px;gap:7px;transition:border-color .18s ease,box-shadow .18s ease; }
   .composer-pill:focus-within { border-color:var(--agent-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 20%,transparent); }
+  .composer-pill.has-text { border-color:color-mix(in srgb,var(--agent-accent) 85%,#ffffff); }
   .comp-plus { width:auto;min-width:64px;height:34px;padding:0 10px;gap:6px;border-radius:999px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.085);color:#c7c8cd;font:600 10.5px var(--font); }
   .comp-plus .ui-icon { width:14px;height:14px;stroke-width:2; }
   .comp-plus:hover,.comp-plus.active { background:rgba(233,185,93,.12);border-color:rgba(233,185,93,.26);color:#f0d391; }
@@ -2288,7 +2280,7 @@
   :root[data-theme="light"] .sidebar{background:linear-gradient(180deg,#f0f3ee,#eaf0e9);border-right-color:#dce5dc;box-shadow:none}
   :root[data-theme="light"] .chat-pane{background:radial-gradient(ellipse at 76% -10%,rgba(190,155,86,.09),transparent 36%),#f8faf7}
   :root[data-theme="light"] .chat-header{background:rgba(255,255,255,.92);border-bottom-color:#e1e8e0}
-  :root[data-theme="light"] .cue-footer,:root[data-theme="light"] .agent-row.active{background:#fff;border-color:#dce5dc;box-shadow:none}
+  :root[data-theme="light"] .cue-footer{background:#fff;border-color:#dce5dc;box-shadow:none}
   :root[data-theme="light"] .account-footer{background-color:#fff!important;background-image:none}
   :root[data-theme="light"] .agent-row:hover,:root[data-theme="light"] .account-menu-trigger:hover{background:rgba(33,70,42,.045)}
   :root[data-theme="light"] .header-title,:root[data-theme="light"] .agent-name{color:#22362a}
@@ -2394,8 +2386,10 @@
   :root[data-theme="light"] .modal-sidebar{background:#f1f5ef;border-color:#e1e8df}
   :root[data-theme="light"] .modal-header,:root[data-theme="light"] .modal-sidebar{border-color:#e1e8df}
   :root[data-theme="light"] .modal-header-title,:root[data-theme="light"] .d-card-val,:root[data-theme="light"] .d-card-lbl,:root[data-theme="light"] .agent-modal-title{color:#25382b}
-  :root[data-theme="light"] .form-input,:root[data-theme="light"] .search-box,:root[data-theme="light"] .composer-pill{background:#fff;border-color:color-mix(in srgb,var(--agent-accent) 42%,#dbe4da);color:#243629}
+  :root[data-theme="light"] .form-input,:root[data-theme="light"] .search-box{background:#fff;border-color:#dbe4da;color:#243629}
+  :root[data-theme="light"] .composer-pill{background:#fff;border:1px solid #dce5dc;color:#243629}
   :root[data-theme="light"] .composer-pill:focus-within{border-color:var(--agent-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 20%,transparent)}
+  :root[data-theme="light"] .composer-pill.has-text{border-color:var(--agent-accent)}
   :root[data-theme="light"] .composer-pill input,:root[data-theme="light"] .form-input{color:#243629}
   :root[data-theme="light"] .account-menu,:root[data-theme="light"] .plus-popover{background:#fff;border-color:#dce5dc;box-shadow:0 18px 45px rgba(25,45,30,.16)}
   :root[data-theme="light"] .account-menu-user{border-color:#e3e9e1}
@@ -2542,7 +2536,7 @@
     position: relative;
     height: 48px;
     background: #141519;
-    border: 1px solid color-mix(in srgb, var(--agent-accent) 38%, rgba(255, 255, 255, 0.08));
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
     padding: 0 7px 0 12px;
     display: flex;
@@ -2551,20 +2545,10 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     transition: border-color 0.22s ease, box-shadow 0.22s ease;
   }
-  .composer-pill:focus-within {
+  .composer-pill:focus-within,
+  .composer-pill.has-text {
     border-color: var(--agent-accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 22%, transparent), 0 6px 24px color-mix(in srgb, var(--agent-accent) 18%, transparent);
-    animation: composerBorderPulse 2.4s ease-in-out infinite;
-  }
-  @keyframes composerBorderPulse {
-    0%, 100% {
-      border-color: var(--agent-accent);
-      box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 20%, transparent), 0 4px 18px color-mix(in srgb, var(--agent-accent) 14%, transparent);
-    }
-    50% {
-      border-color: color-mix(in srgb, var(--agent-accent) 80%, #ffffff);
-      box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--agent-accent) 36%, transparent), 0 6px 26px color-mix(in srgb, var(--agent-accent) 26%, transparent);
-    }
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 22%, transparent);
   }
   .composer-pill input {
     flex: 1;
@@ -2618,7 +2602,7 @@
   }
   .comp-send svg { width: 15px; height: 15px; display: block; }
   .comp-send:disabled{cursor:not-allowed!important;background:#2a2b30!important;color:#63656d!important;opacity:.65!important;box-shadow:none!important;transform:none!important}
-  .comp-send:not(:disabled):not(.is-stop){cursor:pointer;background:var(--agent-accent,#32d583);color:#111113;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#32d583) 35%,transparent)}
+  .comp-send:not(:disabled):not(.is-stop){cursor:pointer;background:var(--agent-accent,#32d583);color:#fff;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#32d583) 35%,transparent)}
   .comp-send:not(:disabled):not(.is-stop):hover{transform:scale(1.06);filter:brightness(1.12)}
   .comp-send.is-stop{cursor:pointer;background:#27282d;color:#f3f3f5;border:1px solid rgba(255,255,255,.22);box-shadow:0 2px 8px rgba(0,0,0,.35)}
   .comp-send.is-stop:hover{background:#36373e;color:#fff;border-color:rgba(255,255,255,.4);transform:scale(1.06)}
@@ -2626,47 +2610,6 @@
   :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop){background:var(--agent-accent,#1c9760);color:#fff;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#1c9760) 35%,transparent)}
   :root[data-theme="light"] .comp-send.is-stop{background:#fff;color:#17261c;border:1px solid #cbd7cc;box-shadow:0 2px 8px rgba(0,0,0,.08)}
   :root[data-theme="light"] .comp-send.is-stop:hover{background:#f0f4ef;border-color:#9eb1a0}
-
-  /* Shortcut hints & character counter meta bar */
-  .composer-meta-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 8px 0;
-    font-size: 11.5px;
-    color: var(--text-dim, #71717a);
-    user-select: none;
-  }
-  .composer-hints {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    letter-spacing: -0.01em;
-  }
-  .comp-kbd {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1px 6px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 4px;
-    font-size: 10.5px;
-    font-family: inherit;
-    color: #9a9aa2;
-    line-height: 1.4;
-    font-weight: 500;
-  }
-  .comp-dot {
-    margin: 0 4px;
-    opacity: 0.6;
-  }
-  .composer-counter {
-    font-size: 11.5px;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-dim, #71717a);
-    font-weight: 500;
-  }
 
   /* Quick popovers above composer */
   .plus-popover {
@@ -2738,13 +2681,13 @@
   /* Light Theme overrides for Composer */
   :root[data-theme="light"] .composer-pill {
     background: #ffffff;
-    border-color: color-mix(in srgb, var(--agent-accent) 42%, #dce5dc);
+    border-color: #dce5dc;
     box-shadow: 0 4px 18px rgba(25, 45, 30, 0.07);
   }
-  :root[data-theme="light"] .composer-pill:focus-within {
+  :root[data-theme="light"] .composer-pill:focus-within,
+  :root[data-theme="light"] .composer-pill.has-text {
     border-color: var(--agent-accent);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 20%, transparent);
-    animation: composerBorderPulse 2.4s ease-in-out infinite;
   }
   :root[data-theme="light"] .composer-pill input {
     color: #1a221b;
@@ -2759,28 +2702,6 @@
   :root[data-theme="light"] .composer-icon-btn:hover:not(:disabled) {
     color: #111113;
     background: rgba(0, 0, 0, 0.06);
-  }
-  :root[data-theme="light"] .comp-send:disabled {
-    background: rgba(0, 0, 0, 0.06) !important;
-    color: rgba(0, 0, 0, 0.25) !important;
-  }
-  :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop) {
-    background: #111113;
-    color: #ffffff;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
-  }
-  :root[data-theme="light"] .comp-send.is-stop {
-    background: #ff5b5b;
-    color: #ffffff;
-  }
-  :root[data-theme="light"] .comp-kbd {
-    background: rgba(0, 0, 0, 0.04);
-    border-color: rgba(0, 0, 0, 0.12);
-    color: #555860;
-  }
-  :root[data-theme="light"] .composer-hints,
-  :root[data-theme="light"] .composer-counter {
-    color: #717680;
   }
   :root[data-theme="light"] .plus-popover,
   :root[data-theme="light"] .emoji-popover {
@@ -2799,9 +2720,13 @@
     border-color: #d0ded0;
   }
   :root[data-theme="light"] .agent-row.active {
-    background: #ffffff;
-    border-color: #cbd7cc;
-    box-shadow: 0 4px 16px rgba(25, 45, 30, 0.08);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #1c9760)) 10%, #ffffff), color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #1c9760)) 3%, #f7f9f6));
+    border-color: color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #1c9760)) 45%, #cbd7cc);
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--card-agent-color, var(--agent-accent, #1c9760)) 14%, rgba(25, 45, 30, 0.06));
+  }
+  :root[data-theme="light"] .agent-row.active::before {
+    display: none !important;
+    content: none !important;
   }
   :root[data-theme="light"] .agent-name {
     color: #1a221b;
@@ -3210,12 +3135,7 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
           </button>
         </div>
-        <div class="composer-meta-bar">
-          <div class="composer-hints" aria-hidden="true">
-            <span class="comp-kbd">Enter</span> to send <span class="comp-dot">&middot;</span> <span class="comp-kbd">Shift</span> + <span class="comp-kbd">Enter</span> for a new line
-          </div>
-          <div class="composer-counter" id="chatCharCounter" aria-live="polite">0 / 2000</div>
-        </div>
+
         <div class="admin-chat-controls" id="adminChatControls" hidden>
           <label for="chatProviderSelect">Provider for this request
             <select id="chatProviderSelect" disabled aria-describedby="adminChatProviderNotice">
@@ -4652,6 +4572,10 @@
         ? 'Workspace data unavailable'
         : hasAgent ? `Message ${String(agent.name || 'your agent')}...` : 'Save an agent to start a chat';
       input.setAttribute('aria-label', input.placeholder);
+      if (typeof input?.closest === 'function') {
+        const pill = input.closest('.composer-pill');
+        if (pill) pill.classList.toggle('has-text', hasText);
+      }
     }
     if (sendButton) {
       if (chatPending) {
