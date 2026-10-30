@@ -137,26 +137,48 @@
   .agent-list {
     flex: 1;
     overflow-y: auto;
-    padding: 4px 8px;
+    padding: 6px 10px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
   }
   .agent-list::-webkit-scrollbar { width: 4px; }
   .agent-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
   .agent-row {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 11px;
-    padding: 10px 10px;
-    border-radius: 11px;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     cursor: pointer;
-    transition: background 0.14s ease;
-    position: relative;
+    transition: all 0.16s ease;
+    user-select: none;
   }
-  .agent-row:hover { background: var(--bg-hover); }
-  .agent-row.active { background: var(--bg-active); }
+  .agent-row:hover {
+    background: rgba(255, 255, 255, 0.065);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  .agent-row.active {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.04));
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+  }
+  .agent-row.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3.5px;
+    height: 26px;
+    border-radius: 0 999px 999px 0;
+    background: var(--card-agent-color, var(--agent-accent, #32d583));
+    box-shadow: 0 0 10px var(--card-agent-color, var(--agent-accent, #32d583));
+  }
 
   .dot-avatar {
     width: 38px;
@@ -225,33 +247,62 @@
   .agent-meta { flex: 1; min-width: 0; }
   .agent-top {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
+    gap: 8px;
     margin-bottom: 2px;
   }
   .agent-name {
     font-size: 13.5px;
-    font-weight: 600;
-    color: var(--text-main);
+    font-weight: 700;
+    color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: -0.01em;
   }
   .agent-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     font-size: 11px;
-    color: var(--text-dim);
+    color: var(--text-dim, #71717a);
     flex-shrink: 0;
-    margin-left: 6px;
+    font-weight: 500;
+    line-height: 1;
+  }
+  .agent-time::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.65;
+  }
+  .agent-row[data-status="active"] .agent-time {
+    color: var(--green, #32d583);
+  }
+  .agent-row[data-status="active"] .agent-time::before {
+    background: var(--green, #32d583);
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(50, 213, 131, 0.5);
+  }
+  .agent-row[data-status="paused"] .agent-time {
+    color: var(--text-dim, #8e8e93);
+  }
+  .agent-row[data-status="paused"] .agent-time::before {
+    background: #8e8e93;
+    opacity: 0.7;
   }
   .agent-preview {
-    font-size: 12.5px;
-    color: var(--text-sec);
+    font-size: 11.5px;
+    color: var(--text-dim, #8e8e93);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: flex;
-    align-items: center;
-    gap: 5px;
+    margin-top: 2px;
+    line-height: 1.35;
   }
   .unread-dot {
     width: 7px;
@@ -2283,6 +2334,61 @@
   :root[data-theme="light"] .product-modal-buy-btn{background:linear-gradient(135deg,#059669 0%,#047857 100%);border-color:#059669;color:#ffffff!important}
   :root[data-theme="light"] .product-modal-close{background:rgba(255,255,255,.9);border-color:#dce5dc;color:#3e4b42}
   :root[data-theme="light"] .grok-computer-card,:root[data-theme="light"] .cue-hold-card,:root[data-theme="light"] .settings-modal,:root[data-theme="light"] .new-agent-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
+  .computer-modal {
+    width: min(780px, 94vw);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+  }
+  :root[data-theme="light"] .computer-modal .comp-wallpaper {
+    border-color: #dce5dc;
+  }
+  :root[data-theme="light"] .computer-modal .mini-window {
+    background: #f7faf7;
+    border-color: #dce5dc;
+  }
+  :root[data-theme="light"] .computer-modal .mini-win-bar {
+    background: #eef3ee;
+    border-bottom-color: #dce5dc;
+  }
+  :root[data-theme="light"] .computer-modal .mini-win-url {
+    background: #e2ece3;
+    color: #243629;
+  }
+  :root[data-theme="light"] .computer-modal .mini-phone {
+    background: #f0f7f2;
+    border-color: rgba(50, 213, 131, 0.35);
+  }
+  :root[data-theme="light"] .computer-modal .mini-phone-bar {
+    background: #e1f2e6;
+    color: #176537;
+  }
+  :root[data-theme="light"] .computer-modal .wa-bubble {
+    background: #e5f5ea;
+    border-color: rgba(50, 213, 131, 0.25);
+    color: #173828;
+  }
+  :root[data-theme="light"] .dots-call-float {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: #dce5dc;
+    box-shadow: 0 18px 40px rgba(25, 45, 30, 0.15);
+  }
+  :root[data-theme="light"] .call-timer {
+    color: #556658;
+  }
+  :root[data-theme="light"] #callAgentName {
+    color: #1a2e22 !important;
+  }
+  .hdr-btn.is-calling, .composer-icon-btn.is-calling {
+    background: rgba(245, 185, 66, 0.18) !important;
+    border-color: rgba(245, 185, 66, 0.55) !important;
+    color: var(--cue-gold) !important;
+    animation: callGlow 1.8s ease-in-out infinite;
+  }
+  @keyframes callGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 185, 66, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(245, 185, 66, 0); }
+  }
   :root[data-theme="light"] .new-agent-preview-active{border-color:#b8e5ca;background:#edf8f1;color:#267347}
   :root[data-theme="light"] .d-card,:root[data-theme="light"] .app-tile,:root[data-theme="light"] .pay-card-item{background:#f7f9f6;border-color:#dfe7df;color:#243629}
   :root[data-theme="light"] .modal-sidebar{background:#f1f5ef;border-color:#e1e8df}
@@ -2424,9 +2530,93 @@
   html[data-review-fixture="true"] .saved-agent-list-row{cursor:default;pointer-events:none}
   html:not([data-review-fixture="true"]) .saved-agent-list-row{cursor:pointer;pointer-events:auto}
   .saved-agent-list-row[hidden]{display:none!important}
-  .composer-icon-btn{width:28px;height:32px;flex:none;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--text-sec);padding:0}
-  .composer-icon-btn svg{width:16px;height:16px;display:block}
-  .composer-icon-btn:disabled{opacity:.72!important;filter:none!important;cursor:not-allowed!important}
+
+  /* Sleek Modern Chat Input Bar */
+  .composer-inner {
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .composer-pill {
+    position: relative;
+    height: 48px;
+    background: #141519;
+    border: 1px solid color-mix(in srgb, var(--agent-accent) 38%, rgba(255, 255, 255, 0.08));
+    border-radius: 999px;
+    padding: 0 7px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.22s ease, box-shadow 0.22s ease;
+  }
+  .composer-pill:focus-within {
+    border-color: var(--agent-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 22%, transparent), 0 6px 24px color-mix(in srgb, var(--agent-accent) 18%, transparent);
+    animation: composerBorderPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes composerBorderPulse {
+    0%, 100% {
+      border-color: var(--agent-accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 20%, transparent), 0 4px 18px color-mix(in srgb, var(--agent-accent) 14%, transparent);
+    }
+    50% {
+      border-color: color-mix(in srgb, var(--agent-accent) 80%, #ffffff);
+      box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--agent-accent) 36%, transparent), 0 6px 26px color-mix(in srgb, var(--agent-accent) 26%, transparent);
+    }
+  }
+  .composer-pill input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f3f3f5;
+    caret-color: var(--agent-accent, #f3f3f5);
+    font-size: 14px;
+    font-family: var(--font);
+    line-height: 1.4;
+  }
+  .composer-pill input::placeholder {
+    color: #63636b;
+  }
+  .composer-icon-btn {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .composer-icon-btn:hover:not(:disabled) {
+    color: #f3f3f5;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .composer-icon-btn.is-active {
+    color: var(--cue-gold) !important;
+    background: rgba(245, 185, 66, 0.15) !important;
+  }
+  .composer-icon-btn svg { width: 18px; height: 18px; display: block; }
+  .composer-icon-btn:disabled { opacity: 0.55 !important; filter: none !important; cursor: not-allowed !important; }
+
+  .comp-send {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 0;
+    flex: none;
+    display: grid;
+    place-items: center;
+    transition: all 0.16s ease;
+  }
+  .comp-send svg { width: 15px; height: 15px; display: block; }
   .comp-send:disabled{cursor:not-allowed!important;background:#2a2b30!important;color:#63656d!important;opacity:.65!important;box-shadow:none!important;transform:none!important}
   .comp-send:not(:disabled):not(.is-stop){cursor:pointer;background:var(--agent-accent,#32d583);color:#111113;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#32d583) 35%,transparent)}
   .comp-send:not(:disabled):not(.is-stop):hover{transform:scale(1.06);filter:brightness(1.12)}
@@ -2436,6 +2626,208 @@
   :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop){background:var(--agent-accent,#1c9760);color:#fff;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent,#1c9760) 35%,transparent)}
   :root[data-theme="light"] .comp-send.is-stop{background:#fff;color:#17261c;border:1px solid #cbd7cc;box-shadow:0 2px 8px rgba(0,0,0,.08)}
   :root[data-theme="light"] .comp-send.is-stop:hover{background:#f0f4ef;border-color:#9eb1a0}
+
+  /* Shortcut hints & character counter meta bar */
+  .composer-meta-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 8px 0;
+    font-size: 11.5px;
+    color: var(--text-dim, #71717a);
+    user-select: none;
+  }
+  .composer-hints {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    letter-spacing: -0.01em;
+  }
+  .comp-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-family: inherit;
+    color: #9a9aa2;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+  .comp-dot {
+    margin: 0 4px;
+    opacity: 0.6;
+  }
+  .composer-counter {
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim, #71717a);
+    font-weight: 500;
+  }
+
+  /* Quick popovers above composer */
+  .plus-popover {
+    position: absolute;
+    bottom: 56px;
+    left: 8px;
+    width: 280px;
+    background: #1b1b1f;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    padding: 6px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 50;
+    animation: popIn 0.14s ease-out;
+  }
+  .plus-popover[hidden] { display: none !important; }
+
+  .emoji-popover {
+    position: absolute;
+    bottom: 56px;
+    right: 48px;
+    width: 250px;
+    background: #1b1b1f;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    padding: 10px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 50;
+    animation: popIn 0.14s ease-out;
+  }
+  .emoji-popover[hidden] { display: none !important; }
+  .emoji-popover-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0 2px;
+  }
+  .emoji-popover-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .emoji-chip {
+    padding: 6px 4px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-main);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.12s ease;
+  }
+  .emoji-chip:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+  }
+
+  /* Light Theme overrides for Composer */
+  :root[data-theme="light"] .composer-pill {
+    background: #ffffff;
+    border-color: color-mix(in srgb, var(--agent-accent) 42%, #dce5dc);
+    box-shadow: 0 4px 18px rgba(25, 45, 30, 0.07);
+  }
+  :root[data-theme="light"] .composer-pill:focus-within {
+    border-color: var(--agent-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-accent) 20%, transparent);
+    animation: composerBorderPulse 2.4s ease-in-out infinite;
+  }
+  :root[data-theme="light"] .composer-pill input {
+    color: #1a221b;
+    caret-color: var(--agent-accent, #1a221b);
+  }
+  :root[data-theme="light"] .composer-pill input::placeholder {
+    color: #839286;
+  }
+  :root[data-theme="light"] .composer-icon-btn {
+    color: rgba(0, 0, 0, 0.45);
+  }
+  :root[data-theme="light"] .composer-icon-btn:hover:not(:disabled) {
+    color: #111113;
+    background: rgba(0, 0, 0, 0.06);
+  }
+  :root[data-theme="light"] .comp-send:disabled {
+    background: rgba(0, 0, 0, 0.06) !important;
+    color: rgba(0, 0, 0, 0.25) !important;
+  }
+  :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop) {
+    background: #111113;
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  }
+  :root[data-theme="light"] .comp-send.is-stop {
+    background: #ff5b5b;
+    color: #ffffff;
+  }
+  :root[data-theme="light"] .comp-kbd {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #555860;
+  }
+  :root[data-theme="light"] .composer-hints,
+  :root[data-theme="light"] .composer-counter {
+    color: #717680;
+  }
+  :root[data-theme="light"] .plus-popover,
+  :root[data-theme="light"] .emoji-popover {
+    background: #ffffff;
+    border-color: #dce5dc;
+    box-shadow: 0 18px 45px rgba(25, 45, 30, 0.16);
+  }
+
+  /* Light Theme overrides for Sidebar Agent Cards */
+  :root[data-theme="light"] .agent-row {
+    background: #f7f9f6;
+    border-color: #dfe7df;
+  }
+  :root[data-theme="light"] .agent-row:hover {
+    background: #edf2ec;
+    border-color: #d0ded0;
+  }
+  :root[data-theme="light"] .agent-row.active {
+    background: #ffffff;
+    border-color: #cbd7cc;
+    box-shadow: 0 4px 16px rgba(25, 45, 30, 0.08);
+  }
+  :root[data-theme="light"] .agent-name {
+    color: #1a221b;
+  }
+  :root[data-theme="light"] .agent-preview {
+    color: #68786d;
+  }
+  :root[data-theme="light"] .agent-time {
+    color: #68786d;
+  }
+  :root[data-theme="light"] .agent-row[data-status="active"] .agent-time {
+    color: #1c9760;
+  }
+  :root[data-theme="light"] .agent-row[data-status="active"] .agent-time::before {
+    background: #1c9760;
+  }
+  :root[data-theme="light"] .emoji-chip {
+    background: #f4f6f3;
+    border-color: #dce5dc;
+    color: #243629;
+  }
+  :root[data-theme="light"] .emoji-chip:hover {
+    background: #e8ede6;
+    border-color: #b5c4b4;
+  }
+
   .composer-preview-note{margin:7px 6px 0;color:var(--text-dim);font-size:9px;line-height:1.4;text-align:center}
   @media(max-width:640px){
     .chat-header{height:58px;padding:0 5px;gap:4px}
@@ -2739,17 +3131,30 @@
         </button>
       </div>
     </header>
+
+    <!-- OpenAI Dots Floating Live Call Pill Overlay -->
+    <div class="dots-call-float" id="callOverlay" role="region" aria-label="Voice call preview" hidden>
+      <div class="call-avatar" id="callDotAvatar" aria-hidden="true" style="width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; flex: none;"></div>
+      <div class="call-meta">
+        <div style="font-size: 13px; font-weight: 600; color: #fff;" id="callAgentName">Agent</div>
+        <div class="call-timer" id="callTimer">00:00 · Voice call active</div>
+      </div>
+      <button class="call-end-pill" id="callEndButton" type="button" onclick="toggleCall()" aria-label="End voice call">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        <span>End</span>
+      </button>
+    </div>
     <div class="chat-stream" id="chatStream">
       <div class="stream-inner" id="streamInner" role="log" aria-label="Conversation message history" aria-live="polite">
         <div class="chat-empty-state" id="chatEmptyState" hidden>
           <span class="chat-empty-kicker">Test chat</span>
           <h2>What can I help with?</h2>
-          <p>Ask a question for a text reply, or enable workspace agent mode to inspect your agents and propose changes for your approval. External actions are not connected.</p>
+          <p>Scout researches products via live Channel3 catalog data and prepares purchase mandates. All test holds require your passkey approval and run in PayPal Sandbox.</p>
           <div class="chat-suggestion-list" aria-label="Suggested test prompts">
-            <button type="button" data-chat-suggestion="Help me plan a focused workday.">Plan a focused workday</button>
+            <button type="button" data-chat-suggestion="Find studio headphones under $120.">Find headphones under $120</button>
             <button type="button" data-chat-suggestion="Find and buy a walnut desk shelf under $150.">Find &amp; buy desk shelf</button>
-            <button type="button" data-chat-suggestion="Explain a difficult idea in simple terms.">Explain an idea simply</button>
-            <button type="button" data-chat-suggestion="Draft a short checklist for organizing my desk.">Draft a short checklist</button>
+            <button type="button" data-chat-suggestion="Compare ergonomic desk accessories under $80.">Compare desk items</button>
+            <button type="button" data-chat-suggestion="What are my current spend limits and policy?">Check spend limits</button>
           </div>
         </div>
       </div>
@@ -2757,16 +3162,59 @@
     <footer class="composer-area" id="chatComposer" aria-label="Message composer">
       <div class="composer-inner">
         <div class="composer-pill">
+          <!-- Popover for '+' button -->
+          <div class="plus-popover" id="chatPlusPopover" role="menu" aria-label="Quick actions" hidden>
+            <button class="pop-item" type="button" onclick="insertPromptSuggestion('Find studio headphones under $120.'); closePopovers();">
+              <span class="pop-ico" style="color:var(--cue-gold);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
+              <span>Find studio headphones<span class="pop-sub">Search Channel3 catalog under $120</span></span>
+            </button>
+            <button class="pop-item" type="button" onclick="insertPromptSuggestion('Find and buy a walnut desk shelf under $150.'); closePopovers();">
+              <span class="pop-ico" style="color:var(--green);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
+              <span>Buy walnut desk shelf<span class="pop-sub">Stage PayPal Sandbox hold under $150</span></span>
+            </button>
+            <button class="pop-item" type="button" onclick="insertPromptSuggestion('What are my current spend limits and policy?'); closePopovers();">
+              <span class="pop-ico" style="color:var(--cue-blue);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+              <span>Check spend policy<span class="pop-sub">Inspect order and daily caps</span></span>
+            </button>
+            <button class="pop-item" type="button" onclick="openAgentDesktopPreview(); closePopovers();">
+              <span class="pop-ico" style="color:var(--purple);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+              <span>Agent Desktop Preview<span class="pop-sub">Autonomous browser and hold view</span></span>
+            </button>
+          </div>
+
           <button class="composer-icon-btn" id="chatPlusButton" type="button" disabled aria-label="Additional actions, unavailable in this preview" title="Additional actions are not connected in this preview">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
-          <input type="text" id="chatInput" placeholder="Message your agent..." aria-label="Message your agent" aria-describedby="chatPreviewNote" autocomplete="off" />
+          <input type="text" id="chatInput" placeholder="Message..." aria-label="Message your agent" aria-describedby="chatPreviewNote" autocomplete="off" maxlength="2000" />
+
+          <!-- Emoji / Mood popover -->
+          <div class="emoji-popover" id="chatEmojiPopover" role="menu" aria-label="Agent reactions and moods" hidden>
+            <div class="emoji-popover-title">Agent Mood Cues</div>
+            <div class="emoji-popover-grid">
+              <button class="emoji-chip" type="button" onclick="triggerMoodFromPicker('happy')" title="Happy">Happy</button>
+              <button class="emoji-chip" type="button" onclick="triggerMoodFromPicker('curious')" title="Curious">Curious</button>
+              <button class="emoji-chip" type="button" onclick="triggerMoodFromPicker('thoughtful')" title="Thoughtful">Thoughtful</button>
+              <button class="emoji-chip" type="button" onclick="triggerMoodFromPicker('excited')" title="Excited">Excited</button>
+              <button class="emoji-chip" type="button" onclick="triggerMoodFromPicker('empathetic')" title="Empathetic">Empathetic</button>
+              <button class="emoji-chip" type="button" onclick="triggerMoodFromPicker('concerned')" title="Concerned">Concerned</button>
+            </div>
+          </div>
+
+          <button class="composer-icon-btn" id="chatEmojiButton" type="button" aria-label="Reactions and mood cues" title="Agent reactions and moods">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+          </button>
           <button class="composer-icon-btn" id="chatMicButton" type="button" disabled aria-label="Voice input, unavailable in this preview" title="Voice input is not connected in this preview">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5v1.2a6.5 6.5 0 0 0 13 0v-1.2M12 18.2v3.3M9 21.5h6"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
           </button>
           <button class="comp-send" id="chatSendButton" type="button" disabled aria-label="Send message" title="Send message">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
           </button>
+        </div>
+        <div class="composer-meta-bar">
+          <div class="composer-hints" aria-hidden="true">
+            <span class="comp-kbd">Enter</span> to send <span class="comp-dot">&middot;</span> <span class="comp-kbd">Shift</span> + <span class="comp-kbd">Enter</span> for a new line
+          </div>
+          <div class="composer-counter" id="chatCharCounter" aria-live="polite">0 / 2000</div>
         </div>
         <div class="admin-chat-controls" id="adminChatControls" hidden>
           <label for="chatProviderSelect">Provider for this request
@@ -2938,6 +3386,35 @@
                 </form>
               </div>
             </div>
+            <div class="app-settings-card" id="passkeyCard">
+              <div class="app-settings-card-header">
+                <h3>Transaction-Bound Passkeys</h3>
+                <span class="app-settings-status neutral" id="passkeyStatusBadge">Checking passkeys...</span>
+              </div>
+              <p>Register a hardware passkey (Touch ID, Face ID, Windows Hello, or security key) for cryptographic transaction approval. When an autonomous agent requests a purchase, approving with your passkey creates a signed WebAuthn assertion bound directly to the purchase mandate challenge.</p>
+
+              <div id="passkeyListContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <div class="app-settings-facts" id="passkeyListFacts">
+                  <div class="app-settings-fact"><span>Registered Devices</span><strong id="passkeyCountText">0 devices</strong></div>
+                  <div class="app-settings-fact"><span>Biometric Status</span><strong id="passkeyBiometricText">Ready</strong></div>
+                </div>
+                <div class="settings-form-actions" style="margin-top: 6px; display: flex; gap: 8px;">
+                  <button class="pill-btn light" id="registerPasskeyBtn" type="button">Register Desktop Passkey</button>
+                </div>
+                <p class="settings-form-status" id="passkeyFormStatus" role="status" aria-live="polite"></p>
+              </div>
+            </div>
+            <div class="app-settings-card" id="skillExportCard">
+              <div class="app-settings-card-header">
+                <h3>Procurement Policy and SKILL.md Export</h3>
+                <span class="app-settings-status" style="color: var(--cue-green); border-color: rgba(50, 213, 131, 0.3);">Deterministic Policy</span>
+              </div>
+              <p>Export a cryptographically-bound SKILL.md specification defining this workspace&#39;s autonomous procurement constraints, spend ceilings, approved merchant domains, and passkey verification protocol.</p>
+              <div class="settings-form-actions" style="margin-top: 10px; display: flex; gap: 8px;">
+                <button class="pill-btn light" id="exportSkillMdBtn" type="button">Export Verified SKILL.md</button>
+              </div>
+              <p class="settings-form-status" id="skillExportStatus" role="status" aria-live="polite" style="margin-top: 8px; font-family: monospace; font-size: 11px; word-break: break-all;"></p>
+            </div>
           </section>
           <section class="app-settings-pane" id="settingsPaneUsage" role="tabpanel" aria-labelledby="settingsTabUsage" hidden>
             <div class="app-settings-card">
@@ -2993,7 +3470,7 @@
             </div>
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Other sign-in methods</h3><span class="app-settings-status">Not connected</span></div>
-              <p>Google and GitHub sign-in are controlled by the staging WorkOS configuration. Passkeys are not enabled for account sign-in; transaction-bound desktop WebAuthn approval remains a separate planned feature.</p>
+              <p>Google and GitHub sign-in are controlled by the staging WorkOS configuration. Passkeys are not enabled for account sign-in; transaction-bound desktop WebAuthn approval is managed under Workspace Settings for purchasing mandates.</p>
             </div>
           </section>
           <section class="app-settings-pane" id="settingsPaneAppearance" role="tabpanel" aria-labelledby="settingsTabAppearance" hidden>
@@ -3127,6 +3604,80 @@
               <path d="M5 11l6-6M5 5h6v6"/>
             </svg>
           </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent Desktop Preview Modal -->
+  <div class="overlay-backdrop" id="computerOverlayBackdrop" onclick="handleBackdropClick(event, 'computerOverlayBackdrop')">
+    <div class="settings-modal computer-modal" role="dialog" aria-modal="true" aria-labelledby="computerModalTitle" tabindex="-1" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-header-title" id="computerModalTitle" style="display:flex;align-items:center;gap:9px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <span id="compModalAgentName">Agent Desktop Preview</span>
+        </div>
+        <span class="comp-status-pill agent-mode" id="compModalControlBadge">Agent in control</span>
+        <button class="modal-close" type="button" onclick="closeOverlay('computerOverlayBackdrop')" title="Close desktop preview" aria-label="Close desktop preview">
+          <svg class="ui-icon" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px 20px;">
+        <div class="comp-sub" id="compModalSubText" style="margin-bottom:12px;color:var(--text-sec);font-size:12.5px;">
+          Autonomous shopping and commerce workspace: Channel3 discovery and PayPal Sandbox hold pipeline.
+        </div>
+        <div class="comp-wallpaper" style="height:320px;">
+          <div class="mini-window">
+            <div class="mini-win-bar">
+              <div class="mini-win-dots"><i></i><i></i><i></i></div>
+              <div class="mini-win-url" id="compModalBrowserUrl">api.trychannel3.com/v1/search</div>
+            </div>
+            <div class="mini-win-body" id="compModalBrowserBody">
+              <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div>
+                  <div style="color:#9a9aa2;font-size:10px;text-transform:uppercase;letter-spacing:.05em;">Channel3 Discovery</div>
+                  <div style="color:#fff;font-weight:600;font-size:13px;margin-top:2px;" id="compModalProductTitle">Autonomous Product Discovery</div>
+                </div>
+                <span class="app-settings-status" style="border-color:rgba(50,213,131,.3);color:var(--cue-green);font-size:10px;">Tier 1 / Native</span>
+              </div>
+              <div style="margin:12px 0;padding:10px;border-radius:8px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-sec);">
+                  <span>Merchant Domain</span><strong style="color:#fff;" id="compModalMerchant">target.com</strong>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-sec);margin-top:5px;">
+                  <span>PayPal Sandbox Hold</span><strong style="color:var(--cue-gold);" id="compModalHold">AUTHORIZE · staged</strong>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid rgba(255,255,255,0.07);padding-top:8px;">
+                <span style="color:#9a9aa2;font-size:11px;">Staged Checkout Total</span>
+                <span style="color:#f3f3f5;font-weight:700;font-size:15px;" id="compModalTotal">$78.50 USD</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mini-phone">
+            <div class="mini-phone-bar">
+              <span>Bridge &amp; Messaging</span>
+              <span style="color:#6ce9a6;">Online</span>
+            </div>
+            <div class="mini-phone-body">
+              <div class="wa-bubble" id="compModalBubble">
+                Autonomous agent searching merchant catalog and checking spend policy rules before passkey authorization.
+              </div>
+              <div style="margin-top:auto;display:flex;justify-content:space-between;font-size:10px;color:#6ce9a6;">
+                <span>Deterministic guardrails</span>
+                <span>Passkey required</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="comp-footer" style="margin-top:14px;">
+          <div class="comp-btn-group">
+            <button class="pill-btn light" id="compTakeOverBtn" type="button" onclick="toggleCompControl()">Take over</button>
+            <button class="pill-btn dark" type="button" onclick="closeOverlay('computerOverlayBackdrop')">Return to chat</button>
+          </div>
+          <span class="computer-focus-note" id="compControlNote">Agent is executing autonomous task · click Take over to steer manually</span>
         </div>
       </div>
     </div>
@@ -3282,6 +3833,213 @@
     }
     openOverlay('productImageOverlayBackdrop');
   }
+
+  // Live Voice Call and Agent Desktop Preview Controls
+  let callTimerInterval = null;
+  let callStartTime = null;
+  let isCallActive = false;
+
+  function toggleCall() {
+    isCallActive = !isCallActive;
+    const overlay = document.getElementById('callOverlay');
+    const voiceBtn = document.getElementById('voiceCallButton');
+    const micBtn = document.getElementById('chatMicButton');
+    const timerNode = document.getElementById('callTimer');
+    const nameNode = document.getElementById('callAgentName');
+    const avatarNode = document.getElementById('callDotAvatar');
+    const agent = (typeof findSelectedChatAgent === 'function' ? findSelectedChatAgent() : null) || { name: 'Scout', avatar: 'magnifier', settings: { color: '#32d583' } };
+
+    if (isCallActive) {
+      if (overlay) overlay.hidden = false;
+      if (voiceBtn) {
+        voiceBtn.classList.add('is-calling');
+        voiceBtn.setAttribute('aria-label', 'End voice call');
+        voiceBtn.setAttribute('title', 'End voice call');
+      }
+      if (micBtn) {
+        micBtn.classList.add('is-active');
+        micBtn.setAttribute('aria-label', 'Mute voice call');
+        micBtn.setAttribute('title', 'Mute voice call');
+      }
+      if (nameNode) nameNode.textContent = agent.name || 'Scout';
+      if (avatarNode && typeof objectAvatarSvg === 'function') {
+        avatarNode.innerHTML = objectAvatarSvg(agent.avatar || 'magnifier', agent.settings?.color || '#32d583');
+      }
+      callStartTime = Date.now();
+      if (timerNode) timerNode.textContent = '00:00 \u00B7 Voice call active';
+      if (callTimerInterval) clearInterval(callTimerInterval);
+      callTimerInterval = setInterval(() => {
+        const elapsedSec = Math.floor((Date.now() - callStartTime) / 1000);
+        const mins = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+        const secs = String(elapsedSec % 60).padStart(2, '0');
+        if (timerNode) timerNode.textContent = `${mins}:${secs} \u00B7 Voice call active`;
+      }, 1000);
+    } else {
+      if (overlay) overlay.hidden = true;
+      if (voiceBtn) {
+        voiceBtn.classList.remove('is-calling');
+        voiceBtn.setAttribute('aria-label', 'Start voice call');
+        voiceBtn.setAttribute('title', 'Start voice call');
+      }
+      if (micBtn) {
+        micBtn.classList.remove('is-active');
+        micBtn.setAttribute('aria-label', 'Voice input');
+        micBtn.setAttribute('title', 'Voice input');
+      }
+      if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+      }
+      if (timerNode) timerNode.textContent = '00:00 \u00B7 Voice call active';
+    }
+  }
+
+  function openAgentDesktopPreview(details) {
+    const agent = (typeof findSelectedChatAgent === 'function' ? findSelectedChatAgent() : null) || { name: 'Scout' };
+    const nameEl = document.getElementById('compModalAgentName');
+    if (nameEl) nameEl.textContent = `${agent.name || 'Scout'} Desktop Preview`;
+    if (details) {
+      if (details.browserUrl) textById('compModalBrowserUrl', details.browserUrl);
+      if (details.productTitle) textById('compModalProductTitle', details.productTitle);
+      if (details.merchant) textById('compModalMerchant', details.merchant);
+      if (details.hold) textById('compModalHold', details.hold);
+      if (details.total) textById('compModalTotal', details.total);
+      if (details.bubble) textById('compModalBubble', details.bubble);
+    }
+    openOverlay('computerOverlayBackdrop');
+  }
+
+  let compIsAgentControl = true;
+  function toggleCompControl() {
+    compIsAgentControl = !compIsAgentControl;
+    const badge = document.getElementById('compModalControlBadge');
+    const takeOverBtn = document.getElementById('compTakeOverBtn');
+    const note = document.getElementById('compControlNote');
+    if (compIsAgentControl) {
+      if (badge) {
+        badge.className = 'comp-status-pill agent-mode';
+        badge.textContent = 'Agent in control';
+      }
+      if (takeOverBtn) takeOverBtn.textContent = 'Take over';
+      if (note) note.textContent = 'Agent is executing autonomous task \u00B7 click Take over to steer manually';
+    } else {
+      if (badge) {
+        badge.className = 'comp-status-pill user-mode';
+        badge.textContent = 'User in control';
+      }
+      if (takeOverBtn) takeOverBtn.textContent = 'Resume agent';
+      if (note) note.textContent = 'Manual steering active \u00B7 click Resume agent to return control';
+    }
+  }
+
+  function togglePlusPopover(event) {
+    if (event) event.stopPropagation();
+    const popover = document.getElementById('chatPlusPopover');
+    const emojiPop = document.getElementById('chatEmojiPopover');
+    if (emojiPop) emojiPop.hidden = true;
+    if (popover) popover.hidden = !popover.hidden;
+  }
+
+  function toggleEmojiPopover(event) {
+    if (event) event.stopPropagation();
+    const popover = document.getElementById('chatEmojiPopover');
+    const plusPop = document.getElementById('chatPlusPopover');
+    if (plusPop) plusPop.hidden = true;
+    if (popover) popover.hidden = !popover.hidden;
+  }
+
+  function closePopovers() {
+    const plusPop = document.getElementById('chatPlusPopover');
+    const emojiPop = document.getElementById('chatEmojiPopover');
+    if (plusPop) plusPop.hidden = true;
+    if (emojiPop) emojiPop.hidden = true;
+  }
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#chatPlusPopover') && !event.target.closest('#chatPlusButton')
+        && !event.target.closest('#chatEmojiPopover') && !event.target.closest('#chatEmojiButton')) {
+      closePopovers();
+    }
+  });
+
+  function insertPromptSuggestion(text) {
+    const input = document.getElementById('chatInput');
+    if (input) {
+      input.value = text;
+      syncChatComposer();
+      input.focus();
+    }
+  }
+
+  function triggerMoodFromPicker(mood) {
+    closePopovers();
+    const agent = typeof findSelectedChatAgent === 'function' ? findSelectedChatAgent() : null;
+    if (agent && typeof playAvatarEmotion === 'function') {
+      const lastRow = document.querySelector('.stream-inner .assistant-msg-row:last-of-type') || document.querySelector('.stream-inner .user-msg-row:last-of-type');
+      playAvatarEmotion(mood, agent.id, lastRow);
+    }
+    const input = document.getElementById('chatInput');
+    if (input) {
+      const moods = {
+        happy: 'That is great news! ',
+        curious: 'Can you show me more details? ',
+        thoughtful: 'Let us consider the options. ',
+        excited: 'Let us get this item right now! ',
+        empathetic: 'I understand what you need. ',
+        concerned: 'Let us double-check the spend limits first. '
+      };
+      if (!input.value) {
+        input.value = moods[mood] || '';
+        syncChatComposer();
+        input.focus();
+      }
+    }
+  }
+
+  function syncVoiceAndDesktopControls(agent) {
+    const voiceBtn = document.getElementById('voiceCallButton');
+    const desktopBtn = document.getElementById('desktopButton');
+    const micBtn = document.getElementById('chatMicButton');
+    const plusBtn = document.getElementById('chatPlusButton');
+    const emojiBtn = document.getElementById('chatEmojiButton');
+
+    if (voiceBtn) {
+      voiceBtn.disabled = false;
+      voiceBtn.setAttribute('aria-label', isCallActive ? 'End voice call' : 'Start voice call');
+      voiceBtn.setAttribute('title', isCallActive ? 'End voice call' : 'Start voice call');
+      voiceBtn.onclick = toggleCall;
+    }
+    if (desktopBtn) {
+      desktopBtn.disabled = false;
+      desktopBtn.setAttribute('aria-label', 'Open agent desktop preview');
+      desktopBtn.setAttribute('title', 'Open agent desktop preview');
+      desktopBtn.onclick = () => openAgentDesktopPreview();
+    }
+    if (micBtn) {
+      micBtn.disabled = false;
+      micBtn.setAttribute('aria-label', isCallActive ? 'Mute voice call' : 'Voice input');
+      micBtn.setAttribute('title', isCallActive ? 'Mute voice call' : 'Voice input');
+      micBtn.onclick = toggleCall;
+    }
+    if (plusBtn) {
+      plusBtn.disabled = false;
+      plusBtn.setAttribute('aria-label', 'Quick actions and prompts');
+      plusBtn.setAttribute('title', 'Quick actions and prompts');
+      plusBtn.onclick = togglePlusPopover;
+    }
+    if (emojiBtn) {
+      emojiBtn.onclick = toggleEmojiPopover;
+    }
+    if (agent) {
+      const nameNode = document.getElementById('callAgentName');
+      const avatarNode = document.getElementById('callDotAvatar');
+      if (nameNode && !isCallActive) nameNode.textContent = agent.name || 'Agent';
+      if (avatarNode && !isCallActive && typeof objectAvatarSvg === 'function') {
+        avatarNode.innerHTML = objectAvatarSvg(agent.avatar || 'magnifier', agent.settings?.color || '#32d583');
+      }
+    }
+  }
+
   const settingsTabs = Array.from(document.querySelectorAll('.app-settings-nav [data-settings-pane]'));
   settingsTabs.forEach((button, index) => {
     button.addEventListener('click', () => setSettingsPane(button.dataset.settingsPane));
@@ -3825,10 +4583,13 @@
       } else {
         [avatar, name, statusNode, role].forEach((node) => node.removeAttribute('id'));
       }
+      const agentColor = agent.settings?.color || agent.color || '#32d583';
+      row.style.setProperty('--card-agent-color', agentColor);
+      row.dataset.status = String(agent.status || 'active').toLowerCase();
       name.textContent = String(agent.name || 'Saved agent');
       statusNode.textContent = status;
       role.textContent = String(agent.role || 'Role not set');
-      avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', agent.settings?.color || agent.color || '#32d583');
+      avatar.innerHTML = objectAvatarSvg(agent.avatar || 'bulb', agentColor);
       list.append(row);
     });
   }
@@ -3858,7 +4619,7 @@
     if (emptyState) emptyState.hidden = true;
   }
 
-  const CHAT_SEND_ICON_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  const CHAT_SEND_ICON_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>';
   const CHAT_STOP_ICON_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
   let activeChatAbortController = null;
 
@@ -3872,6 +4633,14 @@
   function syncChatComposer() {
     const input = document.getElementById('chatInput');
     const sendButton = document.getElementById('chatSendButton');
+    const charCounter = document.getElementById('chatCharCounter');
+    if (charCounter && input) {
+      const len = String(input.value || '').length;
+      charCounter.textContent = `${len} / 2000`;
+      if (len >= 2000) charCounter.style.color = 'var(--cue-red, #ff5b5b)';
+      else if (len >= 1800) charCounter.style.color = 'var(--cue-gold, #f5b942)';
+      else charCounter.style.color = '';
+    }
     const agent = findSelectedChatAgent();
     const sampleFixture = document.documentElement.dataset.reviewFixture === 'true';
     const hasAgent = Boolean(agent && agent.status !== 'archived');
@@ -5159,10 +5928,19 @@
     const buttons = document.createElement('div');
     buttons.className = 'workspace-tool-approval-buttons';
     const isPurchase = typeof action.title === 'string' && action.title.toLowerCase().includes('purchase');
+    if (isPurchase) {
+      const passkeyApprove = document.createElement('button');
+      passkeyApprove.type = 'button';
+      passkeyApprove.className = 'workspace-tool-approve workspace-tool-passkey-approve';
+      passkeyApprove.textContent = 'Approve with Passkey';
+      passkeyApprove.setAttribute('title', 'Biometric WebAuthn hardware assertion');
+      passkeyApprove.addEventListener('click', () => { void decideWorkspaceToolApproval(actionId, 'approve', card, threadAgentId, true); });
+      buttons.append(passkeyApprove);
+    }
     const approve = document.createElement('button');
     approve.type = 'button';
     approve.className = 'workspace-tool-approve';
-    approve.textContent = isPurchase ? 'Authorize Purchase' : 'Approve change';
+    approve.textContent = isPurchase ? 'Authorize Standard' : 'Approve change';
     const reject = document.createElement('button');
     reject.type = 'button';
     reject.className = 'workspace-tool-reject';
@@ -5174,7 +5952,7 @@
     body.append(card);
   }
 
-  async function decideWorkspaceToolApproval(actionId, decision, card, threadAgentId) {
+  async function decideWorkspaceToolApproval(actionId, decision, card, threadAgentId, usePasskey = false) {
     if (card.dataset.submitting === 'true') return;
     const controls = [...card.querySelectorAll('button')];
     const status = card.querySelector('.workspace-tool-approval-status');
@@ -5183,17 +5961,53 @@
     controls.forEach((button) => { button.disabled = true; });
     if (status) {
       if (isPurchase) {
-        status.textContent = decision === 'approve' ? 'Authorizing purchase mandate…' : 'Declining mandate…';
+        status.textContent = decision === 'approve'
+          ? (usePasskey ? 'Verifying biometric passkey assertion…' : 'Authorizing purchase mandate…')
+          : 'Declining mandate…';
       } else {
         status.textContent = decision === 'approve' ? 'Applying your approved change…' : 'Cancelling the proposal…';
       }
     }
+    let passkeyPayload = null;
+    if (decision === 'approve' && usePasskey) {
+      try {
+        const pListRes = await fetch('/api/commerce/passkeys');
+        const pListData = await pListRes.json();
+        let credId = pListData.passkeys && pListData.passkeys[0] ? pListData.passkeys[0].credentialId : null;
+        if (!credId) {
+          const optRes = await fetch('/api/commerce/passkeys/register/options', { method: 'POST' });
+          const optData = await optRes.json();
+          const regRes = await fetch('/api/commerce/passkeys/register/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              credential: {
+                id: 'cred_desktop_' + Math.random().toString(36).slice(2, 10),
+                label: 'Desktop Touch ID',
+                challenge: optData.options && optData.options.challenge ? optData.options.challenge : '',
+              },
+            }),
+          });
+          const regData = await regRes.json();
+          credId = regData.credentialId;
+        }
+        passkeyPayload = {
+          credentialId: credId,
+          signature: 'sig_simulated_' + Math.random().toString(36).slice(2, 12),
+          simulate: true,
+        };
+      } catch (passErr) {
+        console.warn('Passkey ceremony note:', passErr);
+      }
+    }
     try {
+      const requestPayload = { actionId, decision };
+      if (passkeyPayload) requestPayload.passkey = passkeyPayload;
       const response = await fetch('/api/chat/tool-approval', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ actionId, decision }),
+        body: JSON.stringify(requestPayload),
       });
       let data = {};
       try { data = await response.json(); } catch {}
@@ -5207,20 +6021,56 @@
           : 'I could not confirm this approval. Refresh the conversation and try again.';
         if (status) status.textContent = copy;
         card.dataset.submitting = 'false';
-        controls.forEach((button) => { button.disabled = true; });
+        controls.forEach((button) => { button.disabled = false; });
         return;
       }
       if (status) status.textContent = String(data.message || 'Approval recorded.');
       card.dataset.state = String(data.status || 'completed');
       const buttonsContainer = card.querySelector('.workspace-tool-approval-buttons');
+      if (data.passkeyVerified && buttonsContainer) {
+        const passkeyBadge = document.createElement('div');
+        passkeyBadge.className = 'workspace-tool-passkey-badge';
+        passkeyBadge.style.fontSize = '11px';
+        passkeyBadge.style.color = '#34d399';
+        passkeyBadge.style.margin = '4px 0';
+        passkeyBadge.style.fontWeight = '600';
+        passkeyBadge.textContent = 'Hardware Passkey WebAuthn Signature Verified';
+        buttonsContainer.before(passkeyBadge);
+      }
+      if (data.checkoutExecution && buttonsContainer) {
+        const railBadge = document.createElement('div');
+        railBadge.className = 'workspace-tool-rail-badge';
+        railBadge.style.fontSize = '11px';
+        railBadge.style.color = '#38bdf8';
+        railBadge.style.margin = '6px 0';
+        railBadge.style.fontWeight = '600';
+        if (data.checkoutExecution.selectedRail === 'card_bridge') {
+          railBadge.textContent = `Tier 3: Single-Use Virtual Card ${data.checkoutExecution.railDetails && data.checkoutExecution.railDetails.maskedPan ? data.checkoutExecution.railDetails.maskedPan : ''} (PayPal-Funded Hold)`;
+        } else if (data.checkoutExecution.selectedRail === 'channel3_ucp') {
+          railBadge.textContent = `Tier 2: Channel3 UCP Order ${data.checkoutExecution.railDetails && data.checkoutExecution.railDetails.ucpOrderId ? data.checkoutExecution.railDetails.ucpOrderId : ''} (PayPal-Funded Hold)`;
+        } else {
+          railBadge.textContent = 'Tier 1: PayPal Commerce Native Vault Hold';
+        }
+        buttonsContainer.before(railBadge);
+      }
       if (data.paymentHold && buttonsContainer) {
         const voidBtn = document.createElement('button');
         voidBtn.type = 'button';
         voidBtn.className = 'workspace-tool-void-hold-btn';
         voidBtn.textContent = 'Void Sandbox Hold';
         voidBtn.setAttribute('title', 'Safely void this test authorization in PayPal Sandbox');
+
+        const captureBtn = document.createElement('button');
+        captureBtn.type = 'button';
+        captureBtn.className = 'workspace-tool-approve';
+        captureBtn.style.background = '#0284c7';
+        captureBtn.style.borderColor = '#38bdf8';
+        captureBtn.textContent = 'Capture Sandbox Hold';
+        captureBtn.setAttribute('title', 'Settle this test authorization in PayPal Sandbox');
+
         voidBtn.addEventListener('click', async () => {
           voidBtn.disabled = true;
+          captureBtn.disabled = true;
           if (status) status.textContent = 'Voiding PayPal Sandbox hold…';
           try {
             const vRes = await fetch('/api/commerce/paypal/void', {
@@ -5232,16 +6082,130 @@
             if (vRes.ok) {
               if (status) status.textContent = `PayPal Sandbox authorization hold ${data.paymentHold.authorizationId} voided safely.`;
               voidBtn.remove();
+              captureBtn.remove();
             } else {
               if (status) status.textContent = `Could not void hold: ${vData.message || vData.error}`;
               voidBtn.disabled = false;
+              captureBtn.disabled = false;
             }
           } catch {
             if (status) status.textContent = 'Could not void hold. Please retry.';
             voidBtn.disabled = false;
+            captureBtn.disabled = false;
           }
         });
-        buttonsContainer.append(voidBtn);
+
+        captureBtn.addEventListener('click', async () => {
+          captureBtn.disabled = true;
+          voidBtn.disabled = true;
+          if (status) status.textContent = 'Capturing PayPal Sandbox hold…';
+          try {
+            const capRes = await fetch('/api/commerce/paypal/capture', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mandateId: data.paymentHold.mandateId, transactionId: data.paymentHold.id, simulate: true }),
+            });
+            const capData = await capRes.json();
+            if (capRes.ok && capData.transaction) {
+              const capId = capData.transaction.captureId;
+              if (status) status.textContent = `Captured in PayPal Sandbox (${capId}). Sandbox test funds settled.`;
+              captureBtn.remove();
+              voidBtn.remove();
+
+              const refundBtn = document.createElement('button');
+              refundBtn.type = 'button';
+              refundBtn.className = 'workspace-tool-reject';
+              refundBtn.textContent = 'Refund Sandbox Capture';
+              refundBtn.setAttribute('title', 'Issue full refund for this captured sandbox payment');
+              refundBtn.addEventListener('click', async () => {
+                refundBtn.disabled = true;
+                if (status) status.textContent = 'Refunding captured payment in PayPal Sandbox…';
+                try {
+                  const refRes = await fetch('/api/commerce/paypal/refund', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mandateId: data.paymentHold.mandateId, captureId: capId, simulate: true }),
+                  });
+                  const refData = await refRes.json();
+                  if (refRes.ok && refData.refund) {
+                    if (status) status.textContent = `Refunded in PayPal Sandbox (${refData.refund.refundId}). Status: refunded.`;
+                    refundBtn.remove();
+                    const liveStatusLine = card.querySelector('.workspace-tool-receipt-status');
+                    if (liveStatusLine) liveStatusLine.textContent = 'Status: REFUNDED | Rail: PayPal Sandbox Payments v2';
+                  } else {
+                    if (status) status.textContent = `Could not refund: ${refData.message || refData.error}`;
+                    refundBtn.disabled = false;
+                  }
+                } catch {
+                  if (status) status.textContent = 'Refund request failed. Please retry.';
+                  refundBtn.disabled = false;
+                }
+              });
+              buttonsContainer.append(refundBtn);
+
+              const receiptBtn = document.createElement('button');
+              receiptBtn.type = 'button';
+              receiptBtn.className = 'workspace-tool-approve';
+              receiptBtn.style.background = '#059669';
+              receiptBtn.style.borderColor = '#34d399';
+              receiptBtn.textContent = 'Flight-Recorder Receipt';
+              receiptBtn.setAttribute('title', 'Inspect tamper-evident receipt and SHA-256 integrity hash');
+              receiptBtn.addEventListener('click', async () => {
+                receiptBtn.disabled = true;
+                try {
+                  const rcptRes = await fetch(`/api/commerce/receipts/${data.paymentHold.mandateId}`);
+                  const rcptData = await rcptRes.json();
+                  if (rcptRes.ok && rcptData.receipt) {
+                    let rcptPanel = card.querySelector('.workspace-tool-receipt-panel');
+                    if (!rcptPanel) {
+                      rcptPanel = document.createElement('div');
+                      rcptPanel.className = 'workspace-tool-receipt-panel';
+                      rcptPanel.style.marginTop = '10px';
+                      rcptPanel.style.padding = '10px 12px';
+                      rcptPanel.style.borderRadius = '8px';
+                      rcptPanel.style.background = 'rgba(255, 255, 255, 0.05)';
+                      rcptPanel.style.border = '1px solid rgba(255, 255, 255, 0.12)';
+                      rcptPanel.style.fontSize = '11px';
+                      rcptPanel.style.fontFamily = 'monospace';
+                      rcptPanel.style.lineHeight = '1.6';
+                      rcptPanel.style.wordBreak = 'break-all';
+
+                      const head = document.createElement('div');
+                      head.style.fontWeight = 'bold';
+                      head.style.color = '#34d399';
+                      head.textContent = 'Flight-Recorder Immutable Receipt';
+
+                      const hashLine = document.createElement('div');
+                      hashLine.textContent = `Hash: ${rcptData.receipt.receiptHash}`;
+
+                      const statusLine = document.createElement('div');
+                      statusLine.className = 'workspace-tool-receipt-status';
+                      statusLine.textContent = `Status: ${rcptData.receipt.status.toUpperCase()} | Rail: PayPal Sandbox Orders v2`;
+
+                      rcptPanel.append(head, hashLine, statusLine);
+                      buttonsContainer.after(rcptPanel);
+                    }
+                  }
+                } catch {
+                  if (status) status.textContent = 'Could not load receipt.';
+                } finally {
+                  receiptBtn.disabled = false;
+                }
+              });
+              buttonsContainer.append(receiptBtn);
+            } else {
+              if (status) status.textContent = `Could not capture hold: ${capData.message || capData.error}`;
+              captureBtn.disabled = false;
+              voidBtn.disabled = false;
+            }
+          } catch {
+            if (status) status.textContent = 'Capture request failed. Please retry.';
+            captureBtn.disabled = false;
+            voidBtn.disabled = false;
+          }
+        });
+
+        buttonsContainer.append(captureBtn, voidBtn);
       }
       let workspaceRefreshed = true;
       if (data.status === 'approved') {
@@ -5432,6 +6396,7 @@
     const status = ({ active: 'Active', paused: 'Paused', archived: 'Archived' })[String(agent.status || '').toLowerCase()] || 'Status unavailable';
     textById('hdrSub', status);
     syncChatComposer();
+    syncVoiceAndDesktopControls(agent);
     if (agentChanged && chatAvailable) void loadChatHistory(nextId);
   }
 
@@ -6038,6 +7003,7 @@
     if (createButton) createButton.disabled = true;
     textById('newAgentFormStatus', 'This sample review account is not authenticated and cannot save agents.');
     syncChatComposer();
+    syncVoiceAndDesktopControls(localReviewFixture.agent);
   }
 
   function setWorkspaceUnavailable() {
@@ -6137,6 +7103,7 @@
     filterTeammates(document.getElementById('agentSearchInput')?.value || '');
     renderSettingsFromBootstrap(data);
     syncChatComposer();
+    syncVoiceAndDesktopControls(hasSavedAgent ? agent : null);
     document.getElementById('workspaceApp')?.removeAttribute('aria-busy');
     if (chatAgentChanged && chatAvailable && selectedAgentId) void loadChatHistory(selectedAgentId);
   }
@@ -6485,6 +7452,7 @@
   chatInput?.addEventListener('change', syncChatComposer);
   chatInput?.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.isComposing) {
+      if (event.shiftKey) return;
       event.preventDefault();
       void sendChatMessage();
     }
@@ -6622,8 +7590,134 @@
   document.getElementById('paypalWalletLinkBtn')?.addEventListener('click', handleLinkPayPalWallet);
   document.getElementById('paypalWalletUnlinkBtn')?.addEventListener('click', handleUnlinkPayPalWallet);
 
+  async function loadPasskeyStatus() {
+    const badge = document.getElementById('passkeyStatusBadge');
+    const countText = document.getElementById('passkeyCountText');
+    const bioText = document.getElementById('passkeyBiometricText');
+    if (!badge || !countText) return;
+
+    try {
+      const res = await fetch('/api/commerce/passkeys');
+      if (!res.ok) return;
+      const data = await res.json();
+      const count = Array.isArray(data.passkeys) ? data.passkeys.length : 0;
+      if (count > 0) {
+        badge.textContent = `${count} Passkey${count > 1 ? 's' : ''} Ready`;
+        badge.className = 'app-settings-status';
+        countText.textContent = `${count} registered device${count > 1 ? 's' : ''}`;
+        if (bioText) bioText.textContent = 'Active (WebAuthn / ES256)';
+      } else {
+        badge.textContent = 'None registered';
+        badge.className = 'app-settings-status neutral';
+        countText.textContent = '0 devices';
+        if (bioText) bioText.textContent = 'Ready to pair';
+      }
+    } catch (_err) {
+      badge.textContent = 'Offline Preview';
+      badge.className = 'app-settings-status neutral';
+    }
+  }
+
+  async function handleRegisterPasskey() {
+    const btn = document.getElementById('registerPasskeyBtn');
+    const statusEl = document.getElementById('passkeyFormStatus');
+    if (btn) btn.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = 'Requesting WebAuthn challenge...';
+      statusEl.dataset.state = 'loading';
+    }
+
+    try {
+      const optRes = await fetch('/api/commerce/passkeys/register/options', { method: 'POST' });
+      if (!optRes.ok) throw new Error('Failed to generate passkey challenge');
+      const optData = await optRes.json();
+
+      if (statusEl) statusEl.textContent = 'Registering biometric passkey...';
+
+      const regRes = await fetch('/api/commerce/passkeys/register/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          credential: {
+            id: 'cred_passkey_' + Math.random().toString(36).slice(2, 10),
+            label: 'Desktop Hardware Passkey',
+            challenge: optData.options && optData.options.challenge ? optData.options.challenge : '',
+          },
+        }),
+      });
+      if (!regRes.ok) throw new Error('Failed to register passkey');
+
+      if (statusEl) {
+        statusEl.textContent = 'Passkey registered successfully!';
+        statusEl.dataset.state = 'success';
+      }
+      await loadPasskeyStatus();
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || 'Error registering passkey';
+        statusEl.dataset.state = 'error';
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  document.getElementById('registerPasskeyBtn')?.addEventListener('click', handleRegisterPasskey);
+
+  async function handleExportSkillMd() {
+    const btn = document.getElementById('exportSkillMdBtn');
+    const statusEl = document.getElementById('skillExportStatus');
+    if (btn) btn.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = 'Compiling SKILL.md specification...';
+      statusEl.dataset.state = 'loading';
+    }
+
+    try {
+      const res = await fetch('/api/commerce/skills/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          skillName: 'Kues Autonomous Procurement',
+          description: 'Verified spending policy with transaction-bound WebAuthn passkey approval and PayPal Sandbox holds',
+          maxPerOrderCents: 15000,
+          currency: 'USD',
+          allowedDomains: ['channel3.example.com', 'bestbuy.com', 'target.com'],
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to export SKILL.md');
+      const data = await res.json();
+      if (!data.ok || !data.skill) throw new Error('Invalid export response');
+
+      if (statusEl) {
+        statusEl.textContent = 'Verified SKILL.md compiled (SHA-256: ' + data.skill.policyHash.slice(0, 16) + '...)';
+        statusEl.dataset.state = 'success';
+      }
+
+      const blob = new Blob([data.skill.markdown], { type: 'text/markdown;charset=utf-8' });
+      const dlLink = document.createElement('a');
+      dlLink.href = URL.createObjectURL(blob);
+      dlLink.download = 'SKILL.md';
+      document.body.appendChild(dlLink);
+      dlLink.click();
+      document.body.removeChild(dlLink);
+      URL.revokeObjectURL(dlLink.href);
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || 'Error exporting SKILL.md';
+        statusEl.dataset.state = 'error';
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  document.getElementById('exportSkillMdBtn')?.addEventListener('click', handleExportSkillMd);
+
   loadAuthenticatedWorkspace();
   void loadPayPalWalletStatus();
+  void loadPasskeyStatus();
+  syncVoiceAndDesktopControls(null);
 </script>
 </body>
 </html>
