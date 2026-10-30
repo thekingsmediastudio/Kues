@@ -137,6 +137,14 @@ html[data-theme="light"] .auth-main .brand{color:#13231b}
 html[data-theme="light"] .auth-main .heading h1{color:#13231b}html[data-theme="light"] .auth-main .heading p{color:#65766b}
 html[data-theme="light"] .auth-main .card{border-color:#e2e9e1;background:linear-gradient(145deg,#fff,#f9fcf8);box-shadow:0 18px 56px rgba(24,47,34,.1),inset 0 1px 0 #fff}
 html[data-theme="light"] .auth-main label{color:#344b3a}html[data-theme="light"] .auth-main input{border-color:#d2ddd1;background:#f8faf7;color:#13231b}
+.judge-fastlane-box{margin-bottom:18px;padding:14px;border:1px solid rgba(50,213,131,.32);border-radius:12px;background:rgba(50,213,131,.065);text-align:center}
+.judge-fastlane-head{color:#32d583;font-size:10.5px;font-weight:700;letter-spacing:.12em}
+.judge-fastlane-desc{margin:4px 0 10px;color:#a4a5ad;font-size:11px;line-height:1.4}
+.judge-fastlane-btn{width:100%;min-height:38px;background:#32d583;color:#0b110e;font-size:12px;font-weight:700;cursor:pointer}
+.judge-fastlane-btn:hover{background:#41e492}
+html[data-theme="light"] .judge-fastlane-box{border-color:rgba(50,150,82,.3);background:rgba(50,213,131,.09)}
+html[data-theme="light"] .judge-fastlane-head{color:#1e7b44}
+html[data-theme="light"] .judge-fastlane-desc{color:#4f6154}
 html[data-theme="light"] .auth-main input::placeholder{color:#8a968c}html[data-theme="light"] .auth-main input:focus{border-color:rgba(50,150,82,.58);box-shadow:0 0 0 3px rgba(50,213,131,.12)}
 html[data-theme="light"] .auth-main .primary{border-color:rgba(50,213,131,.3);background:linear-gradient(120deg,#32d583,#79e2a5);color:#102218;box-shadow:0 7px 22px rgba(50,150,82,.12)}
 html[data-theme="light"] .auth-main .primary:not(:disabled):hover{background:linear-gradient(120deg,#4ce092,#8be8b2)}html[data-theme="light"] .auth-main .primary:disabled{border-color:#e2e9e1;background:#eef3ed;color:#849087}
@@ -191,6 +199,14 @@ html[data-theme="light"] .auth-main button:focus-visible,html[data-theme="light"
   </div>
   <header class="heading"><h1 id="pageTitle">Sign in</h1><p id="pageSubtitle">Continue to your Keus account</p></header>
   <section class="card" id="signInPanel">
+    <div class="judge-fastlane-box" id="judgeFastlaneBox">
+      <div class="judge-fastlane-head">HACKATHON DEMO FAST LANE</div>
+      <p class="judge-fastlane-desc">Direct 1-click test sign-in with pre-linked PayPal Sandbox wallet.</p>
+      <button type="button" class="primary judge-fastlane-btn" id="judgeFastlaneButton">
+        Launch Judge Workspace (1-Click)
+      </button>
+    </div>
+    <div class="divider">or standard account sign-in</div>
     <div class="account-mode" id="accountModeSwitch" role="group" aria-label="Choose sign-in or account creation">
       <button type="button" id="signInMode" aria-pressed="true">Sign in</button>
       <button type="button" id="signUpMode" aria-pressed="false">Create account</button>
@@ -288,6 +304,27 @@ const resetCodeStatus=document.getElementById('resetCodeStatus');
 const passwordResetSuccess=document.getElementById('passwordResetSuccess');
 const signedPanel=document.getElementById('signedPanel');
 const altMethods=document.getElementById('altMethods');
+const judgeFastlaneButton=document.getElementById('judgeFastlaneButton');
+judgeFastlaneButton?.addEventListener('click', async () => {
+  judgeFastlaneButton.disabled = true;
+  setStatus(formStatus, 'Launching judge workspace...', '');
+  try {
+    const res = await fetch('/api/auth/demo-fastlane', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const data = await readJson(res);
+    if (res.ok) {
+      window.location.href = data.redirect || '/app';
+    } else {
+      setStatus(formStatus, data.message || data.error || 'Could not launch demo workspace.', 'error');
+      judgeFastlaneButton.disabled = false;
+    }
+  } catch {
+    setStatus(formStatus, 'Demo fast-lane request failed. Please retry.', 'error');
+    judgeFastlaneButton.disabled = false;
+  }
+});
 let activeEmail='';
 let activePassword='';
 let authEnabled=false;
