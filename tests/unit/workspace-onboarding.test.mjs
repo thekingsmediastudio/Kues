@@ -496,3 +496,27 @@ test('onboarding rejects invalid values instead of writing ambiguous policy sett
     await db.close();
   }
 });
+
+test('agent instructions and tool preferences persist independently and cannot edit another account', async () => {
+ const db=await createDb(); const now='2026-10-26T09:00:00.000Z';
+ try {
+  const auth=createAuthService({db,competition}); const ws=createWorkspaceService({db,competition});
+  const login=await auth.createWorkOSSession({providerSubject:'agent_ext_owner',email:'agent-ext@example.test',emailVerified:true,displayName:'Owner',now});
+  const initial=await ws.completeOnboarding({userId:login.user.id,input:onboardingInput,now});
+  const a=initial.agents[0].id;
+  const second=await ws.createAgent({userId:login.user.id,input:{...onboardingInput,name:'Second agent'},now}); const b=second.createdAgentId;
+  const saved=await ws.updateAgent({userId:login.user.id,agentId:a,input:{...onboardingInput,instructions:'Use concise comparisons.',toolPermissions:{web_search:true,read_files:true}},now});
+  assert.equal(saved.agents.find(x=>x.id===a).settings.instructions,'Use concise comparisons.');
+  assert.equal(saved.agents.find(x=>x.id===a).settings.toolPermissions.web_search,true);
+  assert.equal(saved.agents.find(x=>x.id===b).settings.toolPermissions.web_search,false);
+  const oldClient=await ws.updateAgent({userId:login.user.id,agentId:a,input:{...onboardingInput,role:'Updated role'},now});
+  assert.equal(oldClient.agents.find(x=>x.id===a).settings.toolPermissions.web_search,true);
+  assert.equal(oldClient.agents.find(x=>x.id===a).settings.instructions,'Use concise comparisons.');
+  await assert.rejects(ws.updateAgent({userId:login.user.id,agentId:a,input:{...onboardingInput,toolPermissions:{send_email:true}},now}),e=>e.code==='invalid_agent_tool_permissions');
+  const other=await auth.createWorkOSSession({providerSubject:'agent_ext_other',email:'other-agent-ext@example.test',emailVerified:true,displayName:'Other',now});
+  await assert.rejects(ws.updateAgent({userId:other.user.id,agentId:a,input:{...onboardingInput,instructions:'Cross-account overwrite'},now}),e=>e.code==='agent_not_found');
+  const cleared=await ws.updateAgent({userId:login.user.id,agentId:a,input:{...onboardingInput,instructions:'',toolPermissions:{}},now});
+  assert.equal(cleared.agents.find(x=>x.id===a).settings.instructions,'');
+  assert.equal(cleared.agents.find(x=>x.id===a).settings.toolPermissions.web_search,false);
+ } finally { db.close(); }
+});

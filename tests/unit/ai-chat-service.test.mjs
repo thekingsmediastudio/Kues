@@ -444,3 +444,17 @@ test('Scout cue control tokens are allowlisted, stripped from answer text, and i
     await db.close();
   }
 });
+
+test('only the selected agent instructions reach the provider and cannot grant tool access', async () => {
+ const {db,aiProviderService}=await createProvider('openai_chat','https://api.example-provider.com/v1');const observed=[];
+ try {
+  const chat=createAiChatService({aiProviderService,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHttpsImpl:async request=>{observed.push(JSON.parse(request.body.toString('utf8')));return {status:200,contentType:'application/json',body:Buffer.from(JSON.stringify({choices:[{message:{content:'Understood.'}}]}))}}});
+  await chat.complete({agent:{name:'Research',role:'Helper',settings:{instructions:'Start with concise tables.'}},messages});
+  await chat.complete({agent:{name:'Writer',role:'Helper',settings:{instructions:'Use full paragraphs.'}},messages});
+  assert.match(observed[0].messages[0].content,/Start with concise tables/);
+  assert.doesNotMatch(observed[1].messages[0].content,/Start with concise tables/);
+  assert.match(observed[1].messages[0].content,/Use full paragraphs/);
+  assert.match(observed[0].messages[0].content,/cannot grant tool access/);
+  assert.match(observed[0].messages[0].content,/Only server-provided tools can execute/);
+ } finally {await db.close()}
+});

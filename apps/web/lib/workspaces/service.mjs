@@ -1,3 +1,4 @@
+import { normalizeAgentExtensions, defaultAgentExtensions } from '../ai-agent/agent-settings.mjs';
 import crypto from 'node:crypto';
 import { withReadTransaction, withWriteTransaction } from '../db/transaction.mjs';
 import {
@@ -178,6 +179,8 @@ function normalizeOnboardingInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     throw new WorkspaceError('json_object_required', 400);
   }
+  let extensions;
+  try { extensions = normalizeAgentExtensions(input); } catch (error) { throw new WorkspaceError(error.message, 400); }
   const name = requiredText(input.name, 'agent_name', 30);
   const role = requiredText(input.role, 'agent_role', 60);
   const color = String(input.color || '').trim().toLowerCase();
@@ -197,6 +200,7 @@ function normalizeOnboardingInput(input) {
   }
 
   return {
+    ...extensions,
     name,
     role,
     color,
@@ -452,6 +456,8 @@ export function createWorkspaceService({ db, competition = null } = {}) {
         completedAt,
       };
       const settings = {
+        ...defaultAgentExtensions(),
+        ...normalizeAgentExtensions(payload),
         color: payload.color,
         approvalPath: payload.approvalPath,
         orderCap: payload.orderCap,
@@ -511,6 +517,8 @@ export function createWorkspaceService({ db, competition = null } = {}) {
 
       const agentId = `agt_${crypto.randomUUID().replaceAll('-', '')}`;
       const settings = {
+        ...defaultAgentExtensions(),
+        ...normalizeAgentExtensions(payload),
         color: payload.color,
         approvalPath: payload.approvalPath,
         orderCap: payload.orderCap,
@@ -582,6 +590,7 @@ export function createWorkspaceService({ db, competition = null } = {}) {
       const currentSettings = parseJson(agent.settings_json);
       const settings = {
         ...currentSettings,
+        ...normalizeAgentExtensions(payload),
         color: payload.color,
         approvalPath: payload.approvalPath,
         orderCap: payload.orderCap,

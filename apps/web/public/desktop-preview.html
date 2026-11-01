@@ -3239,6 +3239,26 @@
     .products-grid-toggle-btn{min-height:44px}
   }
 
+
+  #activeAgentSummary[role="button"]{cursor:pointer;border-radius:10px}
+  #activeAgentSummary[role="button"]:focus-visible{outline:2px solid var(--agent-accent);outline-offset:3px}
+  .agent-settings-tabs{position:sticky;top:0;z-index:3;background:var(--bg-card);display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px}
+  .agent-settings-tabs button{flex:1;min-height:40px;padding:8px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--text-sec);font:600 12px var(--font);cursor:pointer}
+  .agent-settings-tabs button[aria-selected="true"]{color:var(--text-main);border-color:var(--border-strong);background:var(--bg-hover)}
+  .agent-settings-panel{display:grid;gap:16px;padding:10px 0}
+  .agent-settings-panel[hidden]{display:none}
+  .agent-tool-row{display:flex!important;flex-direction:row!important;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid var(--border);border-radius:12px;cursor:pointer}
+  .agent-tool-row>span{display:grid;gap:5px;min-width:0}
+  .agent-tool-row strong{font-size:13px;color:var(--text-main)}
+  .agent-tool-row small{font-size:11px;color:var(--text-sec);line-height:1.5}
+  .agent-tool-row em{font-size:10px;font-style:normal;color:var(--text-dim)}
+  .settings-form .agent-tool-row input{appearance:auto!important;width:20px!important;height:20px!important;min-height:20px!important;flex:none;padding:0!important;accent-color:var(--agent-accent)}
+  .agent-settings-disclosure{font-size:11px!important;color:var(--text-sec);line-height:1.6;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-hover)}
+  .agent-account-row{display:flex;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--border);font-size:12px}
+  .agent-account-row span{color:var(--text-dim)}
+  .agent-legacy-labels summary{font-size:12px;color:var(--text-sec);cursor:pointer;margin-bottom:12px}
+  @media(max-width:640px){.agent-settings-tabs button{font-size:11px;min-height:44px;padding:8px 6px}.agent-tool-row{padding:12px}.agent-settings-panel textarea{font-size:16px!important}}
+
 </style>
 </head>
 <body>
@@ -3306,7 +3326,7 @@
 
     <header class="chat-header">
       <button class="phone-menu-button" id="phoneMenuButton" type="button" aria-label="Open agents and settings" aria-controls="phoneNavigation" aria-haspopup="dialog" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
-      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite">
+      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite" role="button" tabindex="0" title="Open this agent’s settings" aria-label="Open current agent settings">
         <span id="hdrAvatar" class="header-agent-avatar" aria-hidden="true"></span>
         <div class="header-title">
           <span id="hdrName">Loading your workspace…</span>
@@ -3491,15 +3511,14 @@
           <section class="app-settings-pane" id="settingsPaneAgents" role="tabpanel" aria-labelledby="settingsTabAgents" hidden>
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Saved agents</h3><span class="app-settings-status neutral" id="settingsAgentCount">Workspace settings</span></div>
-              <p>Edit a saved agent's identity, approval preference, limits, app labels, and memory preferences. Changes are saved to this signed-in workspace.</p>
+              <p>Each agent has its own profile, instructions, tool permissions, and safeguards. Select an agent to manage it. Changes are saved to this signed-in workspace.</p>
               <div class="settings-agent-selector" id="settingsAgentSelector" role="group" aria-label="Choose a saved agent"></div>
               <div class="settings-empty-state" id="settingsAgentEmpty" hidden>No saved agents yet. Create one to manage its settings.</div>
               <button class="pill-btn light" id="settingsOpenNewAgentPreview" type="button">Create a new agent</button>
             </div>
             <div class="app-settings-card settings-agent-editor" id="settingsAgentEditorCard" hidden>
               <div class="app-settings-card-header"><h3 id="settingsAgentEditorTitle">Agent settings</h3><span class="app-settings-status neutral" id="settingsAgentStatusBadge">Status</span></div>
-              <form class="settings-form" id="settingsAgentForm">
-                <div class="settings-agent-preview">
+<form class="settings-form" id="settingsAgentForm"><div class="agent-settings-tabs" role="tablist" aria-label="Agent settings sections"><button type="button" id="agentTabProfile" role="tab" aria-controls="agentPanelProfile" aria-selected="true" tabindex="0" data-agent-tab="Profile">Profile</button><button type="button" id="agentTabTools" role="tab" aria-controls="agentPanelTools" aria-selected="false" tabindex="-1" data-agent-tab="Tools">Tools</button><button type="button" id="agentTabAccounts" role="tab" aria-controls="agentPanelAccounts" aria-selected="false" tabindex="-1" data-agent-tab="Accounts">Accounts</button><button type="button" id="agentTabLimits" role="tab" aria-controls="agentPanelLimits" aria-selected="false" tabindex="-1" data-agent-tab="Limits">Safeguards</button></div><section class="agent-settings-panel" id="agentPanelProfile" role="tabpanel" aria-labelledby="agentTabProfile">                <div class="settings-agent-preview">
                   <span class="settings-agent-preview-avatar" id="settingsAgentPreviewAvatar" aria-hidden="true"></span>
                   <span><strong id="settingsAgentPreviewName">Agent</strong><small id="settingsAgentPreviewRole">Role</small></span>
                 </div>
@@ -3507,19 +3526,10 @@
                   <label for="settingsAgentName">Agent name<input class="form-input" id="settingsAgentName" maxlength="30" required></label>
                   <label for="settingsAgentRole">Role<input class="form-input" id="settingsAgentRole" maxlength="60" required></label>
                 </div>
-                <fieldset class="settings-choice-fieldset"><legend>Avatar</legend><div class="settings-agent-avatar-options" id="settingsAgentAvatarOptions" role="group" aria-label="Choose agent avatar"></div></fieldset>
-                <fieldset class="settings-choice-fieldset"><legend>Approval preference</legend>
-                  <div class="settings-approval-options" id="settingsAgentApprovalOptions" role="group" aria-label="Choose approval preference">
-                    <button class="settings-choice-button is-selected" type="button" data-settings-approval="desktop" aria-pressed="true">Desktop confirmation</button>
-                    <button class="settings-choice-button" type="button" data-settings-approval="keyfob" aria-pressed="false">Phone keyfob</button>
-                  </div>
-                  <p class="settings-form-hint">Approval and execution are not connected in this staging preview.</p>
-                </fieldset>
-                <div class="new-agent-fields-grid">
-                  <label for="settingsAgentOrderCap">Maximum per order (USD)<input class="form-input" id="settingsAgentOrderCap" type="number" min="20" max="500" step="1" required></label>
-                  <label for="settingsAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="settingsAgentDailyCap" type="number" min="100" max="2000" step="25" required></label>
-                </div>
-                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
+<label for="settingsAgentInstructions">Instructions<textarea class="form-input settings-textarea" id="settingsAgentInstructions" rows="5" maxlength="4000" placeholder="Describe this agent’s purpose, preferred tone, and how it should approach tasks."></textarea></label><p class="settings-form-hint">Applies to this agent’s replies. Instructions cannot grant tool access or bypass approval. Maximum 4,000 characters.</p>                <fieldset class="settings-choice-fieldset"><legend>Avatar</legend><div class="settings-agent-avatar-options" id="settingsAgentAvatarOptions" role="group" aria-label="Choose agent avatar"></div></fieldset>
+                <label for="settingsAgentMemory">Memory preferences, optional<textarea class="form-input settings-textarea" id="settingsAgentMemory" rows="3" maxlength="1600" placeholder="One preference per line"></textarea></label>
+                <fieldset class="settings-choice-fieldset settings-color-fieldset"><legend>Avatar color</legend><div class="new-agent-color-options settings-agent-color-options" id="settingsAgentColorOptions" role="group" aria-label="Choose avatar color"></div></fieldset>
+</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Save which new tools this agent may use once installed. All start off. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Work with documents and spreadsheets you provide.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Prepare reports and spreadsheets for download.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><p class="agent-settings-disclosure">No new tool runs yet. Saving permission does not activate a provider, upload files, or incur a tool charge.</p></section><section class="agent-settings-panel" id="agentPanelAccounts" role="tabpanel" aria-labelledby="agentTabAccounts" hidden><p class="settings-form-hint">Connected accounts will be managed per user, with access granted separately to each agent. Connection setup is not implemented yet.</p><div class="agent-account-row"><strong>Cloud storage</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Calendar</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Email</strong><span>Not connected</span></div><p class="agent-settings-disclosure">No account credentials or messages are accessible through these rows. Sending, scheduling, and saving externally will require explicit approval.</p><details class="agent-legacy-labels"><summary>Existing app labels</summary>                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
                   <div class="settings-app-grid" id="settingsAgentAppsOptions">
                     <label class="settings-app-option"><input type="checkbox" value="paypal"><span>PayPal Sandbox</span></label>
                     <label class="settings-app-option"><input type="checkbox" value="channel3"><span>Channel3</span></label>
@@ -3530,9 +3540,18 @@
                   </div>
                   <p class="settings-form-hint">Selections are stored as labels only; no provider is connected.</p>
                 </fieldset>
-                <label for="settingsAgentMemory">Memory preferences, optional<textarea class="form-input settings-textarea" id="settingsAgentMemory" rows="3" maxlength="1600" placeholder="One preference per line"></textarea></label>
-                <fieldset class="settings-choice-fieldset settings-color-fieldset"><legend>Avatar color</legend><div class="new-agent-color-options settings-agent-color-options" id="settingsAgentColorOptions" role="group" aria-label="Choose avatar color"></div></fieldset>
-                <p class="settings-form-status" id="settingsAgentStatus" role="status" aria-live="polite"></p>
+</details></section><section class="agent-settings-panel" id="agentPanelLimits" role="tabpanel" aria-labelledby="agentTabLimits" hidden>                <fieldset class="settings-choice-fieldset"><legend>Approval preference</legend>
+                  <div class="settings-approval-options" id="settingsAgentApprovalOptions" role="group" aria-label="Choose approval preference">
+                    <button class="settings-choice-button is-selected" type="button" data-settings-approval="desktop" aria-pressed="true">Desktop confirmation</button>
+                    <button class="settings-choice-button" type="button" data-settings-approval="keyfob" aria-pressed="false">Phone keyfob</button>
+                  </div>
+                  <p class="settings-form-hint">Approval and execution are not connected in this staging preview.</p>
+                </fieldset>
+                <div class="new-agent-fields-grid">
+                  <label for="settingsAgentOrderCap">Maximum per order (USD)<input class="form-input" id="settingsAgentOrderCap" type="number" min="20" max="500" step="1" required></label>
+                  <label for="settingsAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="settingsAgentDailyCap" type="number" min="100" max="2000" step="25" required></label>
+                </div>
+<p class="agent-settings-disclosure">These existing safeguards remain separate from the new tool permissions. Changing instructions or tool preferences does not authorize a purchase or payment.</p></section>                <p class="settings-form-status" id="settingsAgentStatus" role="status" aria-live="polite"></p>
                 <div class="settings-form-actions"><button class="pill-btn light" id="settingsAgentSave" type="submit">Save agent settings</button></div>
               </form>
             </div>
@@ -4560,6 +4579,8 @@
     document.getElementById('settingsAgentOrderCap').value = String(settings.orderCap ?? limits.maxPerOrder?.amount ?? 20);
     document.getElementById('settingsAgentDailyCap').value = String(settings.dailyCap ?? limits.dailyWorkspace?.amount ?? 100);
     document.getElementById('settingsAgentMemory').value = memoryPills.join('\n');
+    document.getElementById('settingsAgentInstructions').value = String(settings.instructions || '');
+    document.querySelectorAll('[data-agent-tool]').forEach(input => { input.checked = settings.toolPermissions?.[input.dataset.agentTool] === true; });
     document.querySelectorAll('#settingsAgentAppsOptions input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = apps.includes(checkbox.value);
     });
@@ -4649,6 +4670,8 @@
       agent_name_conflict: 'An agent with that name already exists in this workspace.',
       invalid_agent_name: 'Enter a valid agent name with no more than 30 characters.',
       invalid_agent_role: 'Enter a valid role with no more than 60 characters.',
+      invalid_agent_instructions: 'Instructions must be text with no more than 4,000 characters.',
+      invalid_agent_tool_permissions: 'The tool permissions are invalid. Reload and try again.',
       invalid_agent_color: 'Choose one of the available colors.',
       invalid_agent_avatar: 'Choose one of the available avatars.',
       invalid_approval_path: 'Choose a supported approval preference.',
@@ -7753,6 +7776,8 @@
       agent_name_conflict: 'An agent with that name already exists in this workspace.',
       invalid_agent_name: 'Enter a valid agent name with no more than 30 characters.',
       invalid_agent_role: 'Enter a valid role with no more than 60 characters.',
+      invalid_agent_instructions: 'Instructions must be text with no more than 4,000 characters.',
+      invalid_agent_tool_permissions: 'The tool permissions are invalid. Reload and try again.',
       invalid_agent_color: 'Choose one of the available colors.',
       invalid_agent_avatar: 'Choose one of the available avatars.',
       invalid_approval_path: 'Choose a supported approval path.',
@@ -7872,6 +7897,8 @@
       return setSettingsStatus('settingsAgentStatus', 'Sign in to save agent settings.', 'error');
     }
     const payload = {
+      instructions: String(document.getElementById('settingsAgentInstructions')?.value || '').trim(),
+      toolPermissions: Object.fromEntries(Array.from(document.querySelectorAll('[data-agent-tool]'), input => [input.dataset.agentTool, input.checked])),
       name: String(document.getElementById('settingsAgentName')?.value || '').trim(),
       role: String(document.getElementById('settingsAgentRole')?.value || '').trim(),
       avatar: currentSettingsAgentAvatar,
@@ -8467,6 +8494,42 @@
   }, true);
   media.addEventListener('change', sync);
   sync();
+})();
+</script>
+
+<script>
+(() => {
+  const tabs = [...document.querySelectorAll('[data-agent-tab]')];
+  const select = button => {
+    tabs.forEach(tab => {
+      const active = tab === button;
+      tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1;
+      document.getElementById(tab.getAttribute('aria-controls')).hidden = !active;
+    });
+  };
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => select(tab));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      select(tabs[next]); tabs[next].focus();
+    });
+  });
+  const open = () => {
+    if (!selectedAgentId) return;
+    currentSettingsAgentId = String(selectedAgentId);
+    openGeneralOverlay('agents');
+    renderSettingsFromBootstrap(currentBootstrap);
+    select(tabs[0]);
+    document.getElementById('settingsAgentEditorCard')?.scrollIntoView({ block: 'start' });
+    tabs[0]?.focus();
+  };
+  const shortcut = document.getElementById('activeAgentSummary');
+  shortcut.addEventListener('click', open);
+  shortcut.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
+  });
 })();
 </script>
 </body>
