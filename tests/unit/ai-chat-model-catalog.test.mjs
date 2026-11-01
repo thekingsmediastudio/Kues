@@ -209,7 +209,7 @@ test('catalog parsing drops provider responses that echo a server credential', a
     assert.equal(result.catalogAvailable, true);
     assert.deepEqual(result.models, [
       { id: 'configured-safe-model', displayName: 'configured-safe-model', isConfigured: true },
-      { id: 'safe-model', displayName: 'safe-model', isConfigured: false },
+      { id: 'safe-model', displayName: 'safe-model', isConfigured: false, catalogConfirmed: true },
     ]);
     assert.equal(JSON.stringify(result).includes(apiKey), false);
   } finally {
@@ -241,4 +241,22 @@ test('catalog failures degrade to the configured model and never expose provider
   } finally {
     await created.db.close();
   }
+});
+
+
+test('Apply catalog validation bypasses cache and never confirms a configured-only fallback', async () => {
+  let calls = 0;
+  const fixture = await createCatalogFixture({
+    protocol: 'openai_chat', baseUrl: 'https://api.catalog-example.com/v1', modelId: 'configured-only',
+    requestHttpsImpl: async () => { calls++; return jsonResponse({ data: [{ id: 'live-model' }] }); },
+  });
+  try {
+    await fixture.chat.listModels();
+    await fixture.chat.listModels();
+    assert.equal(calls, 1);
+    const fresh = await fixture.chat.listModels({ forceRefresh: true });
+    assert.equal(calls, 2);
+    assert.equal(fresh.models.find(m => m.id === 'live-model').catalogConfirmed, true);
+    assert.notEqual(fresh.models.find(m => m.id === 'configured-only').catalogConfirmed, true);
+  } finally { fixture.db.close(); }
 });

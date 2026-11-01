@@ -764,14 +764,14 @@ export function createAiChatService({
     return provider;
   }
 
-  async function listModels({ providerKey } = {}) {
+  async function listModels({ providerKey, forceRefresh = false } = {}) {
     const provider = await resolveRequestProvider({ providerKey });
     const configuredModelId = normalizeModelId(provider, provider.modelId);
     const configuredModel = { id: configuredModelId, displayName: configuredModelId, isConfigured: true };
     const cacheKey = [provider.providerKey, provider.apiProtocol, provider.baseUrl, provider.updatedAt || '', configuredModelId].join('|');
     const now = Date.now();
     const cached = modelCatalogCache.get(cacheKey);
-    if (cached && cached.expiresAt > now) {
+    if (!forceRefresh && cached && cached.expiresAt > now) {
       return { ...cached.value, models: cached.value.models.map((model) => ({ ...model })) };
     }
 
@@ -804,7 +804,7 @@ export function createAiChatService({
           const providerSecret = typeof provider.apiKey === 'string' ? provider.apiKey : '';
           if (!modelId || choices.has(modelId) || (providerSecret && modelId.includes(providerSecret))) continue;
           const displayName = providerSecret && rawDisplayName.includes(providerSecret) ? modelId : rawDisplayName;
-          choices.set(modelId, { id: modelId, displayName, isConfigured: modelId === configuredModelId });
+          choices.set(modelId, { id: modelId, displayName, isConfigured: modelId === configuredModelId, catalogConfirmed: true });
           if (choices.size >= 500) break;
         }
         const nextCursor = cleanModelText(result.nextCursor, 512);

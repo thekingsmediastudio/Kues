@@ -2780,15 +2780,16 @@
   :root[data-theme="light"] .sidebar .sidebar-bottom-tile:hover{background:#fff!important;border-color:#cbd7cc!important}
   @property --composer-progress{syntax:"<percentage>";inherits:true;initial-value:0%}
   @property --composer-button-progress{syntax:"<percentage>";inherits:true;initial-value:0%}
-  .composer-pill{--composer-progress:0%;--composer-button-progress:0%;--composer-send-idle:#2a2b30;isolation:isolate;border-color:rgba(255,255,255,.12)!important;box-shadow:0 4px 20px rgba(0,0,0,.25)!important;transition:box-shadow .18s ease}
+  .composer-pill{--composer-progress:0%;--composer-button-progress:0%;--composer-send-idle:#2a2b30;isolation:isolate;border-color:rgba(255,255,255,.12)!important;box-shadow:0 4px 20px rgba(0,0,0,.25)!important;transition:box-shadow .18s ease,--composer-button-progress .09s linear}
   .composer-border-trace{position:absolute!important;z-index:1!important;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-  .composer-border-trace path{fill:none;stroke:var(--agent-accent);stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .18s linear}
+  @media(prefers-reduced-motion:reduce){.composer-border-trace,.composer-border-trace path,.composer-pill{transition:none!important}}
+  .composer-border-trace path{fill:none;stroke:var(--agent-accent);stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .09s linear}
   .composer-pill>*:not(.plus-popover):not(.emoji-popover):not(.composer-border-trace){position:relative;z-index:2}
   .composer-pill:focus-within{border-color:rgba(255,255,255,.12)!important;box-shadow:0 4px 20px rgba(0,0,0,.25)!important}
-  .comp-send:not(:disabled):not(.is-stop){background:color-mix(in srgb,var(--agent-accent) var(--composer-button-progress),var(--composer-send-idle))!important;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent) var(--composer-button-progress),transparent)!important;transition:background .18s ease,box-shadow .18s ease,transform .16s ease}
+  .comp-send:not(:disabled):not(.is-stop){background:linear-gradient(90deg,var(--agent-accent) 0 var(--composer-button-progress),var(--composer-send-idle) var(--composer-button-progress) 100%)!important;box-shadow:0 2px 10px color-mix(in srgb,var(--agent-accent) var(--composer-button-progress),transparent)!important;transition:background .18s ease,box-shadow .18s ease,transform .16s ease}
   :root[data-theme="light"] .composer-pill{--composer-send-idle:#e2e7e1;border-color:#dce5dc!important;box-shadow:0 4px 18px rgba(25,45,30,.07)!important}
   :root[data-theme="light"] .composer-pill:focus-within{border-color:#dce5dc!important;box-shadow:0 4px 18px rgba(25,45,30,.07)!important}
-  :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop){color:#fff;background:color-mix(in srgb,var(--agent-accent) var(--composer-button-progress),var(--composer-send-idle))!important}
+  :root[data-theme="light"] .comp-send:not(:disabled):not(.is-stop){color:#fff;background:linear-gradient(90deg,var(--agent-accent) 0 var(--composer-button-progress),var(--composer-send-idle) var(--composer-button-progress) 100%)!important}
   .admin-chat-controls[hidden],.admin-chat-diagnostics[hidden]{display:none!important}
   .admin-model-chip{display:none;align-items:center;gap:8px;max-width:230px;min-height:36px;padding:0 10px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(255,255,255,.045);color:var(--text-main);font:650 11px var(--font);cursor:pointer}
   .admin-model-chip:not([hidden]){display:inline-flex}
@@ -3145,7 +3146,7 @@
     <footer class="composer-area" id="chatComposer" aria-label="Message composer">
       <div class="composer-inner">
         <div class="composer-pill">
-          <svg class="composer-border-trace" viewBox="0 0 100 48" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M0.8 24V6A5.2 5.2 0 0 1 6 0.8H94A5.2 5.2 0 0 1 99.2 6V42A5.2 5.2 0 0 1 94 47.2H6A5.2 5.2 0 0 1 0.8 42Z"/></svg>
+          <svg class="composer-border-trace" aria-hidden="true"><path data-edge="top" pathLength="100"/><path data-edge="bottom" pathLength="100"/></svg>
           <!-- Popover for '+' button -->
           <div class="plus-popover" id="chatPlusPopover" role="menu" aria-label="Quick actions" hidden>
             <button class="pop-item" type="button" onclick="insertPromptSuggestion('Find studio headphones under $120.'); closePopovers();">
@@ -3681,6 +3682,11 @@
   let chatAdminConfiguredModelId = '';
   let chatAdminCatalogLoading = false;
   let chatAdminExpandedProviderKey = '';
+  let chatAdminAppliedChoice = null;
+  let chatAdminApplyPending = false;
+  let chatAdminApplyVersion = 0;
+  let composerLastLength = 0;
+  let composerLiveProgress = 0;
   const SCOUT_CUE_DURATIONS = Object.freeze({
     notice: 720, search: 820, inspect: 780, compare: 760, draft: 720, organize: 760,
     verify: 760, explain: 780, ask: 700, wait: 950, success: 900, recover: 760,
@@ -4596,6 +4602,45 @@
     }
   }
 
+  // Hold the furthest outline position until the composer is completely empty.
+  function composerProgressStep(previousLength, previousProgress, length) {
+    if (length === 0) return 0;
+    return Math.max(previousProgress, Math.min(1, length / 24));
+  }
+
+  function updateComposerTrace(pill, length) {
+    composerLiveProgress = composerProgressStep(composerLastLength, composerLiveProgress, length);
+    composerLastLength = length;
+    const svg = pill.querySelector('.composer-border-trace');
+    if (!svg || !pill.getBoundingClientRect) return;
+    svg.style.transition = length === 0 ? 'opacity .01s .45s' : 'opacity 0s';
+    svg.style.opacity = length === 0 ? '0' : '1';
+    const box = pill.getBoundingClientRect();
+    const w = pill.clientWidth, h = pill.clientHeight, inset = .8;
+    if (!w || !h) return;
+    const radius = Math.min(h / 2 - inset, Math.max(1, w / 2 - inset));
+    const cy = h / 2, left = inset, right = w - inset;
+    const x1 = left + radius, x2 = right - radius;
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const top = `M${left} ${cy} A${radius} ${radius} 0 0 1 ${x1} ${inset} H${x2} A${radius} ${radius} 0 0 1 ${right} ${cy}`;
+    const bottom = `M${left} ${cy} A${radius} ${radius} 0 0 0 ${x1} ${h-inset} H${x2} A${radius} ${radius} 0 0 0 ${right} ${cy}`;
+    svg.querySelector('[data-edge="top"]').setAttribute('d', top);
+    svg.querySelector('[data-edge="bottom"]').setAttribute('d', bottom);
+    svg.querySelectorAll('path').forEach(path => {
+      path.style.transitionDuration = length === 0 ? '.45s' : '.09s';
+      path.style.strokeDashoffset = String(100 * (1 - composerLiveProgress));
+      path.style.opacity = '1';
+    });
+    const send = pill.querySelector('.comp-send');
+    const halfLength = Math.PI * radius + Math.max(0, x2 - x1);
+    const sendLeft = send ? send.getBoundingClientRect().left - box.left : x2;
+    const arrival = Math.max(.1, Math.min(.98, (Math.PI * radius / 2 + Math.max(0, sendLeft - x1)) / halfLength));
+    const fill = Math.max(0, Math.min(1, (composerLiveProgress - arrival) / (1 - arrival)));
+    pill.style.transitionDuration = length === 0 ? '.45s' : '.09s';
+    pill.style.setProperty('--composer-progress', `${composerLiveProgress * 100}%`);
+    pill.style.setProperty('--composer-button-progress', `${fill * 100}%`);
+  }
+
   function syncChatComposer() {
     const input = document.getElementById('chatInput');
     const sendButton = document.getElementById('chatSendButton');
@@ -4622,17 +4667,8 @@
         const pill = input.closest('.composer-pill');
         if (pill) {
           pill.classList.toggle('has-text', hasText);
-          const length = hasText ? String(input.value || '').length : 0;
-          const outlineProgress = Math.min(length / 24, 1) * 100;
-          const buttonProgress = Math.max(0, Math.min((outlineProgress - 50) / 50, 1)) * 100;
-          if (typeof pill.style?.setProperty === 'function') {
-            pill.style.setProperty('--composer-progress', `${outlineProgress}%`);
-            pill.style.setProperty('--composer-button-progress', `${buttonProgress}%`);
-          }
-          if (typeof pill.querySelector === 'function') {
-            const borderTrace = pill.querySelector('.composer-border-trace path');
-            if (borderTrace?.style) borderTrace.style.strokeDashoffset = String(100 - outlineProgress);
-          }
+          const length = String(input.value || '').length;
+          if (typeof updateComposerTrace === 'function') updateComposerTrace(pill, length);
         }
       }
     }
@@ -4642,12 +4678,18 @@
         sendButton.classList.add('is-stop');
         sendButton.setAttribute('aria-label', 'Stop generating');
         sendButton.setAttribute('title', 'Stop generating');
-        sendButton.innerHTML = CHAT_STOP_ICON_SVG;
+        if (sendButton.dataset?.mode !== 'stop') {
+          sendButton.innerHTML = CHAT_STOP_ICON_SVG;
+          if (sendButton.dataset) sendButton.dataset.mode = 'stop';
+        }
       } else {
         sendButton.classList.remove('is-stop');
         sendButton.setAttribute('aria-label', 'Send message');
         sendButton.setAttribute('title', 'Send message');
-        sendButton.innerHTML = CHAT_SEND_ICON_SVG;
+        if (sendButton.dataset?.mode !== 'send') {
+          sendButton.innerHTML = CHAT_SEND_ICON_SVG;
+          if (sendButton.dataset) sendButton.dataset.mode = 'send';
+        }
         sendButton.disabled = !canChat || chatHistoryLoading || !hasText;
       }
     }
@@ -6401,9 +6443,10 @@
     const label = document.getElementById('adminModelChipLabel');
     const providerSelect = document.getElementById('chatProviderSelect');
     const modelSelect = document.getElementById('chatModelId');
-    const provider = chatAdminProviders.find((item) => item.providerKey === providerSelect?.value)
+    const choice = chatAdminAppliedChoice;
+    const provider = chatAdminProviders.find((item) => item.providerKey === choice?.providerKey)
       || chatAdminProviders.find((item) => item.isPrimary === true);
-    if (updateLabel && label && provider) label.textContent = `${provider.displayName} · ${modelSelect?.value || provider.modelId}`;
+    if (updateLabel && label && provider) label.textContent = `${provider.displayName} · ${choice?.modelId || provider.modelId}`;
     if (chip) chip.setAttribute('aria-expanded', String(Boolean(document.getElementById('adminChatControls') && !document.getElementById('adminChatControls').hidden)));
   }
 
@@ -6411,11 +6454,16 @@
     const root = document.getElementById('adminChatControls');
     if (root) root.hidden = true;
     document.getElementById('adminModelChip')?.setAttribute('aria-expanded', 'false');
-    if (reset) resetAdminChatOverrides();
+    chatAdminApplyVersion += 1;
+    chatAdminApplyPending = false;
+    if (reset) void restoreAdminChatDraft();
     syncAdminModelChip();
   }
 
   function clearAdminChatControls() {
+    chatAdminAppliedChoice = null;
+    chatAdminApplyVersion += 1;
+    chatAdminApplyPending = false;
     chatAdminProviders = [];
     chatAdminExpandedProviderKey = '';
     chatAdminModelWasEdited = false;
@@ -6490,6 +6538,7 @@
       trigger.append(icon, name, state, caret);
       trigger.addEventListener('click', (event) => {
         event.stopPropagation();
+        if (chatAdminApplyPending) return;
         if (selected && expanded) {
           chatAdminExpandedProviderKey = '';
           renderAdminProviderAccordion();
@@ -6530,6 +6579,7 @@
             button.append(title, meta);
             button.addEventListener('click', (event) => {
               event.stopPropagation();
+              if (chatAdminApplyPending) return;
               modelSelect.value = option.value;
               chatAdminModelWasEdited = option.value !== chatAdminConfiguredModelId;
               renderAdminProviderAccordion();
@@ -6655,7 +6705,24 @@
     }
   }
 
+  async function restoreAdminChatDraft() {
+    const choice = chatAdminAppliedChoice;
+    const providerSelect = document.getElementById('chatProviderSelect');
+    if (!providerSelect) return;
+    providerSelect.value = choice?.providerKey || '';
+    chatAdminExpandedProviderKey = choice?.providerKey || chatAdminProviders.find(p => p.isPrimary)?.providerKey || '';
+    await loadAdminChatModelCatalog();
+    const modelSelect = document.getElementById('chatModelId');
+    if (choice === chatAdminAppliedChoice && providerSelect.value === (choice?.providerKey || '') && modelSelect && choice?.modelId && Array.from(modelSelect.options).some(o => o.value === choice.modelId)) {
+      modelSelect.value = choice.modelId;
+      chatAdminModelWasEdited = choice.modelId !== chatAdminConfiguredModelId;
+    }
+    renderAdminProviderAccordion();
+    syncAdminModelChip(true);
+  }
+
   function resetAdminChatOverrides() {
+    chatAdminAppliedChoice = null;
     const providerSelect = document.getElementById('chatProviderSelect');
     if (providerSelect) providerSelect.value = '';
     chatAdminExpandedProviderKey = chatAdminProviders.find((item) => item.isPrimary === true)?.providerKey || '';
@@ -6706,7 +6773,7 @@
   }
 
   function syncAdminChatControlsAvailability() {
-    const disabled = !chatAvailable || chatPending || chatHistoryLoading;
+    const disabled = !chatAvailable || chatPending || chatHistoryLoading || chatAdminApplyPending;
     const providerSelect = document.getElementById('chatProviderSelect');
     const modelSelect = document.getElementById('chatModelId');
     if (providerSelect && !document.getElementById('adminChatControls')?.hidden) providerSelect.disabled = disabled;
@@ -6950,15 +7017,14 @@
     let requestId = '';
     let replyAttribution = null;
     const requestBody = { agentId: requestAgentId, message: content };
-    const providerKey = String(document.getElementById('chatProviderSelect')?.value || '');
+    const appliedChoice = chatAdminAppliedChoice;
+    const providerKey = appliedChoice?.providerKey || '';
     const selectedProvider = providerKey
       ? chatAdminProviders.find((provider) => provider.providerKey === providerKey)
       : chatAdminProviders.find((provider) => provider.isPrimary === true);
     if (providerKey && selectedProvider) requestBody.providerKey = providerKey;
-    const modelId = String(document.getElementById('chatModelId')?.value || '').trim();
-    if (chatAdminModelWasEdited && modelId && selectedProvider
-        && selectedProvider.providerKey === chatAdminCatalogProviderKey
-        && modelId !== chatAdminConfiguredModelId) requestBody.modelId = modelId;
+    const modelId = appliedChoice?.modelId || '';
+    if (modelId && selectedProvider && modelId !== appliedChoice.configuredModelId) requestBody.modelId = modelId;
     resetAdminChatOverrides();
     try {
       const response = await fetch('/api/chat', {
@@ -7573,21 +7639,43 @@
     } else closeAdminModelPanel(true);
   });
   document.getElementById('adminModelCancel')?.addEventListener('click', () => closeAdminModelPanel(true));
-  document.getElementById('adminModelApply')?.addEventListener('click', () => {
+  document.getElementById('adminModelApply')?.addEventListener('click', async () => {
+    if (chatAdminApplyPending) return;
     const providerKey = String(chatProviderSelect?.value || '');
-    const provider = chatAdminProviders.find((item) => item.providerKey === providerKey)
-      || chatAdminProviders.find((item) => item.isPrimary === true);
+    const provider = chatAdminProviders.find(p => p.providerKey === providerKey) || chatAdminProviders.find(p => p.isPrimary);
     const model = String(chatModelIdSelect?.value || '');
-    const available = Array.from(chatModelIdSelect?.options || []).some((option) => option.value === model);
-    const catalogStatus = document.getElementById('adminChatCatalogStatus');
-    if (!provider || !model || !available || chatAdminCatalogLoading) {
-      if (catalogStatus) catalogStatus.textContent = 'Choose an available model before applying.';
-      return;
+    const status = document.getElementById('adminChatCatalogStatus');
+    const button = document.getElementById('adminModelApply');
+    if (!provider || !model || chatAdminCatalogLoading) { if (status) status.textContent = 'Choose an available model first.'; return; }
+    const version = ++chatAdminApplyVersion;
+    chatAdminApplyPending = true;
+    if (status) status.textContent = 'Checking the provider’s live model catalog…';
+    button.textContent = 'Validating…';
+    syncAdminChatControlsAvailability();
+    try {
+      const query = new URLSearchParams({ refresh: '1' });
+      if (providerKey) query.set('providerKey', providerKey);
+      const response = await fetch(`/api/chat/models?${query}`, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (response.status === 401) { location.replace('/login?auth_error=session'); return; }
+      const catalog = await response.json();
+      if (version !== chatAdminApplyVersion) return;
+      if (!response.ok || catalog.catalogAvailable !== true) throw new Error('Live validation unavailable. Nothing applied; retry or cancel.');
+      if (!catalog.models?.some(item => item.id === model && item.catalogConfirmed === true)) throw new Error('The provider did not confirm this model in its live catalog. Nothing applied.');
+      if (status) status.textContent = 'Live catalog verified. Generation has not been tested.';
+      button.textContent = 'Verified';
+      await new Promise(resolve => setTimeout(resolve, 550));
+      if (version !== chatAdminApplyVersion) return;
+      chatAdminAppliedChoice = { providerKey, modelId: model, configuredModelId: catalog.configuredModelId };
+      closeAdminModelPanel();
+      syncAdminModelChip(true);
+      showToast(`${provider.displayName} with ${model} selected for the next message.`);
+    } catch (error) {
+      if (version === chatAdminApplyVersion && status) status.textContent = error instanceof TypeError ? 'Connection failed. Nothing applied; retry or cancel.' : error.message;
+    } finally {
+      if (version === chatAdminApplyVersion) chatAdminApplyPending = false;
+      button.textContent = 'Apply model';
+      syncAdminChatControlsAvailability();
     }
-    if (catalogStatus) catalogStatus.textContent = 'Model validated for the next message.';
-    syncAdminModelChip(true);
-    closeAdminModelPanel();
-    showToast(`${provider.displayName} with ${model} selected for the next message.`);
   });
   document.getElementById('chatModelId')?.addEventListener('change', syncAdminModelChip);
   document.addEventListener('click', (event) => {
@@ -7601,6 +7689,15 @@
   });
 
   const chatInput = document.getElementById('chatInput');
+  if (typeof ResizeObserver !== 'undefined' && chatInput?.closest('.composer-pill')) {
+    new ResizeObserver(() => updateComposerTrace(chatInput.closest('.composer-pill'), String(chatInput.value || '').length)).observe(chatInput.closest('.composer-pill'));
+  }
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !document.getElementById('adminChatControls')?.hidden) {
+      closeAdminModelPanel(true);
+      document.getElementById('adminModelChip')?.focus();
+    }
+  });
   chatInput?.addEventListener('input', syncChatComposer);
   chatInput?.addEventListener('keyup', syncChatComposer);
   chatInput?.addEventListener('change', syncChatComposer);

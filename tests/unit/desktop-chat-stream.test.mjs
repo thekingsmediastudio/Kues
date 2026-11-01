@@ -1126,12 +1126,36 @@ test('admin model panel anchors below its header picker and composer accent swee
   const composerStart = desktopHtml.indexOf('<footer class="composer-area"');
   assert.ok(headerStart >= 0 && panelStart > headerStart && panelStart < composerStart, 'provider panel belongs to the header, not after the composer');
   assert.match(desktopHtml, /id="adminProviderAccordion"/);
-  assert.match(desktopHtml, /class="composer-border-trace" viewBox="0 0 100 48" preserveAspectRatio="none"/);
+  assert.match(desktopHtml, /data-edge="top" pathLength="100"/);
+  assert.match(desktopHtml, /data-edge="bottom" pathLength="100"/);
+  assert.match(desktopHtml, /vector-effect:non-scaling-stroke/);
   assert.match(desktopHtml, /stroke-dasharray:100/);
-  assert.match(desktopHtml, /borderTrace\.style\.strokeDashoffset = String\(100 - outlineProgress\)/);
-  assert.match(desktopHtml, /pill\.style\.setProperty\('--composer-progress', `\$\{outlineProgress\}%`\)/);
-  assert.match(desktopHtml, /outlineProgress - 50/);
+  assert.match(desktopHtml, /path\.style\.strokeDashoffset = String\(100 \* \(1 - composerLiveProgress\)\)/);
+  assert.match(desktopHtml, /send\.getBoundingClientRect\(\)\.left/);
   assert.match(desktopHtml, /@property --composer-progress\{syntax:"<percentage>";inherits:true/);
   assert.match(desktopHtml, /trigger\.addEventListener\('click', \(event\) => \{\s*event\.stopPropagation\(\)/);
   assert.doesNotMatch(desktopHtml, /Show me the available providers/);
+});
+
+
+test('composer progress holds while any text remains and retracts only on empty input', () => {
+  const source = desktopHtml.match(/function composerProgressStep\(previousLength, previousProgress, length\) \{([\s\S]*?)\n  \}/)[1];
+  const step = new Function('previousLength', 'previousProgress', 'length', source);
+  assert.equal(step(0, 0, 12), .5);
+  assert.equal(step(12, .5, 24), 1);
+  assert.equal(step(24, 1, 100), 1);
+  assert.equal(step(100, 1, 99), 1);
+  assert.equal(step(12, .5, 1), .5, 'partial deletion holds the outline');
+  assert.equal(step(1, .5, 6), .5, 'retyping below the prior high-water mark holds');
+  assert.equal(step(6, .5, 18), .75, 'typing beyond the high-water mark advances');
+  assert.equal(step(99, .9, 0), 0);
+  assert.equal(step(12, .5, 12), .5, 'resize/key-up does not advance progress');
+});
+
+test('chat submission consumes only applied choices, not uncommitted picker inputs', () => {
+  const source = desktopHtml.slice(desktopHtml.indexOf('  async function sendChatMessage'), desktopHtml.indexOf('  async function sendChatMessage') + 3500);
+  assert.match(source, /const appliedChoice = chatAdminAppliedChoice/);
+  assert.doesNotMatch(source, /getElementById\('chatProviderSelect'\)/);
+  assert.match(source, /resetAdminChatOverrides\(\)/);
+  assert.match(desktopHtml, /item.catalogConfirmed === true/);
 });

@@ -1351,15 +1351,17 @@ async function handleDesktopAiChatRequest(req, res, url, {
       return true;
     }
     const providerKeys = url.searchParams.getAll('providerKey');
-    const hasUnexpectedParameter = [...url.searchParams.keys()].some((key) => key !== 'providerKey');
-    if (hasUnexpectedParameter || providerKeys.length > 1
+    const refreshValues = url.searchParams.getAll('refresh');
+    const forceRefresh = refreshValues.length === 1 && refreshValues[0] === '1';
+    const hasUnexpectedParameter = [...url.searchParams.keys()].some((key) => !['providerKey', 'refresh'].includes(key));
+    if (hasUnexpectedParameter || refreshValues.length > 1 || (refreshValues.length && !forceRefresh) || providerKeys.length > 1
         || (providerKeys.length === 1 && !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(providerKeys[0].trim()))) {
       sendJson(res, 400, { error: 'ai_chat_request_invalid' });
       return true;
     }
     const providerKey = providerKeys.length ? providerKeys[0].trim().toLowerCase() : undefined;
     try {
-      const catalog = await aiChatService.listModels(providerKey ? { providerKey } : {});
+      const catalog = await aiChatService.listModels({ ...(providerKey ? { providerKey } : {}), ...(forceRefresh ? { forceRefresh: true } : {}) });
       const safeText = (value, limit) => typeof value === 'string'
         ? value.normalize('NFKC').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, limit)
         : '';
@@ -1373,6 +1375,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           id,
           displayName: safeText(model?.displayName, 160) || id,
           isConfigured: model?.isConfigured === true || id === configuredModelId,
+          ...(forceRefresh ? { catalogConfirmed: model?.catalogConfirmed === true } : {}),
         };
       }).filter(Boolean).slice(0, 500);
       if (!models.some((model) => model.id === configuredModelId)) {

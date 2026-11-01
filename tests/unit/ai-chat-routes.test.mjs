@@ -982,3 +982,24 @@ test('streaming chat withholds the done event and history when quota settlement 
     assert.equal(fixture.historyCalls.append.length, 0);
   });
 });
+
+test('fresh catalog validation preserves admin and origin gates and flags only upstream-confirmed models', async () => {
+  const fixture = testDependencies({ catalog: async () => ({ configuredModelId: 'configured-only', catalogAvailable: true, models: [{ id: 'live', displayName: 'Live', catalogConfirmed: true, apiKey: 'must-stay-server-side' }] }) });
+  await withServer(fixture.dependencies, async base => {
+    const url = `${base}/api/chat/models?refresh=1&providerKey=manual-target`;
+    assert.equal((await fetch(url)).status, 401);
+    assert.equal((await fetch(url, { headers: { Cookie: 'kues_session=member-session', 'X-Admin': 'true' } })).status, 503);
+    assert.equal((await fetch(url, { headers: { Cookie: 'kues_session=admin-session', Origin: 'https://attacker.example' } })).status, 403);
+    assert.equal(fixture.catalogCalls.length, 0);
+    const response = await fetch(url, { headers: { Cookie: 'kues_session=admin-session' } });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.models.find(m => m.id === 'live').catalogConfirmed, true);
+    assert.notEqual(body.models.find(m => m.id === 'configured-only').catalogConfirmed, true);
+    assert.equal(JSON.stringify(body).includes('must-stay-server-side'), false);
+    assert.deepEqual(fixture.catalogCalls, [{ providerKey: 'manual-target', forceRefresh: true }]);
+    for (const query of ['refresh=0', 'refresh=1&refresh=1', 'refresh=1&admin=true']) {
+      assert.equal((await fetch(`${base}/api/chat/models?${query}`, { headers: { Cookie: 'kues_session=admin-session' } })).status, 400);
+    }
+  });
+});
