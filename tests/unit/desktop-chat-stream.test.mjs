@@ -1207,7 +1207,7 @@ test('startup defers settings-only reads and history abort retains stale-respons
 
 test('dictation appends to drafts without exceeding the composer limit', () => {
   const start = desktopHtml.indexOf('  function dictationDraft(');
-  const end = desktopHtml.indexOf('  function finishDictation(', start);
+  const end = desktopHtml.indexOf('  function syncDictationControl(', start);
   const draft = new Function(`${desktopHtml.slice(start, end)}; return dictationDraft;`)();
   assert.equal(draft('Find', 'headphones'), 'Find headphones');
   assert.equal(draft('Find ', 'headphones'), 'Find headphones');
@@ -1216,14 +1216,13 @@ test('dictation appends to drafts without exceeding the composer limit', () => {
   assert.equal(draft('a'.repeat(1998), 'long transcript').length, 2000);
 });
 
-test('composer dictation is consented, request-gated, and never invokes the fake call handler', () => {
+test('composer microphone uses local audio controls and never invokes the fake call handler', () => {
   const binding = desktopHtml.slice(desktopHtml.indexOf('  function syncVoiceAndDesktopControls'), desktopHtml.indexOf('  const settingsTabs'));
   assert.match(binding, /micBtn.onclick = toggleDictation/);
   assert.doesNotMatch(binding, /micBtn.onclick = toggleCall/);
-  assert.match(desktopHtml, /window.confirm\('Voice typing uses your browser/);
-  assert.match(desktopHtml, /session.agentId !== String\(selectedAgentId \|\| ''\)/);
+  assert.match(desktopHtml, /createLocalAudio/);
+  assert.match(desktopHtml, /id="settingsPaneAudio"/);
   assert.match(desktopHtml, /chatPending \|\| dictationSession\) return/);
-  assert.match(desktopHtml, /input.readOnly = active/);
-  assert.match(desktopHtml, /session.limitTimer = setTimeout\(stopDictation, 60000\)/);
-  assert.match(desktopHtml, /session.finalText = results.filter\(result => result.isFinal\)/);
+  assert.doesNotMatch(desktopHtml, /new Recognition\(/);
+  assert.match(desktopHtml, /No automatic cloud fallback/);
 });

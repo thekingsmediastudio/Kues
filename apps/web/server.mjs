@@ -71,6 +71,9 @@ const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
+  ['/local-audio.mjs', ['local-audio.mjs', 'text/javascript; charset=utf-8']],
+  ['/local-audio-capture.mjs', ['local-audio-capture.mjs', 'text/javascript; charset=utf-8']],
+  ['/local-dictation-worker.mjs', ['local-dictation-worker.mjs', 'text/javascript; charset=utf-8']],
   ['/keus-icon.svg', ['keus-icon.svg', 'image/svg+xml']],
   ['/keus-logo.svg', ['keus-logo.svg', 'image/svg+xml']],
 ]);
@@ -3472,7 +3475,7 @@ export function createServer({
       if (staticAsset) {
         try {
           const body = fs.readFileSync(path.join(publicDir, staticAsset[0]));
-          res.writeHead(200, { 'Content-Type': staticAsset[1], 'Content-Length': body.length, 'Cache-Control': 'public, max-age=3600' });
+          res.writeHead(200, { 'Content-Type': staticAsset[1], 'Content-Length': body.length, 'Cache-Control': url.pathname.endsWith('.mjs') ? 'no-cache' : 'public, max-age=3600' });
           res.end(req.method === 'HEAD' ? undefined : body);
         } catch {
           res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });

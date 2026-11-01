@@ -3091,6 +3091,7 @@
   #workspaceApp[aria-busy="true"] .composer-preview-note{visibility:hidden}
   @keyframes wait-breathe{50%{opacity:.45}}
   @media(prefers-reduced-motion:reduce){.wait-shape,#workspaceApp[aria-busy="true"] #hdrName,#workspaceApp[aria-busy="true"] #hdrSub,#workspaceApp[aria-busy="true"] #accountName,#workspaceApp[aria-busy="true"] #accountEmail{animation:none}}
+  #settingsPreviewNotice[hidden]{display:none!important}
   .dictation-status{margin:8px 8px 0;font-size:11px;line-height:1.5;color:var(--text-sec);text-align:center}
   .dictation-status[hidden]{display:none}
   #chatMicButton.is-listening{color:#ff7777;background:#ff77771a;border-radius:50%;box-shadow:0 0 0 1px #ff777766}
@@ -3310,6 +3311,9 @@
         <button class="modal-nav-btn" id="settingsTabAccount" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAccount" data-settings-pane="account">
           <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 2.5 16 5v4.3c0 3.7-2.4 6.3-6 8.2-3.6-1.9-6-4.5-6-8.2V5l6-2.5Z"/><path d="m7.3 10 1.8 1.8 3.7-3.9"/></svg></span><span>Account &amp; security</span>
         </button>
+        <button class="modal-nav-btn" id="settingsTabAudio" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAudio" data-settings-pane="audio">
+          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="7" y="2" width="6" height="11" rx="3"/><path d="M4 9v1a6 6 0 0 0 12 0V9M10 16v3"/></svg></span><span>Audio</span>
+        </button>
         <button class="modal-nav-btn" id="settingsTabAppearance" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAppearance" data-settings-pane="appearance">
           <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3v14a7 7 0 0 0 0-14Z"/></svg></span><span>Appearance</span>
         </button>
@@ -3522,6 +3526,28 @@
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Other sign-in methods</h3><span class="app-settings-status">Not connected</span></div>
               <p>Google and GitHub sign-in are controlled by the staging WorkOS configuration. Passkeys are not enabled for account sign-in; transaction-bound desktop WebAuthn approval is managed under Workspace Settings for purchasing mandates.</p>
+            </div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneAudio" role="tabpanel" aria-labelledby="settingsTabAudio" hidden>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Your microphone</h3><span class="app-settings-status neutral">This browser only</span></div>
+              <div class="settings-form">
+                <p class="settings-form-hint">Choose the exact device for local dictation. A disconnected microphone is never silently replaced. Grant access below to reveal device names; that temporary permission stream is immediately closed.</p>
+                <button class="pill-btn" id="audioPermission" type="button">Allow access to list microphones</button>
+                <label for="audioDeviceSelect">Recording device<select class="form-input" id="audioDeviceSelect"><option value="">Choose a microphone</option></select></label>
+                <label for="audioMeter">Live input level<meter id="audioMeter" min="0" max="1" value="0" style="width:100%;height:20px">Input level</meter></label>
+                <button class="pill-btn" id="audioTest" type="button">Test selected microphone</button>
+                <p class="settings-form-status" id="audioStatus" role="status" aria-live="polite">No microphone is opened until you grant access or start a test/recording.</p>
+              </div>
+            </div>
+            <div class="app-settings-card">
+              <div class="app-settings-card-header"><h3>Local voice typing</h3><span class="app-settings-status neutral">English · Experimental</span></div>
+              <div class="settings-form">
+                <p class="settings-form-hint">Whisper Tiny runs on your device with no transcription API fee. Audio is not uploaded. First use downloads a substantial model and runtime from Hugging Face and jsDelivr; this uses data and browser storage. Downloads are cached when the browser allows it. Nothing is loaded during workspace startup.</p>
+                <p class="settings-form-hint">Record up to 60 seconds, stop, wait for local transcription, then review and Send. Speed and accuracy depend on your device; transcripts can contain mistakes. The model supports English only. No automatic cloud fallback.</p>
+                <div class="settings-form-actions"><button class="pill-btn light" id="audioModelLoad" type="button">Download / load English model</button><button class="pill-btn" id="audioModelCancel" type="button" hidden>Cancel local processing</button></div>
+                <p class="settings-form-status" id="audioModelStatus" role="status" aria-live="polite">Model not loaded. Downloading does not open your microphone.</p>
+              </div>
             </div>
           </section>
           <section class="app-settings-pane" id="settingsPaneAppearance" role="tabpanel" aria-labelledby="settingsTabAppearance" hidden>
@@ -3756,7 +3782,6 @@
   let chatAvailable = false;
   let chatPending = false;
   let dictationSession = null;
-  let dictationConsentGranted = false;
   let chatHistoryLoading = false;
   let chatHistoryReady = false;
   let chatHistoryLoadVersion = 0;
@@ -3814,15 +3839,20 @@
     backdrop.querySelector('[role="dialog"]')?.focus();
   }
   function closeOverlay(id, restoreFocus = true) {
+    if (id === 'generalOverlayBackdrop') window.keusLocalAudio?.stopTest();
     const backdrop = document.getElementById(id);
     if (!backdrop) return;
     backdrop.classList.remove('open');
     if (openOverlayId === id) openOverlayId = null;
     if (restoreFocus && lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
   }
-  const settingsPaneIds = ['workspace', 'agents', 'apps', 'usage', 'account', 'appearance'];
+  const settingsPaneIds = ['workspace', 'agents', 'apps', 'usage', 'account', 'audio', 'appearance'];
   function setSettingsPane(key) {
     const selected = settingsPaneIds.includes(key) ? key : 'workspace';
+    const settingsNotice = document.getElementById('settingsPreviewNotice');
+    if (settingsNotice) settingsNotice.hidden = selected === 'audio';
+    if (selected === 'audio') void window.keusLocalAudio?.refreshDevices();
+    else window.keusLocalAudio?.stopTest();
     document.querySelectorAll('.app-settings-nav [data-settings-pane]').forEach((button) => {
       const active = button.dataset.settingsPane === selected;
       button.classList.toggle('active', active);
@@ -4750,114 +4780,14 @@
     return `${base}${separator}${transcript}`.slice(0, 2000);
   }
 
-  function finishDictation(session, message, commit = true) {
-    if (dictationSession !== session) return;
-    dictationSession = null;
-    clearTimeout(session.startTimer);
-    clearTimeout(session.limitTimer);
-    clearTimeout(session.stopTimer);
-    const recognition = session.recognition;
-    recognition.onstart = recognition.onresult = recognition.onerror = recognition.onend = null;
-    try { recognition.abort(); } catch {}
-    const input = document.getElementById('chatInput');
-    if (input) { input.value = commit ? dictationDraft(session.base, session.finalText) : session.base; input.readOnly = false; }
-    dictationCopy(message);
-    syncChatComposer();
-  }
-
-  function stopDictation() {
-    const session = dictationSession;
-    if (!session || session.stopping) return;
-    session.stopping = true;
-    clearTimeout(session.startTimer);
-    dictationCopy('Finishing dictation…');
-    session.stopTimer = setTimeout(() => finishDictation(session, 'Dictation stopped. Review your draft before sending.'), 3000);
-    try { session.recognition.stop(); } catch { finishDictation(session, 'Dictation stopped. Review your draft before sending.'); }
-  }
-
   function syncDictationControl(canDictate) {
-    const input = document.getElementById('chatInput');
-    const button = document.getElementById('chatMicButton');
-    if (!button) return;
-    if (dictationSession && (!canDictate || dictationSession.agentId !== String(selectedAgentId || ''))) {
-      finishDictation(dictationSession, 'Dictation stopped because the conversation changed.', false);
+    if (window.keusLocalAudio) window.keusLocalAudio.sync(canDictate);
+    else {
+      const button = document.getElementById('chatMicButton');
+      if (button) { button.disabled = true; button.title = 'Loading local audio controls…'; }
     }
-    const supported = Boolean(window.isSecureContext && (window.SpeechRecognition || window.webkitSpeechRecognition));
-    const active = Boolean(dictationSession);
-    button.disabled = !supported || (!active && !canDictate);
-    button.classList.toggle('is-listening', active);
-    button.setAttribute('aria-pressed', String(active));
-    const label = !supported ? 'Voice typing is not supported in this browser. Type your message instead.' : active ? 'Stop dictation' : 'Dictate a message';
-    button.setAttribute('aria-label', label);
-    button.title = label;
-    if (input) input.readOnly = active;
-    for (const id of ['chatPlusButton', 'chatEmojiButton']) {
-      const control = document.getElementById(id);
-      if (control) control.disabled = active;
-    }
-    if (!supported) dictationCopy(label);
   }
-
-  function toggleDictation() {
-    if (dictationSession) { stopDictation(); return; }
-    const input = document.getElementById('chatInput');
-    const agent = findSelectedChatAgent();
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Recognition || !window.isSecureContext) { dictationCopy('Voice typing is not supported here. Type your message instead.'); return; }
-    if (!input || input.disabled || !agent || chatPending || !chatHistoryReady || chatHistoryLoading) return;
-    if (input.value.length >= 2000) { dictationCopy('Your draft is full. Shorten it before dictating.'); return; }
-    if (!dictationConsentGranted) {
-      if (!window.confirm('Voice typing uses your browser’s speech service, which may send audio to its provider for transcription. Keus receives the transcript only when you press Send. Continue?')) return;
-      dictationConsentGranted = true;
-    }
-    let recognition;
-    try { recognition = new Recognition(); } catch { dictationCopy('Voice typing could not start in this browser. You can still type.'); return; }
-    recognition.lang = navigator.language || 'en-US';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    const session = { recognition, base: input.value, finalText: '', agentId: String(selectedAgentId || ''), stopping: false };
-    dictationSession = session;
-    closePopovers();
-    dictationCopy('Allow microphone access to begin dictation.');
-    syncChatComposer();
-    recognition.onstart = () => {
-      if (dictationSession !== session) { try { recognition.abort(); } catch {} return; }
-      clearTimeout(session.startTimer);
-      if (!session.stopping) dictationCopy('Listening… Click the microphone to stop. Nothing is sent automatically.');
-    };
-    recognition.onresult = (event) => {
-      if (dictationSession !== session || session.agentId !== String(selectedAgentId || '')) return;
-      const results = Array.from(event.results);
-      session.finalText = results.filter(result => result.isFinal).map(result => result[0].transcript.trim()).join(' ');
-      const text = results.map(result => result[0].transcript.trim()).join(' ');
-      input.value = dictationDraft(session.base, text);
-      syncChatComposer();
-      if (input.value.length >= 2000) stopDictation();
-    };
-    recognition.onerror = (event) => {
-      const errors = {
-        'not-allowed': 'Microphone permission was denied. Allow microphone access in browser settings, then try again.',
-        'service-not-allowed': 'The browser’s speech service is unavailable. You can still type your message.',
-        'audio-capture': 'No microphone is available. Check your device and browser permissions.',
-        'no-speech': 'No speech was detected. Your draft is preserved; try again.',
-        'network': 'The speech service could not be reached. Review your draft and try again.',
-        'language-not-supported': 'Your browser’s speech service does not support this language.',
-        'aborted': 'Dictation stopped. Review your draft before sending.'
-      };
-      finishDictation(session, errors[event.error] || 'Dictation could not continue. Review your draft; you can still type.');
-    };
-    recognition.onend = () => finishDictation(session, session.finalText ? 'Dictation ready. Review or edit your draft, then press Send.' : 'No speech was added. Your draft is preserved.');
-    session.startTimer = setTimeout(() => finishDictation(session, 'Microphone did not start. Check browser permissions and retry.'), 15000);
-    session.limitTimer = setTimeout(stopDictation, 60000);
-    try { recognition.start(); } catch { finishDictation(session, 'Microphone could not start. Check your browser permissions and retry.'); }
-  }
-
-  window.addEventListener('pagehide', () => {
-    if (dictationSession) finishDictation(dictationSession, 'Dictation stopped.');
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && dictationSession) stopDictation();
-  });
+  function toggleDictation() { void window.keusLocalAudio?.toggle(); }
 
   function syncChatComposer() {
     const input = document.getElementById('chatInput');
@@ -8256,6 +8186,24 @@
   });
   loadAuthenticatedWorkspace();
   syncVoiceAndDesktopControls(null);
+</script>
+<script type="module">
+  try {
+  const { createLocalAudio } = await import('/local-audio.mjs');
+  window.keusLocalAudio = createLocalAudio({
+    context() {
+      const agent = findSelectedChatAgent();
+      return { agentId: String(selectedAgentId || ''), draft: document.getElementById('chatInput')?.value || '',
+        canDictate: Boolean(currentBootstrap?.user?.id && document.documentElement.dataset.reviewFixture !== 'true' && agent && agent.status !== 'archived' && chatAvailable && chatHistoryReady && !chatHistoryLoading && !chatPending) };
+    },
+    mergeDraft: dictationDraft,
+    setDraft(text) { document.getElementById('chatInput').value = text; },
+    onState(active) { dictationSession = active ? { local: true } : null; syncChatComposer(); },
+    status: dictationCopy,
+    openSettings() { openGeneralOverlay('audio'); },
+  });
+  syncChatComposer();
+  } catch { dictationCopy('Local audio controls could not load. Reload the page or keep typing.'); }
 </script>
 </body>
 </html>

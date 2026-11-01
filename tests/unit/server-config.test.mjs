@@ -473,6 +473,12 @@ test('unknown page and static paths return 404; approved assets are explicit', a
       assert.equal(response.status, 404, route);
       assert.doesNotMatch(await response.text(), /<!doctype html/i, route);
     }
+    for (const name of ['local-audio.mjs', 'local-audio-capture.mjs', 'local-dictation-worker.mjs']) {
+      const script = await fetch(`${base}/${name}`);
+      assert.equal(script.status, 200);
+      assert.match(script.headers.get('content-type'), /javascript/);
+      assert.equal(script.headers.get('cache-control'), 'no-cache');
+    }
     const asset = await fetch(`${base}/keus-icon.svg`);
     assert.equal(asset.status, 200);
     assert.match(asset.headers.get('content-type') || '', /image\/svg\+xml/);
