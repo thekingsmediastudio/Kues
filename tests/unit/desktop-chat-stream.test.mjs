@@ -1138,18 +1138,15 @@ test('admin model panel anchors below its header picker and composer accent swee
 });
 
 
-test('composer progress holds while any text remains and retracts only on empty input', () => {
+test('one character triggers the full outline and only empty input retracts it', () => {
   const source = desktopHtml.match(/function composerProgressStep\(previousLength, previousProgress, length\) \{([\s\S]*?)\n  \}/)[1];
   const step = new Function('previousLength', 'previousProgress', 'length', source);
-  assert.equal(step(0, 0, 12), .5);
-  assert.equal(step(12, .5, 24), 1);
-  assert.equal(step(24, 1, 100), 1);
-  assert.equal(step(100, 1, 99), 1);
-  assert.equal(step(12, .5, 1), .5, 'partial deletion holds the outline');
-  assert.equal(step(1, .5, 6), .5, 'retyping below the prior high-water mark holds');
-  assert.equal(step(6, .5, 18), .75, 'typing beyond the high-water mark advances');
-  assert.equal(step(99, .9, 0), 0);
-  assert.equal(step(12, .5, 12), .5, 'resize/key-up does not advance progress');
+  assert.equal(step(0, 0, 1), 1, 'first character targets the complete outline');
+  assert.equal(step(1, 1, 24), 1, 'additional typing holds the target');
+  assert.equal(step(24, 1, 1), 1, 'partial deletion does not retract');
+  assert.equal(step(1, 1, 0), 0, 'last character removed retracts');
+  assert.equal(step(0, 0, 1), 1, 'typing again triggers a fresh full sweep');
+  assert.match(desktopHtml, /\.85 \* arrival/);
 });
 
 test('chat submission consumes only applied choices, not uncommitted picker inputs', () => {

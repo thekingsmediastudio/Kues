@@ -4602,10 +4602,10 @@
     }
   }
 
-  // Hold the furthest outline position until the composer is completely empty.
+  // The first character triggers the full sweep; only empty input retracts it.
   function composerProgressStep(previousLength, previousProgress, length) {
     if (length === 0) return 0;
-    return Math.max(previousProgress, Math.min(1, length / 24));
+    return 1;
   }
 
   function updateComposerTrace(pill, length) {
@@ -4613,7 +4613,7 @@
     composerLastLength = length;
     const svg = pill.querySelector('.composer-border-trace');
     if (!svg || !pill.getBoundingClientRect) return;
-    svg.style.transition = length === 0 ? 'opacity .01s .45s' : 'opacity 0s';
+    svg.style.transition = length === 0 ? 'opacity .01s .85s' : 'opacity 0s';
     svg.style.opacity = length === 0 ? '0' : '1';
     const box = pill.getBoundingClientRect();
     const w = pill.clientWidth, h = pill.clientHeight, inset = .8;
@@ -4627,7 +4627,7 @@
     svg.querySelector('[data-edge="top"]').setAttribute('d', top);
     svg.querySelector('[data-edge="bottom"]').setAttribute('d', bottom);
     svg.querySelectorAll('path').forEach(path => {
-      path.style.transitionDuration = length === 0 ? '.45s' : '.09s';
+      path.style.transitionDuration = '.85s';
       path.style.strokeDashoffset = String(100 * (1 - composerLiveProgress));
       path.style.opacity = '1';
     });
@@ -4636,7 +4636,10 @@
     const sendLeft = send ? send.getBoundingClientRect().left - box.left : x2;
     const arrival = Math.max(.1, Math.min(.98, (Math.PI * radius / 2 + Math.max(0, sendLeft - x1)) / halfLength));
     const fill = Math.max(0, Math.min(1, (composerLiveProgress - arrival) / (1 - arrival)));
-    pill.style.transitionDuration = length === 0 ? '.45s' : '.09s';
+    // Fill only as the sweep reaches the send button; drain immediately on empty.
+    pill.style.transitionProperty = '--composer-button-progress, box-shadow';
+    pill.style.transitionDuration = `${Math.max(.08, .85 * (1 - arrival))}s, .18s`;
+    pill.style.transitionDelay = length === 0 ? '0s, 0s' : `${.85 * arrival}s, 0s`;
     pill.style.setProperty('--composer-progress', `${composerLiveProgress * 100}%`);
     pill.style.setProperty('--composer-button-progress', `${fill * 100}%`);
   }
