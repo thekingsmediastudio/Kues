@@ -73,6 +73,11 @@ function isValid32ByteEncryptionKey(value) {
  */
 export function loadServerConfig(env = process.env) {
   const issues = [];
+  const groqTranscriptionFlag = String(env.GROQ_TRANSCRIPTION_ENABLED || '').trim();
+  if (groqTranscriptionFlag && !['0', '1'].includes(groqTranscriptionFlag)) issues.push('GROQ_TRANSCRIPTION_ENABLED must be 0 or 1');
+  const groqTranscriptionEnabled = groqTranscriptionFlag === '1';
+  const groqTranscriptionModel = String(env.GROQ_TRANSCRIPTION_MODEL || 'whisper-large-v3');
+  if (!['whisper-large-v3', 'whisper-large-v3-turbo'].includes(groqTranscriptionModel)) issues.push('GROQ_TRANSCRIPTION_MODEL must be whisper-large-v3 or whisper-large-v3-turbo');
   const paypalMode = String(env.PAYPAL_ENV || 'sandbox').trim().toLowerCase();
   if (paypalMode !== 'sandbox') {
     issues.push('PAYPAL_ENV must be sandbox; live payment mode is out of scope');
@@ -253,5 +258,7 @@ export function loadServerConfig(env = process.env) {
     aiProvidersEnabled: aiProviderAdminEmails.length > 0,
     aiProviderAdminEmails: Object.freeze(aiProviderAdminEmails),
     aiProviderChatTestEnabled,
+    groqTranscriptionEnabled,
+    groqTranscriptionModel,
   });
 }

@@ -3096,6 +3096,14 @@
   .dictation-status[hidden]{display:none}
   #chatMicButton.is-listening{color:#ff7777;background:#ff77771a;border-radius:50%;box-shadow:0 0 0 1px #ff777766}
   #chatMicButton:focus-visible{outline:2px solid var(--agent-accent);outline-offset:3px}
+  .audio-privacy{font-size:12px;color:var(--text-sec);line-height:1.6;margin:14px 2px}
+  .audio-privacy summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+  .audio-privacy p{margin:12px 0 8px}.audio-privacy a{color:var(--text-main)}
+  #audioConsentDialog{width:min(420px,calc(100vw - 32px));margin:auto;padding:24px;border:1px solid var(--border-strong);border-radius:16px;background:var(--bg-card);color:var(--text-main);box-shadow:0 20px 70px #0006}
+  #audioConsentDialog::backdrop{background:#0009}
+  #audioConsentDialog h2{font-size:18px;margin:0 0 12px}
+  #audioConsentDialog>p{font-size:14px;line-height:1.6;color:var(--text-sec)}
+  #audioConsentDialog form{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 </style>
 </head>
 <body>
@@ -3532,23 +3540,15 @@
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Your microphone</h3><span class="app-settings-status neutral">This browser only</span></div>
               <div class="settings-form">
-                <p class="settings-form-hint">Choose the exact device for local dictation. A disconnected microphone is never silently replaced. Grant access below to reveal device names; that temporary permission stream is immediately closed.</p>
-                <button class="pill-btn" id="audioPermission" type="button">Allow access to list microphones</button>
+                <p class="settings-form-hint">Choose your microphone. Your selection is saved automatically in this browser. If it disconnects, we will ask you to choose another.</p>
+                <button class="pill-btn" id="audioPermission" type="button">Show available microphones</button>
                 <label for="audioDeviceSelect">Recording device<select class="form-input" id="audioDeviceSelect"><option value="">Choose a microphone</option></select></label>
                 <label for="audioMeter">Live input level<meter id="audioMeter" min="0" max="1" value="0" style="width:100%;height:20px">Input level</meter></label>
                 <button class="pill-btn" id="audioTest" type="button">Test selected microphone</button>
-                <p class="settings-form-status" id="audioStatus" role="status" aria-live="polite">No microphone is opened until you grant access or start a test/recording.</p>
+                <p class="settings-form-status" id="audioStatus" role="status" aria-live="polite">Use the test button to check your microphone before speaking.</p>
               </div>
             </div>
-            <div class="app-settings-card">
-              <div class="app-settings-card-header"><h3>Local voice typing</h3><span class="app-settings-status neutral">English · Experimental</span></div>
-              <div class="settings-form">
-                <p class="settings-form-hint">Whisper Tiny runs on your device with no transcription API fee. Audio is not uploaded. First use downloads a substantial model and runtime from Hugging Face and jsDelivr; this uses data and browser storage. Downloads are cached when the browser allows it. Nothing is loaded during workspace startup.</p>
-                <p class="settings-form-hint">Record up to 60 seconds, stop, wait for local transcription, then review and Send. Speed and accuracy depend on your device; transcripts can contain mistakes. The model supports English only. No automatic cloud fallback.</p>
-                <div class="settings-form-actions"><button class="pill-btn light" id="audioModelLoad" type="button">Download / load English model</button><button class="pill-btn" id="audioModelCancel" type="button" hidden>Cancel local processing</button></div>
-                <p class="settings-form-status" id="audioModelStatus" role="status" aria-live="polite">Model not loaded. Downloading does not open your microphone.</p>
-              </div>
-            </div>
+            <details class="audio-privacy"><summary>Privacy details</summary><p>Recordings are sent through Keus to Groq for transcription. Keus does not save raw recordings; Groq's data policies apply. You review the text before sending it as a chat message.</p><a href="https://groq.com/privacy-policy" target="_blank" rel="noopener noreferrer">Provider privacy policy</a></details>
           </section>
           <section class="app-settings-pane" id="settingsPaneAppearance" role="tabpanel" aria-labelledby="settingsTabAppearance" hidden>
             <div class="app-settings-card">
@@ -4784,7 +4784,7 @@
     if (window.keusLocalAudio) window.keusLocalAudio.sync(canDictate);
     else {
       const button = document.getElementById('chatMicButton');
-      if (button) { button.disabled = true; button.title = 'Loading local audio controls…'; }
+      if (button) { button.disabled = true; button.title = 'Loading audio controls…'; }
     }
   }
   function toggleDictation() { void window.keusLocalAudio?.toggle(); }
@@ -8187,10 +8187,16 @@
   loadAuthenticatedWorkspace();
   syncVoiceAndDesktopControls(null);
 </script>
+<dialog id="audioConsentDialog" aria-labelledby="audioConsentTitle" aria-describedby="audioConsentCopy">
+  <h2 id="audioConsentTitle">Use voice typing?</h2>
+  <p id="audioConsentCopy">Your recording will be sent to a third-party service to turn speech into text. Continue?</p>
+  <details class="audio-privacy"><summary>Privacy details</summary><p>Recordings are sent through Keus to Groq for transcription. Keus does not save raw recordings; Groq's data policies apply. You review the text before sending it as a chat message.</p><a href="https://groq.com/privacy-policy" target="_blank" rel="noopener noreferrer">Provider privacy policy</a></details>
+  <form method="dialog"><button class="pill-btn" value="cancel" autofocus>Not now</button><button class="pill-btn light" value="continue">Continue</button></form>
+</dialog>
 <script type="module">
   try {
-  const { createLocalAudio } = await import('/local-audio.mjs');
-  window.keusLocalAudio = createLocalAudio({
+  const { createAudioInput } = await import('/local-audio.mjs');
+  window.keusLocalAudio = createAudioInput({
     context() {
       const agent = findSelectedChatAgent();
       return { agentId: String(selectedAgentId || ''), draft: document.getElementById('chatInput')?.value || '',
@@ -8203,7 +8209,7 @@
     openSettings() { openGeneralOverlay('audio'); },
   });
   syncChatComposer();
-  } catch { dictationCopy('Local audio controls could not load. Reload the page or keep typing.'); }
+  } catch { dictationCopy('Audio controls could not load. Reload the page or keep typing.'); }
 </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { createAudioRoutes, createGroqTranscription } from './lib/audio/groq-transcription.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -3098,6 +3099,7 @@ export function createServer({
   aiProviderService = null,
   aiChatService = null,
   aiChatHistoryService = null,
+  audioTranscriptionService = null,
   usageService = null,
   channel3Client = null,
   db = null,
@@ -3110,6 +3112,15 @@ export function createServer({
     config,
     workosAuth,
   };
+  const audioRoutes = createAudioRoutes({
+    getUser: async req => {
+      const token = cookieValue(req, sessionCookieName(runtime.config));
+      return token && authService ? authService.getSession({ token }) : null;
+    },
+    isAllowed: user => runtime.config.aiProviderChatTestEnabled === true && aiProviderAdminAllowed(runtime.config, user),
+    sameOrigin: req => { const origin = requestOrigin(req); return origin.present && origin.valid && origin.sameOrigin; },
+    service: config.groqTranscriptionEnabled ? (audioTranscriptionService || createGroqTranscription({ apiKey: process.env.GROQ_TRANSCRIPTION_API_KEY || '', model: config.groqTranscriptionModel })) : null,
+  });
   const aiChatRateWindows = new Map();
   const aiChatPendingToolApprovals = new Map();
 
@@ -3239,6 +3250,8 @@ export function createServer({
         });
         if (handled) return;
       }
+
+      if (url.pathname.startsWith('/api/audio/')) { await audioRoutes(req, res, url); return; }
 
       if (url.pathname.startsWith('/api/workspace/') || url.pathname.startsWith('/api/onboarding/')) {
         const handled = await handleWorkspaceRequest(req, res, url, {

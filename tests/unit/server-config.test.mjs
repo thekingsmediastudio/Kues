@@ -363,7 +363,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /fetchUiRead\(`\/api\/chat\/history\?agentId=/);
     assert.match(desktopPreview, /encrypted and saved to this Keus workspace/);
     assert.match(desktopPreview, /message: content/);
-    assert.doesNotMatch(desktopPreview, /Groq|Qwen|GPT-OSS|model ID/i);
+    assert.doesNotMatch(desktopPreview, /Qwen|GPT-OSS|model ID/i);
     assert.match(desktopPreview, /bubble\.textContent = content/);
     assert.match(desktopPreview, /renderChatMarkdown\(answerText, content\)/);
     assert.match(desktopPreview, /id="newAgentForm"/);

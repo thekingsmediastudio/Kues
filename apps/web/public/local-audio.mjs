@@ -1,4 +1,4 @@
-// Device preference stays in this browser. No audio upload or cloud fallback.
+// Device preference stays in this browser. Consented audio uploads use the authenticated Groq proxy only.
 export function microphoneConstraints(deviceId) {
   if (!deviceId || ['default', 'communications'].includes(deviceId)) throw new Error('Choose a specific microphone in Settings > Audio.');
   return { audio: { deviceId: { exact: deviceId }, channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false };
@@ -9,12 +9,23 @@ export function microphoneError(error) {
     OverconstrainedError: 'The saved microphone is unavailable. No other microphone was selected.',
     NotReadableError: 'The microphone is busy or could not be opened. Check other apps and retry.' })[error?.name] || error?.message || 'Microphone could not be opened.';
 }
-export function createLocalAudio(adapter) {
+export function encodeWav(audio) {
+  if (!(audio instanceof Float32Array) || audio.length > 16000 * 60) throw new Error('Invalid recording length.');
+  const bytes = new ArrayBuffer(44 + audio.length * 2); const view = new DataView(bytes);
+  const tag = (offset, text) => { for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i)); };
+  tag(0, 'RIFF'); view.setUint32(4, bytes.byteLength - 8, true); tag(8, 'WAVE'); tag(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, 16000, true); view.setUint32(28, 32000, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  tag(36, 'data'); view.setUint32(40, audio.length * 2, true);
+  audio.forEach((v, i) => { const sample = Number.isFinite(v) ? Math.max(-1, Math.min(1, v)) : 0; view.setInt16(44 + i * 2, Math.round(sample * (sample < 0 ? 32768 : 32767)), true); });
+  return bytes;
+}
+export function createAudioInput(adapter) {
   const el = id => document.getElementById(id);
   const key = 'keus.audio.device.v1';
-  let preferred = '', savedLabel = '', devices = [], worker = null, modelReady = false, job = null, jobId = 0;
+  let preferred = '', savedLabel = '', devices = [], serviceReady = false, checking = false, checkedAt = 0, uploadController = null, consentGranted = false, consentPending = null, serviceProblem = '';
   let session = null, test = null, deviceVersion = 0, preparing = false;
-  const supported = Boolean(isSecureContext && navigator.mediaDevices?.getUserMedia && window.AudioContext && window.AudioWorkletNode && window.Worker);
+  const supported = Boolean(isSecureContext && navigator.mediaDevices?.getUserMedia && window.AudioContext && window.AudioWorkletNode);
   try { const saved = JSON.parse(localStorage.getItem(key) || '{}'); preferred = saved.id || ''; savedLabel = saved.label || ''; } catch {}
   const status = message => { el('audioStatus').textContent = message; };
   function render() {
@@ -24,17 +35,14 @@ export function createLocalAudio(adapter) {
     mic.disabled = !supported || (!active && !ctx.canDictate);
     mic.classList.toggle('is-listening', session?.phase === 'recording');
     mic.setAttribute('aria-pressed', String(active));
-    mic.title = mic.ariaLabel = session?.phase === 'recording' ? 'Stop recording and transcribe locally' : active ? 'Cancel local dictation' : 'Dictate using your selected microphone';
+    mic.title = mic.ariaLabel = session?.phase === 'recording' ? 'Stop recording and turn speech into text' : active ? 'Cancel transcription' : 'Dictate using your selected microphone';
     el('chatInput').readOnly = active;
     el('audioDeviceSelect').disabled = Boolean(session || test);
     el('audioPermission').disabled = !supported || Boolean(session || test);
     el('audioTest').disabled = !supported || Boolean(session || (!test && !devices.some(d => d.deviceId === preferred)));
     el('audioTest').textContent = test ? 'Stop microphone test' : 'Test selected microphone';
-    el('audioModelLoad').disabled = !supported || Boolean(job || session || modelReady);
-    el('audioModelLoad').textContent = modelReady ? 'English model ready' : 'Download / load English model';
-    el('audioModelCancel').hidden = !job;
     for (const id of ['chatPlusButton', 'chatEmojiButton']) el(id).disabled = active;
-    if (!supported) adapter.status('Local voice typing is unavailable in this browser. You can still type.');
+    if (!supported) adapter.status('Voice typing is unavailable in this browser. You can still type.');
   }
   async function refreshDevices() {
     if (!supported) { status('Microphone capture requires a supported browser and HTTPS.'); render(); return; }
@@ -110,42 +118,68 @@ export function createLocalAudio(adapter) {
       status(`Testing ${savedLabel || 'selected microphone'}. Speak to move the meter. Audio stays on this device.`);
     } catch (e) { if (test === capture) { stopTest(); status(microphoneError(e)); } else release(capture); }
   }
-  function discardWorker(message = 'Local operation canceled.') {
-    worker?.terminate(); worker = null; modelReady = false;
-    el('audioModelStatus').textContent = message;
-    if (job) { const old = job; job = null; clearTimeout(old.timer); old.reject(new Error(message)); }
-    render();
+  const errorCopy = code => ({
+    authentication_required: 'Sign in again to use dictation.',
+    audio_admin_required: 'Voice typing is not available for this account.',
+    audio_consent_required: 'Please agree to speech processing before using voice typing.',
+    transcription_not_configured: 'Voice typing is not available yet. You can still type your message.',
+    transcription_credentials_rejected: 'Voice typing is unavailable right now. Please try again later.',
+    transcription_rate_limited: 'Transcription limit reached. Wait before retrying; nothing was automatically resubmitted.',
+    transcription_timeout_or_canceled: 'Transcription timed out or was canceled. Your original draft is unchanged.',
+    audio_upload_timeout: 'Audio upload timed out. Check your connection and retry.',
+    transcription_provider_unavailable: 'Voice typing is unavailable. Your original draft is unchanged; try again later.',
+    invalid_audio: 'The recording format was invalid. Try a new short recording.',
+    audio_too_large: 'This recording is too large. Record no more than 60 seconds.'
+  })[code] || 'Transcription could not complete. Your original draft is unchanged.';
+  async function checkService(force = false) {
+    if (checking || (!force && Date.now() - checkedAt < 60000)) return;
+    checking = true; render();
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch('/api/audio/status', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+      const data = await response.json();
+      serviceReady = response.ok && data.available === true;
+      checkedAt = Date.now();
+      serviceProblem = serviceReady ? '' : errorCopy(data.error || 'transcription_not_configured');
+    } catch { serviceReady = false; serviceProblem = 'Voice typing could not connect. Check your connection and try again.'; }
+    finally { clearTimeout(timer); checking = false; render(); }
   }
-  function runWorker(type, audio) {
-    if (job) return Promise.reject(new Error('A local operation is already running.'));
-    if (!worker) {
-      worker = new Worker('/local-dictation-worker.mjs', { type: 'module' });
-      worker.onmessage = ({ data }) => {
-        if (!job || data.id !== job.id) return;
-        if (data.type === 'progress') {
-          const percent = Number.isFinite(data.progress) ? ` ${Math.floor(data.progress)}%` : '';
-          el('audioModelStatus').textContent = `Loading model assets${percent}${data.file ? ` (${data.file.split('/').pop()})` : ''}. Percentages apply to each file.`;
-          return;
-        }
-        const old = job; job = null; clearTimeout(old.timer);
-        if (data.type === 'error') { modelReady = false; worker?.terminate(); worker = null; old.reject(new Error(data.message)); }
-        else { if (data.type === 'ready') modelReady = true; old.resolve(data); }
-        render();
+  function requestConsent() {
+    if (consentGranted) return Promise.resolve(true);
+    if (consentPending) return consentPending;
+    const dialog = el('audioConsentDialog');
+    consentPending = new Promise(resolve => {
+      dialog.returnValue = 'cancel';
+      dialog.onclose = () => {
+        consentGranted = dialog.returnValue === 'continue';
+        consentPending = null;
+        resolve(consentGranted);
       };
-      worker.onerror = () => discardWorker('Local model could not run. Check network access for model downloads and browser support.');
-    }
-    return new Promise((resolve, reject) => {
-      const id = ++jobId;
-      job = { id, resolve, reject, timer: setTimeout(() => discardWorker('Local processing timed out. Your draft is preserved; retry or type instead.'), type === 'load' ? 240000 : 120000) };
-      worker.postMessage({ id, type, audio }, audio ? [audio.buffer] : []); render();
+      dialog.showModal();
     });
+    return consentPending;
   }
-  async function loadModel() {
-    if (job || modelReady) return;
-    el('audioModelStatus').textContent = 'Downloading local runtime/model assets. No microphone audio is uploaded.';
-    try { await runWorker('load'); el('audioModelStatus').textContent = 'English model ready on this device. Record, stop, then review the transcript.'; }
-    catch (e) { el('audioModelStatus').textContent = e.message; }
-    render();
+  async function transcribe(audio) {
+    if (!consentGranted) throw new Error(errorCopy('audio_consent_required'));
+    const controller = new AbortController(); uploadController = controller; render();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    try {
+      const response = await fetch('/api/audio/transcribe', {
+        method: 'POST', credentials: 'same-origin', signal: controller.signal,
+        headers: { 'Content-Type': 'audio/wav', 'X-Audio-Consent': 'groq-audio-v1' }, body: encodeWav(audio),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        const retry = Number(response.headers.get('retry-after'));
+        throw new Error(errorCopy(data.error) + (response.status === 429 && retry > 0 ? ` Retry in about ${Math.ceil(retry)} seconds.` : ''));
+      }
+      if (typeof data.text !== 'string') throw new Error('The transcription service returned an invalid response. Your draft is unchanged.');
+      return data;
+    } catch (e) {
+      if (controller.signal.aborted) throw new Error('Transcription canceled or timed out. Your original draft is unchanged.');
+      if (e instanceof TypeError) throw new Error('Connection failed. Your original draft is unchanged.');
+      throw e;
+    } finally { clearTimeout(timer); if (uploadController === controller) uploadController = null; render(); }
   }
   function endSession(message, transcript) {
     const old = session; if (!old) return;
@@ -153,9 +187,9 @@ export function createLocalAudio(adapter) {
     if (typeof transcript === 'string' && adapter.context().agentId === old.agentId) adapter.setDraft(adapter.mergeDraft(old.base, transcript));
     adapter.status(message); adapter.onState(false); render();
   }
-  function cancel(message = 'Local dictation canceled. Your original draft is unchanged.') {
+  function cancel(message = 'Dictation canceled. Your original draft is unchanged.') {
     if (!session) return;
-    if (job) discardWorker(message);
+    uploadController?.abort();
     endSession(message);
   }
   async function stopRecording() {
@@ -168,7 +202,7 @@ export function createLocalAudio(adapter) {
     });
     release(capture);
     if (session !== capture) return;
-    adapter.status('Transcribing on your device… Click the mic to cancel.'); render();
+    adapter.status('Turning speech into text… Click the mic to cancel.'); render();
     try {
       const count = capture.chunks.reduce((n, chunk) => n + chunk.length, 0);
       if (count < capture.sampleRate * 0.25) { endSession('Recording was too short. Your draft is unchanged.'); return; }
@@ -182,10 +216,10 @@ export function createLocalAudio(adapter) {
       const source = offline.createBufferSource(); source.buffer = buffer; source.connect(offline.destination); source.start();
       const rendered = await offline.startRendering();
       if (session !== capture) return;
-      const result = await runWorker('transcribe', new Float32Array(rendered.getChannelData(0)));
+      const result = await transcribe(new Float32Array(rendered.getChannelData(0)));
       if (session !== capture) return;
       const text = result.text.trim();
-      endSession(text ? 'Local transcript ready. Check it for mistakes, edit, then press Send.' : 'No speech recognized. Your draft is unchanged.', text);
+      endSession(text ? (capture.base.length + text.length + 1 > 2000 ? 'Transcript added up to the 2,000-character draft limit. Review before sending.' : 'Your text is ready. Review or edit it, then press Send.') : 'No speech recognized. Your draft is unchanged.', text);
     } catch (e) { if (session === capture) endSession(e.message); }
   }
   async function toggle() {
@@ -193,11 +227,18 @@ export function createLocalAudio(adapter) {
     if (session) { cancel(); return; }
     if (!adapter.context().canDictate || !supported || preparing) return;
     preparing = true;
-    try { await refreshDevices(); } finally { preparing = false; }
-    if (!adapter.context().canDictate || document.hidden) return;
-    if (!modelReady || !devices.some(d => d.deviceId === preferred)) {
-      adapter.openSettings(); status('Select and test a microphone, then load the English model to enable local dictation.'); return;
-    }
+    const startingAgentId = adapter.context().agentId;
+    try {
+      await refreshDevices();
+      if (!devices.some(d => d.deviceId === preferred)) {
+        adapter.openSettings(); status('Choose a microphone to start voice typing.'); return;
+      }
+      adapter.status('Preparing voice typing…');
+      await checkService();
+      if (!serviceReady) { adapter.status(serviceProblem || 'Voice typing is unavailable. Please try again later.'); return; }
+      if (!await requestConsent()) { adapter.status('Voice typing canceled. No recording was started.'); return; }
+    } finally { preparing = false; }
+    if (!adapter.context().canDictate || document.hidden || adapter.context().agentId !== startingAgentId) return;
     stopTest();
     const ctx = adapter.context();
     if (ctx.draft.length >= 2000) { adapter.status('Your draft is full. Shorten it before recording.'); return; }
@@ -225,19 +266,17 @@ export function createLocalAudio(adapter) {
       capture.stream.getAudioTracks()[0].onended = () => { if (session === capture && capture.phase === 'recording') cancel('Selected microphone disconnected. Your draft is unchanged.'); };
       clearTimeout(capture.timer); capture.phase = 'recording';
       capture.timer = setTimeout(stopRecording, 60000);
-      adapter.status(`Recording locally with ${savedLabel || 'selected microphone'}. Click the mic to stop and transcribe. Maximum 60 seconds.`); render();
+      adapter.status(`Recording with ${savedLabel || 'selected microphone'}. Click the mic to stop and turn speech into text. Maximum 60 seconds.`); render();
     } catch (e) { if (session === capture) endSession(microphoneError(e)); else release(capture); }
   }
   el('audioPermission').onclick = permit;
   el('audioDeviceSelect').onchange = selectDevice;
   el('audioTest').onclick = toggleTest;
-  el('audioModelLoad').onclick = loadModel;
-  el('audioModelCancel').onclick = () => { discardWorker(); if (session) cancel(); };
   navigator.mediaDevices?.addEventListener('devicechange', refreshDevices);
   document.addEventListener('visibilitychange', () => { if (document.hidden) { stopTest(); if (session?.phase !== 'transcribing') cancel('Recording stopped when the tab was hidden. Your draft is unchanged.'); } });
-  window.addEventListener('pagehide', () => { stopTest(); cancel(); discardWorker(); });
+  window.addEventListener('pagehide', () => { if (el('audioConsentDialog').open) el('audioConsentDialog').close('cancel'); stopTest(); cancel(); });
   render();
-  return { toggle, refreshDevices, stopTest, sync(canDictate) {
+  return { toggle, refreshDevices, checkService, stopTest, sync(canDictate) {
     if (session && (!canDictate || adapter.context().agentId !== session.agentId)) cancel('Conversation changed. Recording stopped and your original draft is preserved.');
     render();
   } };

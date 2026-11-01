@@ -1216,13 +1216,15 @@ test('dictation appends to drafts without exceeding the composer limit', () => {
   assert.equal(draft('a'.repeat(1998), 'long transcript').length, 2000);
 });
 
-test('composer microphone uses local audio controls and never invokes the fake call handler', () => {
+test('composer microphone uses device-specific audio controls and never invokes the fake call handler', () => {
   const binding = desktopHtml.slice(desktopHtml.indexOf('  function syncVoiceAndDesktopControls'), desktopHtml.indexOf('  const settingsTabs'));
   assert.match(binding, /micBtn.onclick = toggleDictation/);
   assert.doesNotMatch(binding, /micBtn.onclick = toggleCall/);
-  assert.match(desktopHtml, /createLocalAudio/);
+  assert.match(desktopHtml, /createAudioInput/);
   assert.match(desktopHtml, /id="settingsPaneAudio"/);
   assert.match(desktopHtml, /chatPending \|\| dictationSession\) return/);
   assert.doesNotMatch(desktopHtml, /new Recognition\(/);
-  assert.match(desktopHtml, /No automatic cloud fallback/);
+  assert.match(desktopHtml, /id="audioConsentDialog"/);
+  assert.match(desktopHtml, /Your recording will be sent to a third-party service/);
+  assert.doesNotMatch(desktopHtml, /id="audioServiceCheck"|id="audioCloudConsent"/);
 });
