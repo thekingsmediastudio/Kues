@@ -294,7 +294,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.ok(accountMenu >= 0 && accountEmail < themeToggle && themeToggle < signOutButton, 'theme and sign-out actions belong inside the account dropdown');
     assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
     const desktopPreview = await (await fetch(`${base}/desktop-preview`)).text();
-    assert.match(desktopPreview, /<aside class="sidebar">/);
+    assert.match(desktopPreview, /<aside class="sidebar" id="workspaceSidebar">/);
     assert.match(desktopPreview, /id="agentList"/);
     assert.match(desktopPreview, /api\/workspace\/bootstrap/);
     assert.match(desktopPreview, /credentials:\s*'same-origin'/);
@@ -352,7 +352,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.ok(desktopMenu >= 0 && desktopEmail < desktopTheme && desktopTheme < desktopSignout, 'desktop account controls belong in the account dropdown');
     assert.match(desktopPreview, /id="streamInner"[^>]*role="log"/);
     assert.match(desktopPreview, /id="chatPlusButton"[^>]*disabled/);
-    assert.match(desktopPreview, /id="chatInput"[^>]*aria-describedby="chatPreviewNote"/);
+    assert.match(desktopPreview, /id="chatInput"[^>]*aria-describedby="chatPreviewNote chatInputHelp"/);
     assert.match(desktopPreview, /id="chatMicButton"[^>]*disabled/);
     assert.match(desktopPreview, /id="chatSendButton"[^>]*disabled/);
     assert.match(desktopPreview, /id="voiceCallButton"[^>]*disabled/);

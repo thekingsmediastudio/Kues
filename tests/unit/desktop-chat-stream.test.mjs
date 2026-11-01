@@ -12,7 +12,7 @@ test('desktop chat progressively renders answers, removes the completed progress
   assert.match(desktopHtml, /headers:\s*\{\s*Accept:\s*'text\/event-stream',\s*'Content-Type':\s*'application\/json'\s*\}/);
   assert.match(desktopHtml, /\['delta', 'avatar_cue', 'tool_approval_required', 'done', 'error'\]\.includes\(name\)/);
   assert.match(desktopHtml, /const answerText = assistantRow\?\.querySelector\('\.chat-answer-text'\)/);
-  assert.match(desktopHtml, /renderChatMarkdown\(answerText, replyText\)/);
+  assert.match(desktopHtml, /renderChatMarkdown\(answerText, replyText, \{ streaming: true \}\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, reply\)/);
   assert.match(desktopHtml, /className = 'chat-live-status'/);
   assert.match(desktopHtml, /className = 'chat-typing-indicator'/);
@@ -795,7 +795,7 @@ test('send button is active only when text is typed and turns into a square stop
     'document', 'findSelectedChatAgent', 'currentBootstrap', 'chatAvailable', 'chatHistoryReady',
     'chatHistoryLoading', 'chatPending', 'chatNotice', 'textById', 'syncAdminChatControlsAvailability',
     'CHAT_SEND_ICON_SVG', 'CHAT_STOP_ICON_SVG',
-    `let dictationSession = null; function syncDictationControl() {} ${syncSource}; return syncChatComposer;`,
+    `let dictationSession = null; function syncDictationControl() {} ${desktopHtml.slice(desktopHtml.indexOf('  function resizeChatInput('), desktopHtml.indexOf('  function syncChatComposer('))}; ${syncSource}; return syncChatComposer;`,
   )(
     document, findSelectedChatAgent, currentBootstrap, chatAvailable, chatHistoryReady,
     chatHistoryLoading, pendingState, chatNotice, textById, syncAdminChatControlsAvailability,
@@ -1118,6 +1118,20 @@ test('products card grid renders 3-per-row layout and collapses items beyond two
   clearBtn.dispatchEvent({ type: 'click', preventDefault() {} });
   assert.equal(bundleBar.classList.contains('is-visible'), false, 'Bundle bar should hide when cleared');
 
+
+  const loadingRoot = new MockNode('div');
+  renderChatMarkdown(loadingRoot, ':::products-grid\n1. **Partial**', { streaming: true });
+  const pendingPanel = loadingRoot.querySelector('.products-loading');
+  assert.ok(pendingPanel, 'streamed product details get a loading panel, not partial cards');
+  assert.equal(loadingRoot.querySelectorAll('.product-card').length, 0);
+  renderChatMarkdown(loadingRoot, ':::products-grid\n1. **Partial**\n- **Price:** $50', { streaming: true });
+  assert.equal(loadingRoot.querySelector('.products-loading'), pendingPanel, 'loading panel remains stable between deltas');
+  renderChatMarkdown(loadingRoot, ':::products-grid\n1. **Partial**', { interrupted: true });
+  assert.match(loadingRoot.textContent, /interrupted/);
+  assert.equal(loadingRoot.querySelectorAll('button').length, 0);
+  renderChatMarkdown(loadingRoot, ':::products-grid\n:::\n');
+  assert.match(loadingRoot.textContent, /No product matches/);
+
   assert.ok(desktopHtml.includes('function requestBundlePurchase'), 'requestBundlePurchase handler must be defined');
 });
 
@@ -1227,4 +1241,25 @@ test('composer microphone uses device-specific audio controls and never invokes 
   assert.match(desktopHtml, /id="audioConsentDialog"/);
   assert.match(desktopHtml, /Your recording will be sent to a third-party service/);
   assert.doesNotMatch(desktopHtml, /id="audioServiceCheck"|id="audioCloudConsent"/);
+});
+
+
+test('composer supports bounded multiline editing and native Shift Enter', () => {
+  assert.match(desktopHtml, /<textarea id="chatInput" rows="1"/);
+  assert.match(desktopHtml, /maxlength="2000"><\/textarea>/);
+  assert.match(desktopHtml, /Math.min\(132, Math.max\(22, input.scrollHeight\)\)/);
+  assert.match(desktopHtml, /input._sizedValue === value && input._sizedWidth === width/);
+  assert.match(desktopHtml, /if \(event.shiftKey\) return/);
+  assert.match(desktopHtml, /!event.isComposing && event.keyCode !== 229/);
+});
+
+
+test('phone navigation uses a modal drawer and restores the original sidebar on desktop', () => {
+  assert.match(desktopHtml, /id="phoneMenuButton"[^>]*aria-controls="phoneNavigation"/);
+  assert.match(desktopHtml, /<dialog id="phoneNavigation" aria-labelledby="phoneNavigationTitle">/);
+  assert.match(desktopHtml, /if \(media.matches\) dialog.append\(sidebar\)/);
+  assert.match(desktopHtml, /else workspace.insertBefore\(sidebar, workspace.firstChild\)/);
+  assert.match(desktopHtml, /dialog.showModal\(\)/);
+  assert.match(desktopHtml, /media.addEventListener\('change', sync\)/);
+  assert.match(desktopHtml, /height:100dvh/);
 });
