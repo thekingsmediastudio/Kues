@@ -3075,6 +3075,22 @@
     .header-actions .hdr-btn.icon-only{width:34px;height:34px}
     .active-agent-summary .header-sub{font-size:9px}
   }
+
+  .workspace-list-skeleton{display:none;margin:8px 20px}
+  #workspaceApp[aria-busy="true"] .workspace-list-skeleton{display:block}
+  /* Reserved-space read feedback; never fabricated account or message content. */
+  .ui-wait{margin:32px auto;padding:24px;width:min(540px,calc(100% - 32px));border:1px solid var(--border);border-radius:16px;background:var(--bg-panel)}
+  .ui-wait[hidden]{display:none}
+  .ui-wait p{font-size:12px;color:var(--text-sec);margin:0 0 20px;line-height:1.5}
+  .wait-shape{height:10px;border-radius:6px;background:var(--border);margin:14px 0;animation:wait-breathe 1.8s ease-in-out infinite}
+  .wait-shape:nth-child(2){width:78%}.wait-shape:nth-child(3){width:54%}
+  .ui-wait[data-error="true"] .wait-shapes{display:none}
+  .ui-wait button{padding:8px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-hover);color:var(--text-main);cursor:pointer}
+  #workspaceApp[aria-busy="true"] #hdrName,#workspaceApp[aria-busy="true"] #hdrSub,#workspaceApp[aria-busy="true"] #accountName,#workspaceApp[aria-busy="true"] #accountEmail{color:transparent;background:var(--border);border-radius:6px;animation:wait-breathe 1.8s ease-in-out infinite}
+  #workspaceApp[aria-busy="true"] #hdrSub::before{visibility:hidden}
+  #workspaceApp[aria-busy="true"] .composer-preview-note{visibility:hidden}
+  @keyframes wait-breathe{50%{opacity:.45}}
+  @media(prefers-reduced-motion:reduce){.wait-shape,#workspaceApp[aria-busy="true"] #hdrName,#workspaceApp[aria-busy="true"] #hdrSub,#workspaceApp[aria-busy="true"] #accountName,#workspaceApp[aria-busy="true"] #accountEmail{animation:none}}
 </style>
 </head>
 <body>
@@ -3105,6 +3121,7 @@
       </div>
     </div>
 
+    <div class="workspace-list-skeleton" aria-hidden="true"><div class="wait-shape"></div><div class="wait-shape"></div><div class="wait-shape"></div></div>
     <div class="agent-list" id="agentList">
       <div class="agent-row saved-agent-list-row" id="savedAgentRow" role="button" tabindex="-1" aria-pressed="false" aria-label="Saved agent profile" hidden>
         <span class="saved-agent-avatar" id="savedAgentAvatar" aria-hidden="true"></span>
@@ -3187,6 +3204,11 @@
       </button>
     </div>
     <div class="chat-stream" id="chatStream">
+      <section class="ui-wait" id="uiWait" aria-label="Workspace loading">
+        <p id="uiWaitText" role="status" aria-live="polite">Opening your workspace…</p>
+        <div class="wait-shapes" aria-hidden="true"><div class="wait-shape"></div><div class="wait-shape"></div><div class="wait-shape"></div></div>
+        <button id="uiWaitRetry" type="button" hidden>Retry</button>
+      </section>
       <div class="stream-inner" id="streamInner" role="log" aria-label="Conversation message history" aria-live="polite">
         <div class="chat-empty-state" id="chatEmptyState" hidden>
           <span class="chat-empty-kicker">Test chat</span>
@@ -3731,6 +3753,8 @@
   let chatHistoryLoading = false;
   let chatHistoryReady = false;
   let chatHistoryLoadVersion = 0;
+  let historyReadController = null;
+  let uiWaitTimer = null;
   let chatNotice = '';
   let chatMessages = [];
   let chatAdminProviders = [];
@@ -3808,7 +3832,9 @@
     });
     if (selected === 'apps' && typeof loadPayPalWalletStatus === 'function') {
       void loadPayPalWalletStatus();
+      void loadPasskeyStatus();
     }
+    if (selected === 'account') void refreshPendingEmailChange();
   }
   function openGeneralOverlay(pane = 'workspace') {
     setSettingsPane(pane);
@@ -4425,7 +4451,7 @@
     });
     renderSettingsAgentEditor();
     applySettingsAvailability();
-    if (authenticated && user.id !== localReviewFixture.user.id) void refreshPendingEmailChange();
+    // Account-only pending email state is loaded when its settings pane opens.
   }
 
   async function refreshPendingEmailChange() {
@@ -6905,7 +6931,44 @@
     panel.hidden = lines.length === 0;
   }
 
+  function setUiWait(stage, message = '', error = false) {
+    clearTimeout(uiWaitTimer);
+    const box = document.getElementById('uiWait');
+    const text = document.getElementById('uiWaitText');
+    const retry = document.getElementById('uiWaitRetry');
+    if (!box || !text || !retry) return;
+    box.hidden = !stage;
+    box.dataset.stage = stage || '';
+    box.dataset.error = String(error);
+    box.setAttribute('aria-label', error ? 'Loading failed' : 'Loading workspace data');
+    text.textContent = message;
+    retry.hidden = !error;
+    if (stage && !error) uiWaitTimer = setTimeout(() => {
+      text.textContent = `${message} Taking longer than usual; you can retry if this times out.`;
+    }, 4000);
+  }
+
+  // Deadline covers response headers AND body. Only idempotent UI reads use this.
+  async function fetchUiRead(path, options = {}) {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    const external = options.signal;
+    if (external?.aborted) controller.abort();
+    external?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, 12000);
+    try {
+      const response = await fetch(path, { ...options, signal: controller.signal });
+      const body = await response.text();
+      return { ok: response.ok, status: response.status, json: async () => JSON.parse(body) };
+    } finally {
+      clearTimeout(timer);
+      external?.removeEventListener('abort', abort);
+    }
+  }
+
   async function loadChatHistory(agentId = selectedAgentId) {
+    historyReadController?.abort();
+    historyReadController = new AbortController();
     const requestedAgentId = String(agentId || '');
     if (!requestedAgentId || !chatAvailable || document.documentElement.dataset.reviewFixture === 'true') {
       chatHistoryReady = false;
@@ -6915,12 +6978,14 @@
     }
     setAdminChatDiagnostics(null);
     const loadVersion = ++chatHistoryLoadVersion;
+    setUiWait('history', 'Loading this agent’s conversation…');
     chatHistoryLoading = true;
     chatHistoryReady = false;
     chatNotice = '';
     syncChatComposer();
     try {
-      const response = await fetch(`/api/chat/history?agentId=${encodeURIComponent(requestedAgentId)}`, {
+      const response = await fetchUiRead(`/api/chat/history?agentId=${encodeURIComponent(requestedAgentId)}`, {
+        signal: historyReadController.signal,
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       });
@@ -6955,9 +7020,11 @@
         }
       }
       chatHistoryReady = true;
+      setUiWait(null);
     } catch (error) {
       if (loadVersion !== chatHistoryLoadVersion || requestedAgentId !== String(selectedAgentId || '')) return;
       chatNotice = chatErrorCopy(error.code || 'ai_chat_history_unavailable', error.requestId);
+      setUiWait('history', 'Conversation could not be loaded. Retry to continue safely.', true);
     } finally {
       if (loadVersion === chatHistoryLoadVersion) {
         chatHistoryLoading = false;
@@ -6967,6 +7034,8 @@
   }
 
   async function loadChatAvailability() {
+    historyReadController?.abort();
+    setUiWait('status', 'Checking chat availability…');
     chatHistoryLoadVersion += 1;
     chatHistoryReady = false;
     chatHistoryLoading = false;
@@ -6979,7 +7048,7 @@
       return;
     }
     try {
-      const response = await fetch('/api/chat/status', {
+      const response = await fetchUiRead('/api/chat/status', {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       });
@@ -6998,6 +7067,8 @@
     if (chatAvailable && selectedAgentId) {
       await loadChatHistory(selectedAgentId);
     } else {
+      if (chatAvailable) setUiWait(null);
+      else setUiWait('status', 'Chat is unavailable. You can retry the availability check.', true);
       syncChatComposer();
     }
   }
@@ -7378,8 +7449,9 @@
   }
 
   async function loadAuthenticatedWorkspace({ quiet = false } = {}) {
+    if (!quiet) setUiWait('workspace', 'Opening your workspace…');
     try {
-      const response = await fetch('/api/workspace/bootstrap', {
+      const response = await fetchUiRead('/api/workspace/bootstrap', {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       });
@@ -7392,6 +7464,7 @@
       if (!response.ok) {
         if (isLocalReviewHost() && response.status === 503 && data.error === 'auth_storage_not_configured') {
           renderLocalReviewFixture();
+          setUiWait(null);
           return true;
         }
         throw new Error(data.error || 'workspace_load_failed');
@@ -7400,7 +7473,10 @@
       void loadChatAvailability();
       return true;
     } catch {
-      if (!quiet) setWorkspaceUnavailable();
+      if (!quiet) {
+        setWorkspaceUnavailable();
+        setUiWait('workspace', 'Workspace could not be loaded. Check your connection and retry.', true);
+      }
       return false;
     }
   }
@@ -8047,9 +8123,13 @@
 
   document.getElementById('exportSkillMdBtn')?.addEventListener('click', handleExportSkillMd);
 
+  document.getElementById('uiWaitRetry')?.addEventListener('click', () => {
+    const stage = document.getElementById('uiWait')?.dataset.stage;
+    if (stage === 'workspace') void loadAuthenticatedWorkspace();
+    else if (stage === 'history') void loadChatHistory(selectedAgentId);
+    else void loadChatAvailability();
+  });
   loadAuthenticatedWorkspace();
-  void loadPayPalWalletStatus();
-  void loadPasskeyStatus();
   syncVoiceAndDesktopControls(null);
 </script>
 </body>

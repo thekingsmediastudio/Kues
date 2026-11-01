@@ -215,10 +215,11 @@ test('quiet workspace refresh renders current data without replacing the app on 
     const rendered = [];
     const state = { unavailable: 0, chatAvailabilityLoads: 0, reviewFixtures: 0 };
     const loader = new Function(
-      'fetch', 'location', 'isLocalReviewHost', 'renderLocalReviewFixture', 'renderAuthenticatedWorkspace', 'loadChatAvailability', 'setWorkspaceUnavailable',
+      'fetchUiRead', 'setUiWait', 'location', 'isLocalReviewHost', 'renderLocalReviewFixture', 'renderAuthenticatedWorkspace', 'loadChatAvailability', 'setWorkspaceUnavailable',
       `${source}; return loadAuthenticatedWorkspace;`,
     )(
       fetchImpl,
+      () => {},
       { replace() {} },
       () => false,
       () => { state.reviewFixtures += 1; },
@@ -1169,4 +1170,37 @@ test('reviewed header groups true agent status and keeps unavailable controls di
   assert.match(desktopHtml, /modelName\.textContent = model/);
   assert.match(desktopHtml, /chip\.title = `\$\{provider\.displayName\} · \$\{model\}`/);
   assert.match(desktopHtml, /id="adminModelChip"[^>]* hidden/);
+});
+
+test('UI read deadlines cover the response body and release timers', async () => {
+  const start = desktopHtml.indexOf('  async function fetchUiRead(');
+  const end = desktopHtml.indexOf('  async function loadChatHistory(', start);
+  const source = desktopHtml.slice(start, end);
+  let deadline, cleared = 0;
+  const make = (fetchImpl) => new Function('fetch', 'AbortController', 'setTimeout', 'clearTimeout', `${source}; return fetchUiRead;`)(
+    fetchImpl, AbortController, (callback, ms) => { assert.equal(ms, 12000); deadline = callback; return 1; }, () => { cleared += 1; },
+  );
+  const success = make(async () => ({ ok: true, status: 200, text: async () => '{"ready":true}' }));
+  assert.deepEqual(await (await success('/read')).json(), { ready: true });
+  assert.equal(cleared, 1);
+  const stalled = make(async (path, { signal }) => ({ ok: true, status: 200, text: () => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('aborted body')), { once: true });
+  }) }));
+  const request = stalled('/read');
+  await Promise.resolve();
+  deadline();
+  await assert.rejects(request, /aborted body/);
+  assert.equal(cleared, 2);
+});
+
+test('startup defers settings-only reads and history abort retains stale-response guards', () => {
+  const boot = desktopHtml.slice(desktopHtml.lastIndexOf("document.getElementById('uiWaitRetry')"));
+  assert.doesNotMatch(boot, /void loadPayPalWalletStatus|void loadPasskeyStatus/);
+  const panes = desktopHtml.slice(desktopHtml.indexOf('  function setSettingsPane'), desktopHtml.indexOf('  function openGeneralOverlay'));
+  assert.match(panes, /loadPasskeyStatus/);
+  assert.match(panes, /selected === 'account'.*refreshPendingEmailChange/);
+  assert.match(desktopHtml, /historyReadController\?\.abort\(\)/);
+  assert.match(desktopHtml, /signal: historyReadController.signal/);
+  assert.match(desktopHtml, /loadVersion !== chatHistoryLoadVersion/);
+  assert.match(desktopHtml, /prefers-reduced-motion:reduce/);
 });
