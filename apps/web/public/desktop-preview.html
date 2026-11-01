@@ -3022,6 +3022,59 @@
   :root[data-theme="light"] .app-settings-preview-note svg{stroke:#8b6b2f}
   :root[data-theme="light"] .settings-form-status[data-state="error"]{color:#a32f27!important}
   :root[data-theme="light"] .settings-form-status[data-state="success"]{color:#267043!important}
+
+  /* Reviewed header polish: keep real identity/status and admin-only picker. */
+  .chat-header{min-height:82px;height:auto;padding:18px 22px 25px;gap:20px;align-items:center}
+  .active-agent-summary{gap:12px;min-width:0;flex:1 1 auto}
+  .header-agent-avatar{width:36px;height:36px;flex:none;border-radius:50%;background:color-mix(in srgb,var(--agent-accent) 13%,transparent)}
+  .header-agent-avatar .agent-avatar-art{width:34px;height:34px}
+  .active-agent-summary .header-title{gap:12px;min-width:0;font-size:15px;flex-wrap:wrap}
+  .active-agent-summary .header-title>span:first-child{max-width:100%;flex:0 1 auto;font-weight:650;letter-spacing:-.02em}
+  .active-agent-summary .header-sub{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 7px;border:1px solid #ffffff0c;border-radius:6px;background:#ffffff06;color:var(--text-dim);font-size:10px;font-weight:500;line-height:1.2;white-space:nowrap}
+  .header-sub::before{content:"";width:5px;height:5px;flex:none;border-radius:50%;background:currentColor}
+  .active-agent-summary .header-sub[data-state="paused"]{color:#e5bd69;background:#b78c3515;border-color:#e5bd6912}
+  .active-agent-summary .header-sub[data-state="active"]{color:#8ed4ae;background:#34815b15;border-color:#8ed4ae12}
+  .header-actions{flex:0 1 auto;min-width:0;gap:12px;align-items:center}
+  .admin-model-chip{height:36px;min-height:36px;min-width:0;max-width:340px;padding:0 10px;gap:8px;border-radius:10px;background:#ffffff02;border-color:#ffffff1c;font-size:12px;font-weight:500}
+  .admin-model-chip:not([hidden]){display:inline-flex}
+  .admin-model-chip:hover{background:#ffffff07;border-color:#ffffff30}
+  .admin-model-chip:focus-visible,.header-upcoming:focus-visible{outline:2px solid var(--agent-accent);outline-offset:4px}
+  .admin-model-chip-mark{width:21px;height:21px;flex:none;font-size:9px}
+  #adminModelChipLabel{display:flex;align-items:center;min-width:0;gap:4px;overflow:hidden;white-space:nowrap}
+  .chip-provider-name{min-width:0;max-width:125px;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+  .chip-model-name{min-width:0;max-width:165px;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
+  .chip-separator{flex:none;color:var(--text-dim)}
+  .header-upcoming{position:relative;flex:none;border-radius:10px}
+  .header-upcoming-buttons{display:flex;gap:8px}
+  .header-actions .hdr-btn.icon-only{width:36px;height:36px;padding:0;border-radius:10px;justify-content:center;border-color:#ffffff1c;background:#ffffff02}
+  .header-actions .hdr-btn svg{width:17px;height:17px}
+  .header-actions .hdr-btn:disabled{opacity:.48;cursor:not-allowed;color:var(--text-sec);box-shadow:none;transform:none}
+  .header-coming-soon{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:400;line-height:1;color:var(--text-dim)}
+  :root[data-theme="light"] .admin-model-chip,:root[data-theme="light"] .header-actions .hdr-btn.icon-only{background:#fff;border-color:#d4ddd5}
+  :root[data-theme="light"] .active-agent-summary .header-sub[data-state="paused"]{color:#886019;background:#fbf2df;border-color:#ecdfbf}
+  :root[data-theme="light"] .active-agent-summary .header-sub[data-state="active"]{color:#276746;background:#eaf5ec;border-color:#cee3d2}
+  @media(max-width:1100px){
+    .chat-header{flex-wrap:wrap;gap:12px;padding:14px 16px 26px}
+    .active-agent-summary{flex-basis:100%}
+    .header-actions{width:100%;justify-content:space-between}
+    .admin-model-chip{max-width:calc(100% - 92px);flex:0 1 auto}
+    .active-agent-summary .header-title>span:first-child{max-width:100%}
+  }
+  @media(max-width:640px){
+    .chat-header{padding:12px 10px 26px;gap:10px}
+    .active-agent-summary{gap:8px}
+    .active-agent-summary .header-title{font-size:12px;gap:5px}
+    .header-agent-avatar{width:28px;height:28px}
+    .header-agent-avatar .agent-avatar-art{width:27px;height:27px}
+    .header-actions{flex-wrap:wrap;gap:10px}
+    .admin-model-chip{max-width:100%;width:100%;flex-basis:100%;font-size:11px}
+    #adminModelChipLabel{flex:1;text-align:left;gap:3px}
+    .chip-provider-name{max-width:45%;flex:0 1 auto}
+    .chip-model-name{max-width:none}
+    .header-upcoming{margin-left:auto}
+    .header-actions .hdr-btn.icon-only{width:34px;height:34px}
+    .active-agent-summary .header-sub{font-size:9px}
+  }
 </style>
 </head>
 <body>
@@ -3097,12 +3150,17 @@
       <span class="review-data-badge" id="sampleReviewBadge" role="status" aria-label="Sample review data, not an authenticated account" hidden><span class="review-badge-full">Sample review data</span><span class="review-badge-compact" aria-hidden="true">Sample data</span></span>
       <div class="header-actions" aria-label="Conversation controls">
         <button class="admin-model-chip" id="adminModelChip" type="button" aria-controls="adminChatControls" aria-expanded="false" hidden><span class="admin-model-chip-mark" aria-hidden="true">AI</span><span id="adminModelChipLabel">Provider and model</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+        <div class="header-upcoming" tabindex="0" role="group" aria-label="Voice call and agent desktop: coming soon, not connected" title="Voice call and agent desktop are not connected yet">
+          <div class="header-upcoming-buttons">
         <button class="hdr-btn icon-only" id="voiceCallButton" type="button" disabled aria-label="Voice call, not connected in this preview" title="Voice call is not connected in this preview">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
         </button>
         <button class="hdr-btn icon-only" id="desktopButton" type="button" disabled aria-label="Desktop view, not connected in this preview" title="Desktop view is not connected in this preview">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         </button>
+          </div>
+          <span class="header-coming-soon">Coming soon</span>
+        </div>
       </div>
         <div class="admin-chat-controls" id="adminChatControls" hidden>
           <div class="admin-chat-panel-heading"><strong>Provider &amp; model</strong><span id="adminCurrentProviderLabel">Configured primary</span></div>
@@ -3969,6 +4027,13 @@
   }
 
   function syncVoiceAndDesktopControls(agent) {
+    const headerStatus = document.getElementById('hdrSub');
+    const headerName = document.getElementById('hdrName');
+    if (headerStatus) {
+      headerStatus.dataset.state = ['active', 'paused', 'archived'].includes(agent?.status) ? agent.status : 'unknown';
+      headerStatus.setAttribute('aria-label', `Agent status: ${headerStatus.textContent}`);
+    }
+    if (headerName) headerName.title = headerName.textContent;
     const voiceBtn = document.getElementById('voiceCallButton');
     const desktopBtn = document.getElementById('desktopButton');
     const micBtn = document.getElementById('chatMicButton');
@@ -3976,16 +4041,16 @@
     const emojiBtn = document.getElementById('chatEmojiButton');
 
     if (voiceBtn) {
-      voiceBtn.disabled = false;
-      voiceBtn.setAttribute('aria-label', isCallActive ? 'End voice call' : 'Start voice call');
-      voiceBtn.setAttribute('title', isCallActive ? 'End voice call' : 'Start voice call');
-      voiceBtn.onclick = toggleCall;
+      voiceBtn.disabled = true;
+      voiceBtn.setAttribute('aria-label', 'Voice call: coming soon, not connected');
+      voiceBtn.setAttribute('title', 'Voice call: coming soon, not connected');
+      voiceBtn.onclick = null;
     }
     if (desktopBtn) {
-      desktopBtn.disabled = false;
-      desktopBtn.setAttribute('aria-label', 'Open agent desktop preview');
-      desktopBtn.setAttribute('title', 'Open agent desktop preview');
-      desktopBtn.onclick = () => openAgentDesktopPreview();
+      desktopBtn.disabled = true;
+      desktopBtn.setAttribute('aria-label', 'Agent desktop: coming soon, not connected');
+      desktopBtn.setAttribute('title', 'Agent desktop: coming soon, not connected');
+      desktopBtn.onclick = null;
     }
     if (micBtn) {
       micBtn.disabled = false;
@@ -6449,7 +6514,21 @@
     const choice = chatAdminAppliedChoice;
     const provider = chatAdminProviders.find((item) => item.providerKey === choice?.providerKey)
       || chatAdminProviders.find((item) => item.isPrimary === true);
-    if (updateLabel && label && provider) label.textContent = `${provider.displayName} · ${choice?.modelId || provider.modelId}`;
+    if (updateLabel && label && provider) {
+      const model = choice?.modelId || provider.modelId;
+      const providerName = document.createElement('span');
+      providerName.className = 'chip-provider-name';
+      providerName.textContent = provider.displayName;
+      const separator = document.createElement('span');
+      separator.className = 'chip-separator';
+      separator.textContent = ' · ';
+      const modelName = document.createElement('span');
+      modelName.className = 'chip-model-name';
+      modelName.textContent = model;
+      label.replaceChildren(providerName, separator, modelName);
+      chip.title = `${provider.displayName} · ${model}`;
+      chip.setAttribute('aria-label', `Provider and model: ${provider.displayName}, ${model}. Change for the next request.`);
+    }
     if (chip) chip.setAttribute('aria-expanded', String(Boolean(document.getElementById('adminChatControls') && !document.getElementById('adminChatControls').hidden)));
   }
 

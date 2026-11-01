@@ -1156,3 +1156,17 @@ test('chat submission consumes only applied choices, not uncommitted picker inpu
   assert.match(source, /resetAdminChatOverrides\(\)/);
   assert.match(desktopHtml, /item.catalogConfirmed === true/);
 });
+
+test('reviewed header groups true agent status and keeps unavailable controls disabled', () => {
+  assert.match(desktopHtml, /class="header-upcoming" tabindex="0" role="group"/);
+  assert.match(desktopHtml, /class="header-coming-soon">Coming soon/);
+  assert.match(desktopHtml, /voiceBtn\.disabled = true/);
+  assert.match(desktopHtml, /desktopBtn\.disabled = true/);
+  assert.match(desktopHtml, /voiceBtn\.onclick = null/);
+  assert.match(desktopHtml, /desktopBtn\.onclick = null/);
+  assert.match(desktopHtml, /headerStatus\.dataset\.state = \['active', 'paused', 'archived'\]\.includes\(agent\?\.status\)/);
+  assert.match(desktopHtml, /providerName\.textContent = provider\.displayName/);
+  assert.match(desktopHtml, /modelName\.textContent = model/);
+  assert.match(desktopHtml, /chip\.title = `\$\{provider\.displayName\} · \$\{model\}`/);
+  assert.match(desktopHtml, /id="adminModelChip"[^>]* hidden/);
+});
