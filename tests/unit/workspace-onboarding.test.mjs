@@ -520,3 +520,75 @@ test('agent instructions and tool preferences persist independently and cannot e
   assert.equal(cleared.agents.find(x=>x.id===a).settings.toolPermissions.web_search,false);
  } finally { db.close(); }
 });
+
+async function policySyncFixture(t) {
+  const db = await createDb(); t.after(() => db.close());
+  const auth = createAuthService({ db });
+  const login = await auth.createWorkOSSession({ providerSubject:'policy-sync',email:'policy@example.test',emailVerified:true });
+  const ws = createWorkspaceService({ db });
+  const input = {...onboardingInput, name:'QA', orderCap:25, dailyCap:100};
+  const boot = await ws.createAgent({userId:login.user.id,input});
+  const scope = {db,userId:login.user.id,workspaceId:boot.workspace.id,agentId:boot.createdAgentId};
+  const {evaluateSpendPolicy,createPurchaseMandate} = await import('../../apps/web/lib/channel3/mandate-service.mjs');
+  const evaluate = (amountMinor=375, merchantDomain='shop.example') => evaluateSpendPolicy({...scope,amountMinor,merchantDomain,currency:'USD'});
+  return {db,ws,login,input,boot,scope,evaluate,createPurchaseMandate};
+}
+
+test('saving agent caps repairs the exact daily-budget drift without mutating existing mandates',async t=>{
+  const f=await policySyncFixture(t);
+  const other=await f.ws.createAgent({userId:f.login.user.id,input:{...f.input,name:'Earlier purchases',orderCap:200,dailyCap:500}});
+  const earlier=await f.createPurchaseMandate({...f.scope,agentId:other.createdAgentId,product:{title:'Earlier reservation',merchantDomain:'shop.example',amountMinor:11999,currency:'USD',evidenceHash:'sha256:'+'a'.repeat(64)}});
+  assert.equal(earlier.allowed,true);
+  const denied=await f.evaluate();assert.equal(denied.allowed,false);assert.equal(denied.dailyBudgetMinor,10000);
+  const before=await f.db.execute({sql:'SELECT * FROM mandates WHERE id=?',args:[earlier.mandateId]});
+  const save=()=>f.ws.updateAgent({userId:f.login.user.id,agentId:f.scope.agentId,input:{...f.input,dailyCap:150}});
+  await save();const allowed=await f.evaluate();assert.equal(allowed.allowed,true);assert.equal(allowed.dailyBudgetMinor,15000);assert.equal(allowed.maxPerOrderMinor,2500);
+  assert.deepEqual((await f.db.execute({sql:'SELECT * FROM mandates WHERE id=?',args:[earlier.mandateId]})).rows,before.rows);
+  // Re-saving identical settings also repairs already-drifted records, like the deployed QA agent.
+  await f.db.execute({sql:'UPDATE spend_policies SET daily_budget_minor=10000 WHERE agent_id=?',args:[f.scope.agentId]});
+  await save();assert.equal((await f.evaluate()).allowed,true);
+  await f.ws.updateAgent({userId:f.login.user.id,agentId:f.scope.agentId,input:f.input});
+  assert.equal((await f.evaluate()).allowed,false);
+});
+
+test('cap synchronization preserves restrictions, run cap, inactive/default policies and other agents',async t=>{
+  const f=await policySyncFixture(t);await f.evaluate();
+  await f.db.execute({sql:`UPDATE spend_policies SET allowed_domains_json='["shop.example"]',blocked_payees_json='["blocked.example"]',blocked_conditions_json='["manual_rule"]',max_per_run_minor=4200 WHERE agent_id=?`,args:[f.scope.agentId]});
+  await f.db.execute({sql:`INSERT INTO spend_policies(id,workspace_id,agent_id,max_per_order_minor,max_per_run_minor,daily_budget_minor) VALUES ('workspace-default',?,NULL,2100,4200,10000)`,args:[f.scope.workspaceId]});
+  const other=await f.ws.createAgent({userId:f.login.user.id,input:{...f.input,name:'Untouched'}});
+  const {evaluateSpendPolicy}=await import('../../apps/web/lib/channel3/mandate-service.mjs');
+  // The default remains authoritative for agents without their own row; settings saves never clone/bypass it.
+  const otherBefore=await f.db.execute({sql:'SELECT settings_json FROM agents WHERE id=?',args:[other.createdAgentId]});
+  const policyBefore=(await f.db.execute('SELECT * FROM spend_policies ORDER BY id')).rows;
+  await f.ws.updateAgent({userId:f.login.user.id,agentId:f.scope.agentId,input:{...f.input,orderCap:50,dailyCap:150}});
+  const rows=(await f.db.execute('SELECT * FROM spend_policies ORDER BY id')).rows;
+  for(let i=0;i<rows.length;i++)for(const key of Object.keys(rows[i]))if(rows[i].agent_id!==f.scope.agentId||!['max_per_order_minor','daily_budget_minor','updated_at'].includes(key))assert.equal(rows[i][key],policyBefore[i][key]);
+  assert.deepEqual((await f.db.execute({sql:'SELECT settings_json FROM agents WHERE id=?',args:[other.createdAgentId]})).rows,otherBefore.rows);
+  assert.equal((await f.evaluate(375,'evil.example')).allowed,false);
+  assert.equal((await evaluateSpendPolicy({...f.scope,agentId:other.createdAgentId,amountMinor:2200,merchantDomain:'shop.example',currency:'USD'})).allowed,false);
+  await f.db.execute({sql:'UPDATE spend_policies SET active=0 WHERE agent_id=?',args:[f.scope.agentId]});
+  const inactive=(await f.db.execute({sql:'SELECT * FROM spend_policies WHERE agent_id=?',args:[f.scope.agentId]})).rows;
+  await f.ws.updateAgent({userId:f.login.user.id,agentId:f.scope.agentId,input:f.input});
+  assert.deepEqual((await f.db.execute({sql:'SELECT * FROM spend_policies WHERE agent_id=?',args:[f.scope.agentId]})).rows,inactive);
+});
+
+test('policy synchronization is atomic and never converts a non-USD policy',async t=>{
+  const f=await policySyncFixture(t);await f.evaluate();
+  await f.db.execute({sql:"UPDATE spend_policies SET currency='EUR' WHERE agent_id=?",args:[f.scope.agentId]});
+  const before=(await f.db.execute({sql:'SELECT * FROM agents WHERE id=?',args:[f.scope.agentId]})).rows;
+  await assert.rejects(f.ws.updateAgent({userId:f.login.user.id,agentId:f.scope.agentId,input:{...f.input,dailyCap:150}}),e=>e.code==='spend_policy_currency_mismatch');
+  assert.deepEqual((await f.db.execute({sql:'SELECT * FROM agents WHERE id=?',args:[f.scope.agentId]})).rows,before);
+  assert.equal((await f.db.execute({sql:'SELECT daily_budget_minor FROM spend_policies WHERE agent_id=?',args:[f.scope.agentId]})).rows[0].daily_budget_minor,10000);
+});
+
+test('repeated onboarding also synchronizes an existing policy without provisioning a new policy',async t=>{
+  const f=await policySyncFixture(t);
+  const boot=await f.ws.completeOnboarding({userId:f.login.user.id,input:{...f.input,name:'Onboarding'}});
+  const agent=boot.agents.find(a=>a.name==='Onboarding');
+  const {evaluateSpendPolicy}=await import('../../apps/web/lib/channel3/mandate-service.mjs');
+  await evaluateSpendPolicy({...f.scope,agentId:agent.id,amountMinor:3000,merchantDomain:'shop.example',currency:'USD'});
+  await f.ws.completeOnboarding({userId:f.login.user.id,input:{...f.input,name:'Onboarding',orderCap:50,dailyCap:150}});
+  const result=await evaluateSpendPolicy({...f.scope,agentId:agent.id,amountMinor:3000,merchantDomain:'shop.example',currency:'USD'});
+  assert.equal(result.allowed,true);assert.equal(result.dailyBudgetMinor,15000);
+  assert.equal((await f.db.execute('SELECT COUNT(*) AS n FROM spend_policies')).rows[0].n,1);
+});

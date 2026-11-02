@@ -408,6 +408,25 @@ async function workspaceBootstrapInTransaction(tx, { userId, now, competition })
   });
 }
 
+// Keep UI-controlled caps and an existing agent policy in one transaction.
+// Workspace defaults, inactive policies, merchant restrictions and per-run limits
+// are independent safeguards and must not be rewritten by an agent settings save.
+async function syncAgentPolicyCaps(tx, { workspaceId, agentId, payload, now }) {
+  const policies = await tx.execute({
+    sql: 'SELECT currency FROM spend_policies WHERE workspace_id = ? AND agent_id = ? AND active = 1',
+    args: [workspaceId, agentId],
+  });
+  if (policies.rows.some((policy) => policy.currency !== 'USD')) {
+    throw new WorkspaceError('spend_policy_currency_mismatch', 409);
+  }
+  await tx.execute({
+    sql: `UPDATE spend_policies
+          SET max_per_order_minor = ?, daily_budget_minor = ?, updated_at = ?
+          WHERE workspace_id = ? AND agent_id = ? AND active = 1`,
+    args: [payload.orderCap * 100, payload.dailyCap * 100, now, workspaceId, agentId],
+  });
+}
+
 export function createWorkspaceService({ db, competition = null } = {}) {
   if (!db) throw new TypeError('db_required');
 
@@ -485,6 +504,7 @@ export function createWorkspaceService({ db, competition = null } = {}) {
       if (agentResult.rows[0]?.workspace_id !== workspace.id) {
         throw new WorkspaceError('onboarding_agent_provisioning_conflict', 409);
       }
+      await syncAgentPolicyCaps(tx, { workspaceId: workspace.id, agentId, payload, now: checkedAt });
       await tx.execute({
         sql: `INSERT INTO workspace_onboarding
                 (workspace_id, status, profile_json, completed_at, created_at, updated_at)
@@ -607,6 +627,8 @@ export function createWorkspaceService({ db, competition = null } = {}) {
               WHERE id = ? AND workspace_id = ?`,
         args: [payload.name, payload.role, payload.avatar, JSON.stringify(settings), checkedAt, agentId, workspace.id],
       });
+
+      await syncAgentPolicyCaps(tx, { workspaceId: workspace.id, agentId, payload, now: checkedAt });
 
       if (agentId === onboardingAgentId(workspace.id)) {
         const onboardingResult = await tx.execute({

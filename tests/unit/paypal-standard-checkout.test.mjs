@@ -485,3 +485,20 @@ test('changing quantities or unit prices after review fails closed even if the t
 test('mismatched PayPal line quantities cannot be authorized',async t=>{const f=await fixture(t,{quantity:3}),state=await f.begin();f.approve();f.order().purchase_units[0].items[0].quantity='1';await assert.rejects(f.service().complete(f.c,state),/quantity_mismatch/);assert.equal(f.calls.includes('authorize'),false);});
 test('old mandates without quantity metadata continue through the legacy amount verification',async t=>{const f=await fixture(t);await f.db.execute({sql:'DELETE FROM mandate_purchase_items WHERE mandate_id=?',args:[f.m.mandateId]});await f.db.execute({sql:'UPDATE mandates SET purchase_items_hash=NULL WHERE id=?',args:[f.m.mandateId]});const state=await f.begin();f.approve();assert.equal((await f.service().complete(f.c,state)).status,'authorized');assert.deepEqual((await f.service().list(f.c))[0].items,[]);});
 test('quantity-aware client sends exact unit prices, quantities and item_total breakdown',async()=>{let payload;const client=createCheckoutClient({env,fetchImpl:async(url,opts)=>{if(url.endsWith('/token'))return new Response(JSON.stringify({access_token:'MOCK'}));payload=JSON.parse(opts.body);return new Response(JSON.stringify({id:'MOCK'}))}});await client.create({id:'test',amountMinor:999,returnUrl:'https://keus.example/return',cancelUrl:'https://keus.example/cancel',items:[{title:'Notebook',quantity:3,unitAmountMinor:333,lineTotalMinor:999,currency:'USD'}]});const unit=payload.purchase_units[0];assert.equal(unit.amount.value,'9.99');assert.equal(unit.amount.breakdown.item_total.value,'9.99');assert.equal(unit.items[0].quantity,'3');assert.equal(unit.items[0].unit_amount.value,'3.33');assert.equal(payload.intent,'AUTHORIZE');});
+
+test('settings saves synchronize caps and a reduction blocks an already-reviewed quantity before provider creation',async t=>{
+  const f=await fixture(t,{quantity:3});
+  const boot=await f.workspaceService.getBootstrap({userId:f.c.userId});
+  const a=boot.agents[0];
+  await f.workspaceService.updateAgent({userId:f.c.userId,agentId:a.id,input:{...a.settings,name:a.name,role:a.role,avatar:a.avatar,orderCap:20,dailyCap:100}});
+  const p=(await f.db.execute({sql:'SELECT max_per_order_minor,daily_budget_minor FROM spend_policies WHERE agent_id=?',args:[a.id]})).rows[0];
+  assert.equal(p.max_per_order_minor,2000);assert.equal(p.daily_budget_minor,10000);
+  await assert.rejects(f.begin(),/spend_limit_exceeded/);assert.deepEqual(f.calls,[]);
+});
+
+test('settings cap reduction after PayPal order creation prevents authorization',async t=>{
+  const f=await fixture(t,{quantity:3});const state=await f.begin();
+  const boot=await f.workspaceService.getBootstrap({userId:f.c.userId});const a=boot.agents[0];
+  await f.workspaceService.updateAgent({userId:f.c.userId,agentId:a.id,input:{...a.settings,name:a.name,role:a.role,avatar:a.avatar,orderCap:20,dailyCap:100}});
+  f.approve();await assert.rejects(f.service().complete(f.c,state),/spend_limit_exceeded/);assert(!f.calls.includes('authorize'));
+});
