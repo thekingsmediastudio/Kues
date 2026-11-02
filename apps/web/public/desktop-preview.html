@@ -3245,6 +3245,14 @@
   }
 
 
+  #generalOverlayBackdrop.agent-detail-mode .app-settings-nav,
+  #generalOverlayBackdrop.agent-detail-mode #settingsAgentListCard,
+  #generalOverlayBackdrop.agent-detail-mode #settingsPreviewNotice,
+  #generalOverlayBackdrop.agent-detail-mode #settingsModeBadge { display:none!important; }
+  #generalOverlayBackdrop.agent-detail-mode .app-settings-modal { width:min(700px,94vw); }
+  #generalOverlayBackdrop.agent-detail-mode #appSettingsTitle { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1; }
+  #generalOverlayBackdrop.agent-detail-mode #settingsAgentEditorCard { margin:0; }
+  #generalOverlayBackdrop.agent-detail-mode #settingsPaneAgents > .app-settings-card:not(#settingsAgentEditorCard) { display:none!important; }
   #activeAgentSummary[role="button"]{cursor:pointer;border-radius:10px}
   #activeAgentSummary[role="button"]:focus-visible{outline:2px solid var(--agent-accent);outline-offset:3px}
   .agent-settings-tabs{position:sticky;top:0;z-index:3;background:var(--bg-card);display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px}
@@ -3253,6 +3261,7 @@
   .agent-settings-panel{display:grid;gap:16px;padding:10px 0}
   .agent-settings-panel[hidden]{display:none}
   .agent-tool-row{display:flex!important;flex-direction:row!important;align-items:center;justify-content:space-between;gap:16px;padding:14px;border:1px solid var(--border);border-radius:12px;cursor:pointer}
+  .agent-tool-row[hidden]{display:none!important}
   .agent-tool-row>span{display:grid;gap:5px;min-width:0}
   .agent-tool-row strong{font-size:13px;color:var(--text-main)}
   .agent-tool-row small{font-size:11px;color:var(--text-sec);line-height:1.5}
@@ -3521,7 +3530,7 @@
             </div>
           </section>
           <section class="app-settings-pane" id="settingsPaneAgents" role="tabpanel" aria-labelledby="settingsTabAgents" hidden>
-            <div class="app-settings-card">
+            <div class="app-settings-card" id="settingsAgentListCard">
               <div class="app-settings-card-header"><h3>Saved agents</h3><span class="app-settings-status neutral" id="settingsAgentCount">Workspace settings</span></div>
               <p>Each agent has its own profile, instructions, tool permissions, and safeguards. Select an agent to manage it. Changes are saved to this signed-in workspace.</p>
               <div class="settings-agent-selector" id="settingsAgentSelector" role="group" aria-label="Choose a saved agent"></div>
@@ -4008,7 +4017,7 @@
     backdrop.querySelector('[role="dialog"]')?.focus();
   }
   function closeOverlay(id, restoreFocus = true) {
-    if (id === 'generalOverlayBackdrop') window.keusLocalAudio?.stopTest();
+    if (id === 'generalOverlayBackdrop') { window.keusLocalAudio?.stopTest(); resetAgentSettingsView(); }
     const backdrop = document.getElementById(id);
     if (!backdrop) return;
     backdrop.classList.remove('open');
@@ -4027,7 +4036,7 @@
       button.classList.toggle('active', active);
       button.setAttribute('aria-selected', String(active));
       button.tabIndex = active ? 0 : -1;
-      if (active && window.matchMedia('(max-width: 640px)').matches) {
+      if (active && !document.getElementById('generalOverlayBackdrop')?.dataset?.agentSettingsId && window.matchMedia('(max-width: 640px)').matches) {
         button.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
       }
     });
@@ -4042,7 +4051,14 @@
     }
     if (selected === 'account') void refreshPendingEmailChange();
   }
+  function resetAgentSettingsView() {
+    const overlay=document.getElementById('generalOverlayBackdrop');
+    overlay?.classList.remove('agent-detail-mode');
+    if(overlay?.dataset){delete overlay.dataset.agentSettingsId;delete overlay.dataset.agentSettingsWorkspace;}
+    textById('appSettingsTitle','Settings');
+  }
   function openGeneralOverlay(pane = 'workspace') {
+    resetAgentSettingsView();
     setSettingsPane(pane);
     openOverlay('generalOverlayBackdrop');
   }
@@ -4587,6 +4603,7 @@
       return;
     }
     if (editor) editor.hidden = false;
+    if(document.getElementById('generalOverlayBackdrop')?.dataset?.agentSettingsId)textById('appSettingsTitle',`${String(agent.name || 'Agent')} · settings`);
     if (empty) empty.hidden = true;
     const onboarding = currentBootstrap?.onboarding || {};
     const profile = onboarding.profile || {};
@@ -4631,6 +4648,12 @@
 
   function renderSettingsFromBootstrap(data) {
     currentBootstrap = data && typeof data === 'object' ? data : null;
+    const focusedOverlay=document.getElementById('generalOverlayBackdrop');
+    if(focusedOverlay?.dataset?.agentSettingsId){
+      const pinned=focusedOverlay.dataset.agentSettingsId;
+      if(String(currentBootstrap?.workspace?.id||'')!==focusedOverlay.dataset.agentSettingsWorkspace || !currentBootstrap?.agents?.some(agent=>String(agent.id)===pinned&&agent.status!=='archived'))closeGeneralOverlay();
+      else currentSettingsAgentId=pinned;
+    }
     const user = currentBootstrap?.user || {};
     const workspace = currentBootstrap?.workspace || {};
     const authenticated = Boolean(user.id);
@@ -8594,13 +8617,19 @@
     });
   });
   const open = () => {
-    if (!selectedAgentId) return;
-    currentSettingsAgentId = String(selectedAgentId);
-    openGeneralOverlay('agents');
+    const agent=currentBootstrap?.agents?.find(entry=>String(entry.id)===String(selectedAgentId)&&entry.status!=='archived');
+    if (!agent || !currentBootstrap?.user?.id) return;
+    currentSettingsAgentId = String(agent.id);
+    const overlay=document.getElementById('generalOverlayBackdrop');
+    overlay.classList.add('agent-detail-mode');
+    overlay.dataset.agentSettingsId=String(agent.id);
+    overlay.dataset.agentSettingsWorkspace=String(currentBootstrap.workspace.id);
+    setSettingsPane('agents');
     renderSettingsFromBootstrap(currentBootstrap);
     select(tabs[0]);
-    document.getElementById('settingsAgentEditorCard')?.scrollIntoView({ block: 'start' });
-    tabs[0]?.focus();
+    openOverlay('generalOverlayBackdrop');
+    const body=overlay.querySelector('.modal-body');if(body)body.scrollTop=0;
+    tabs[0]?.focus({preventScroll:true});
   };
   const shortcut = document.getElementById('activeAgentSummary');
   shortcut.addEventListener('click', open);
