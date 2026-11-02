@@ -79,6 +79,7 @@ const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
+  ['/checkout-return-ui.mjs', ['checkout-return-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/standard-checkout-ui.mjs', ['standard-checkout-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/shopping-brief-ui.mjs', ['shopping-brief-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/execution-ui.mjs', ['execution-ui.mjs', 'text/javascript; charset=utf-8']],
@@ -1551,6 +1552,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       agentId,
       limit: 11,
     });
+    const checkoutContext = await aiChatHistoryService.getCheckoutContext?.({workspaceId:workspace.id,userId:user.id,agentId,limit:10}) || [];
     fileRetrievalHint=storedMessages.slice(-2).map(entry=>String(entry.content||'').slice(0,1000)).join('\n');
     const context = [];
     let contextCharacters = newUserMessage.content.length;
@@ -1565,7 +1567,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
-    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600;
+    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
     const estimatedTokens = Math.ceil((messageCharacters + profileCharacters + 1_000) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
     idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
@@ -1605,6 +1607,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         }
         streamWorkspaceGate = createWorkspaceToolStreamGate((text) => writeSseEvent(res, 'delta', { text }, streamController.signal));
         const completion = await aiChatService.stream({
+          checkoutContext,
           agent,
           messages,
           workspaceTools: !wantsResearch && !fileContext,
@@ -1757,6 +1760,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       await readDocumentBeforeReply();
       if (wantsResearch) await researchBeforeReply();
       completion = await aiChatService.complete({
+        checkoutContext,
         agent,
         messages,
         workspaceTools: !wantsResearch && !fileContext,
@@ -2590,10 +2594,10 @@ async function handleCommerceRequest(req, res, url, {
       if(req.method!=='POST'){sendJson(res,405,{error:'method_not_allowed'});return true;}
       requireSameOrigin(req);
       const action=url.pathname.slice('/api/commerce/paypal/checkout/'.length);
-      if(!['begin','complete','cancel','reconcile','void'].includes(action)){sendJson(res,404,{error:'not_found'});return true;}
-      const body=await readJsonBody(req,4096);const key=['complete','cancel'].includes(action)?'state':'mandateId';
+      if(!['begin','complete','cancel','reconcile','void','result','return-context'].includes(action)){sendJson(res,404,{error:'not_found'});return true;}
+      const body=await readJsonBody(req,4096);const key=['complete','cancel','return-context'].includes(action)?'state':'mandateId';
       if(!body||Array.isArray(body)||Object.keys(body).length!==1||typeof body[key]!=='string'||body[key].length>255)throw new CheckoutError('checkout_arguments_invalid');
-      const result=action==='begin'?await service.begin(context,body.mandateId,requestOrigin(req).value)
+      const result=action==='result'?await service.result(context,body.mandateId):action==='return-context'?await service.returnContext(context,body.state):action==='begin'?await service.begin(context,body.mandateId,requestOrigin(req).value)
         :action==='complete'?await service.complete(context,body.state):action==='cancel'?await service.cancel(context,body.state)
         :action==='void'?await service.voidHold(context,body.mandateId):await service.reconcile(context,body.mandateId);
       sendJson(res,200,{ok:true,checkout:result});

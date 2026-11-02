@@ -7120,6 +7120,7 @@
       else setUiWait('status', 'Chat is unavailable. You can retry the availability check.', true);
       syncChatComposer();
     }
+    void window.keusCheckoutReturn?.resume();
   }
 
   async function readChatEventStream(response, onEvent, signal) {
@@ -8316,6 +8317,14 @@ try {
 <script type="module">
 import {installCheckoutUI} from '/standard-checkout-ui.mjs';
 window.keusCheckoutUI=installCheckoutUI({getWorkspaceId:()=>currentBootstrap?.workspace?.id});
+import {installCheckoutReturn} from '/checkout-return-ui.mjs';
+window.keusCheckoutReturn=installCheckoutReturn({
+ getContext:()=>({workspaceId:currentBootstrap?.workspace?.id,userId:currentBootstrap?.user?.id,agentIds:agentsFromBootstrap().filter(a=>a.status!=='archived').map(a=>String(a.id)),ready:chatAvailable&&Boolean(currentBootstrap?.user?.id),busy:chatPending||Boolean(dictationSession)}),
+ async showResult(item,notice){const userId=currentBootstrap?.user?.id;closeGeneralOverlay();selectDesktopAgent(item.agentId);await loadChatHistory(item.agentId);if(currentBootstrap?.workspace?.id!==item.workspaceId||currentBootstrap?.user?.id!==userId||String(selectedAgentId)!==item.agentId)return;chatNotice=notice;syncChatComposer();},
+ showError(message){chatNotice=message;syncChatComposer();}
+});
+void window.keusCheckoutReturn.resume();
+
 </script>
 
 </body>

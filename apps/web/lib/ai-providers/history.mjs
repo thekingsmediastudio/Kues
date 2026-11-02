@@ -1,3 +1,4 @@
+import {readCheckoutChatEvents,mergeCheckoutHistory} from '../paypal/chat-events.mjs';
 import crypto from 'node:crypto';
 import { withWriteTransaction } from '../db/transaction.mjs';
 import { deriveAiChatHistoryKey } from './service.mjs';
@@ -121,11 +122,9 @@ export function createAiChatHistoryService({ db, encryptionKey, now = () => new 
     const agentId = requiredText(rawAgentId, 'agent_id_invalid');
     try {
       const conversation = await findConversation({ workspaceId, userId, agentId });
-      if (!conversation) return { conversationId: null, messages: [] };
-      return {
-        conversationId: conversation.id,
-        messages: await readMessages({ workspaceId, userId, agentId, conversationId: conversation.id, limit: AI_CHAT_HISTORY_LIMIT }),
-      };
+      const messages = conversation ? await readMessages({workspaceId,userId,agentId,conversationId:conversation.id,limit:AI_CHAT_HISTORY_LIMIT}) : [];
+      const events = await readCheckoutChatEvents({db,workspaceId,userId,agentId,limit:AI_CHAT_HISTORY_LIMIT});
+      return {conversationId:conversation?.id || null,messages:mergeCheckoutHistory(messages,events,AI_CHAT_HISTORY_LIMIT)};
     } catch (error) {
       if (error instanceof AiChatHistoryError) throw error;
       throw new AiChatHistoryError('ai_chat_history_unavailable', 503);
@@ -138,13 +137,18 @@ export function createAiChatHistoryService({ db, encryptionKey, now = () => new 
     const agentId = requiredText(rawAgentId, 'agent_id_invalid');
     try {
       const conversation = await findConversation({ workspaceId, userId, agentId });
-      if (!conversation) return [];
-      return (await readMessages({ workspaceId, userId, agentId, conversationId: conversation.id, limit }))
-        .map(({ role, content }) => ({ role, content }));
+      const max=normalizeLimit(limit,11);
+      const messages=conversation ? await readMessages({workspaceId,userId,agentId,conversationId:conversation.id,limit:max}) : [];
+      return messages.map(({role,content})=>({role,content}));
     } catch (error) {
       if (error instanceof AiChatHistoryError) throw error;
       throw new AiChatHistoryError('ai_chat_history_unavailable', 503);
     }
+  }
+
+  async function getCheckoutContext({workspaceId,userId,agentId,limit=10}) {
+    requiredText(workspaceId,'workspace_id_invalid');requiredText(userId,'user_id_invalid');requiredText(agentId,'agent_id_invalid');
+    return readCheckoutChatEvents({db,workspaceId,userId,agentId,limit:Math.min(normalizeLimit(limit,10),10)});
   }
 
   async function appendExchange({
@@ -228,5 +232,5 @@ export function createAiChatHistoryService({ db, encryptionKey, now = () => new 
     return { ...history, conversationId };
   }
 
-  return Object.freeze({ getHistory, getRecentMessages, appendExchange });
+  return Object.freeze({ getHistory, getRecentMessages, getCheckoutContext, appendExchange });
 }

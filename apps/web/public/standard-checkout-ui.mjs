@@ -227,6 +227,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
         actions.querySelectorAll("button").forEach((b) => (b.disabled = true));
         try {
           await request("reconcile", item.mandateId);
+          window.dispatchEvent(new CustomEvent("keus-checkout-updated",{detail:{mandateId:item.mandateId}}));
           await refresh();
         } catch (e) {
           if (scope === getWorkspaceId()) state.textContent = copy(e.message);
@@ -241,6 +242,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
         actions.querySelectorAll("button").forEach((b) => (b.disabled = true));
         try {
           await request("void", item.mandateId);
+          window.dispatchEvent(new CustomEvent("keus-checkout-updated",{detail:{mandateId:item.mandateId}}));
           await refresh();
         } catch (e) {
           if (scope === getWorkspaceId()) state.textContent = copy(e.message);

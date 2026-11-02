@@ -9,7 +9,8 @@ Keus combines AI-assisted product discovery, purchase reviews and spending limit
 3. Click **Review checkout**. This records Keus consent only; it does not place a PayPal hold.
 4. In **PayPal checkout**, click **Get PayPal approval link**, then open the displayed link and approve that specific purchase using a sandbox buyer account. If opening a new tab is blocked, use **Copy approval address** and paste it into a new browser tab.
 5. The server verifies the PayPal order, amount, merchant, user/session binding and current spending limits before requesting an `AUTHORIZE` hold.
-6. Return to Keus to refresh, inspect or **Void sandbox hold**. Checkout status survives page reloads.
+6. After server verification, the PayPal return page takes you back to the **originating agent**. A verified checkout update appears in that conversation and is provided to the agent as separate server context on the next turn. Cancellation and unconfirmed results are never labelled successful. The original tab also refreshes via a same-origin notification, without losing an unsent draft.
+7. Use **PayPal checkout** to inspect or **Void sandbox hold**. Voiding updates the agent conversation too. Checkout status and verified messages survive page reloads.
 
 **Sandbox only. Capture is disabled server-side. No real product seller order, shipment, card issuance or merchant fulfillment occurs.** The payment recipient is the app's sandbox business account, not the catalog merchant. Shipping information is not requested by checkout.
 
@@ -42,7 +43,7 @@ Use a public HTTPS origin for the PayPal return flow (localhost HTTP is accepted
 npm test
 ```
 
-Local verification: **346 passing tests**, including 14 standard-checkout tests covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
+Local verification: **353 passing tests**, including 14 standard-checkout tests covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
 
 Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). This used the real standard-checkout service with a local test identity/database and manual approval verification in the original helper tab. No capture or Vault calls occurred. **Deployed Keus authentication and the automatic PayPal return callback remain externally unverified.** The local browser checks use mocks and are separate from this real provider evidence. Nothing here claims deployment.
 
@@ -55,6 +56,7 @@ If authorization is uncertain, use **Recheck PayPal status**, not a replacement 
 - `GET /api/commerce/paypal/checkout/return` — no-store return page; strips callback query parameters and submits verification with the signed-in session.
 - `POST .../complete`, `.../cancel` — session-bound callback completion/cancellation.
 - `POST .../reconcile`, `.../void` — provider verification or explicit void of this user's hold.
+- `POST .../return-context`, `.../result` — session-bound callback destination and user/workspace-owned result, with agent identity resolved from the stored purchase rather than client-supplied redirects.
 
 Legacy `/paypal/authorize`, `/paypal/capture`, `/paypal/refund`, `/paypal/void`, and mandate passkey payment-execution routes reject requests. The saved-wallet and old rail implementations are retained outside the active payment path. Their presence is not a claim of real merchant-order support.
 

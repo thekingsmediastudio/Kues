@@ -482,6 +482,14 @@ export function createStandardCheckoutService({
     if (!r.rows[0]) fail("checkout_state_invalid", 403);
     return r.rows[0];
   }
+  async function result(c,mandateId) {
+    const row=await rowFor(c,mandateId);
+    const m=await withWriteTransaction(db,tx=>mandate(tx,c,mandateId));
+    return {...publicRow(row),agentId:m.agent_id,workspaceId:c.workspaceId,
+      status:row.status==='pending'&&row.expires_at<=now()?'expired':row.status,
+      returnUrl:'/desktop-preview?checkout='+encodeURIComponent(row.mandate_id)};
+  }
+  async function returnContext(c,state) {const row=await stateRow(c,state);return result(c,row.mandate_id);}
   async function complete(c, state) {
     configured(env);
     const row = await stateRow(c, state);
@@ -606,6 +614,15 @@ export function createStandardCheckoutService({
       throw e;
     }
   }
-  return { begin, complete, cancel, list, reconcile, voidHold };
+  return { begin, complete, cancel, list, reconcile, voidHold, result, returnContext };
 }
-export const CHECKOUT_RETURN_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Keus sandbox checkout</title><style>body{background:#111113;color:#eee;font:16px/1.6 system-ui;padding:30px}main{max-width:550px;margin:10vh auto;border:1px solid #444;padding:25px;border-radius:18px}a{color:#efcd88}</style></head><body><main><h1>PayPal sandbox checkout</h1><p id="status" role="status">Verifying your checkout…</p><p>No real seller order or shipment. Capture is disabled.</p><a href="/desktop-preview">Return to Keus</a></main><script>(async()=>{const q=new URLSearchParams(location.search),state=q.get('state'),cancel=q.get('outcome')==='cancelled';history.replaceState(null,'',location.pathname);try{const r=await fetch('/api/commerce/paypal/checkout/'+(cancel?'cancel':'complete'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state})});const d=await r.json();if(!r.ok)throw Error();document.getElementById('status').textContent=cancel?'Checkout cancelled. No sandbox authorization was requested.':d.checkout?.status==='authorized'?'Sandbox authorization confirmed. Funds were not captured. Return to Keus to view or void the hold.':'Checkout was not confirmed. Refresh its status in Keus.'}catch{document.getElementById('status').textContent='Checkout could not be confirmed. Return to Keus and check its status before trying again. An uncertain authorization must not be treated as a failure.'}})();</script></body></html>`;
+export const CHECKOUT_RETURN_HTML = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Returning to your Keus agent</title><style>body{background:#111113;color:#eee;font:16px/1.6 system-ui;padding:30px}main{max-width:550px;margin:10vh auto;border:1px solid #444;padding:25px;border-radius:18px}a{color:#efcd88}</style></head><body><main><h1>Returning to your agent</h1><p id="status" role="status">Checking the PayPal result securely…</p><p>Sandbox only. Capture is disabled. No seller order or shipment.</p><a id="return" href="/desktop-preview">Return to Keus</a></main><script>(async()=>{
+const q=new URLSearchParams(location.search),state=q.get('state'),cancel=q.get('outcome')==='cancelled';history.replaceState(null,'',location.pathname);
+async function call(action){const r=await fetch('/api/commerce/paypal/checkout/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state})});const d=await r.json();if(!r.ok)throw Error('unconfirmed');return d.checkout;}
+let target;
+try{target=await call('return-context');if(!target?.mandateId||target.returnUrl!=='/desktop-preview?checkout='+encodeURIComponent(target.mandateId))throw Error('invalid_return');document.getElementById('return').href=target.returnUrl;}
+catch{document.getElementById('status').textContent='Your signed-in checkout session could not be verified. No success is being claimed. Return to Keus and sign in to check the purchase.';return;}
+try{await call(cancel?'cancel':'complete');}catch{/* Always read the actual durable status back in the agent. No success query flags. */}
+try{const channel=new BroadcastChannel('keus-checkout-return');channel.postMessage({mandateId:target.mandateId});channel.close();}catch{}
+location.replace(target.returnUrl);
+})();</script></body></html>`;

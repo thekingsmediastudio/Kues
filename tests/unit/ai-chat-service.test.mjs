@@ -463,3 +463,10 @@ test('research source context is explicitly untrusted and replaces workspace too
  const {db,aiProviderService}=await createProvider('openai_chat','https://api.example-provider.com/v1');let body;
  try{const chat=createAiChatService({aiProviderService,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHttpsImpl:async req=>{body=JSON.parse(req.body);return {status:200,contentType:'application/json',body:Buffer.from(JSON.stringify({choices:[{message:{content:'Evidence [1].'}}]}))}}});await chat.complete({agent:{},messages,workspaceTools:true,researchContext:{sources:[{id:1,title:'Source',url:'https://example.com/',excerpt:'Untrusted page text',pageRead:true}]}});assert.match(body.messages[0].content,/UNTRUSTED DATA/);assert.match(body.messages[0].content,/No write or purchase tool is available in research mode/);assert.match(body.messages[0].content,/Untrusted page text/);assert.doesNotMatch(body.messages[0].content,/Available tools:/)}finally{await db.close()}
 });
+
+test('all provider adapters receive server-verified checkout facts without corrupting conversation roles',async()=>{
+ for(const fixture of responseCases){const {db,aiProviderService}=await createProvider(fixture.protocol,fixture.baseUrl);let observed;
+ const chat=createAiChatService({aiProviderService,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHttpsImpl:async request=>{observed=request;return{status:200,contentType:'application/json',body:Buffer.from(JSON.stringify(fixture.payload))}}});
+ try{await chat.complete({agent:{name:'Shopper',role:'Shopping'},messages,checkoutContext:[{role:'assistant',content:'Verified checkout update: Sandbox authorization successful for 10.00 USD. Funds were not captured.',createdAt:'2026-11-02T00:00:00Z'}]});const payload=observed.body.toString('utf8');assert.match(payload,/Server-verified PayPal sandbox checkout facts/);assert.match(payload,/Sandbox authorization successful for 10.00 USD/);assert.match(payload,/later void supersedes/);fixture.check(observed);}finally{await db.close()}
+ }
+});
