@@ -333,14 +333,12 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(desktopPreview, /id="passwordChangeForm"/);
     assert.match(desktopPreview, /api\/settings\/email-change\/start/);
     assert.match(desktopPreview, /api\/settings\/email-change\/confirm/);
-    for (const pane of ['Workspace', 'Agents', 'Apps', 'Usage', 'Account', 'Appearance']) {
+    for (const pane of ['Workspace', 'Agents', 'Account', 'Audio', 'Appearance']) {
       assert.match(desktopPreview, new RegExp(`id="settingsPane${pane}"`));
     }
     assert.match(desktopPreview, /New agents start Active for chat/);
-    assert.match(desktopPreview, /7,000,000 AI tokens/);
-    for (const app of ['PayPal Sandbox', 'Channel3', 'KERNEL', 'WhatsApp', 'Inbox', 'Instagram Shops']) {
-      assert.ok(desktopPreview.includes(app), `settings include preview app label ${app}`);
-    }
+    assert.doesNotMatch(desktopPreview, /id="settingsTab(?:Agents|Apps|Usage)"|id="settingsPane(?:Apps|Usage)"/);
+    assert.match(desktopPreview, /const agentDetail = key === 'agents' && Boolean/);
     assert.match(desktopPreview, /data-preview-theme="dark"/);
     assert.doesNotMatch(desktopPreview, /Settings are not connected to this preview/);
     assert.match(desktopPreview, /id="accountEmail"/);

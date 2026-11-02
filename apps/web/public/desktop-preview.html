@@ -3484,15 +3484,6 @@
         <button class="modal-nav-btn active" id="settingsTabWorkspace" type="button" role="tab" aria-selected="true" aria-controls="settingsPaneWorkspace" data-settings-pane="workspace">
           <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M3 17V5.5L10 3l7 2.5V17H3Z"/><path d="M7 17v-4h6v4M6.5 8h.01M10 8h.01M13.5 8h.01"/></svg></span><span>Workspace</span>
         </button>
-        <button class="modal-nav-btn" id="settingsTabAgents" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAgents" data-settings-pane="agents">
-          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="10" cy="6.5" r="3"/><path d="M4 17c.4-3 2.6-4.8 6-4.8s5.6 1.8 6 4.8"/></svg></span><span>Agents &amp; approval</span>
-        </button>
-        <button class="modal-nav-btn" id="settingsTabApps" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneApps" data-settings-pane="apps">
-          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="12" y="3" width="5" height="5" rx="1"/><rect x="3" y="12" width="5" height="5" rx="1"/><rect x="12" y="12" width="5" height="5" rx="1"/></svg></span><span>Apps &amp; services</span>
-        </button>
-        <button class="modal-nav-btn" id="settingsTabUsage" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneUsage" data-settings-pane="usage">
-          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M3 16.5h14M5 14V9m5 5V4m5 10v-7"/></svg></span><span>Usage &amp; plan</span>
-        </button>
         <button class="modal-nav-btn" id="settingsTabAccount" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAccount" data-settings-pane="account">
           <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 2.5 16 5v4.3c0 3.7-2.4 6.3-6 8.2-3.6-1.9-6-4.5-6-8.2V5l6-2.5Z"/><path d="m7.3 10 1.8 1.8 3.7-3.9"/></svg></span><span>Account &amp; security</span>
         </button>
@@ -3529,7 +3520,7 @@
               <p>Keus uses one shared Turso database rather than a separate database per user. Account records stay separate, and the same account's authorized workspaces share its usage quota.</p>
             </div>
           </section>
-          <section class="app-settings-pane" id="settingsPaneAgents" role="tabpanel" aria-labelledby="settingsTabAgents" hidden>
+          <section class="app-settings-pane" id="settingsPaneAgents" role="tabpanel" aria-labelledby="settingsAgentEditorTitle" hidden>
             <div class="app-settings-card" id="settingsAgentListCard">
               <div class="app-settings-card-header"><h3>Saved agents</h3><span class="app-settings-status neutral" id="settingsAgentCount">Workspace settings</span></div>
               <p>Each agent has its own profile, instructions, tool permissions, and safeguards. Select an agent to manage it. Changes are saved to this signed-in workspace.</p>
@@ -3562,91 +3553,6 @@
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Approval and execution</h3><span class="app-settings-status">Not connected</span></div>
               <p>Desktop transaction-bound WebAuthn approval is planned. This preview has no agent runtime, live approval, or payment flow; displayed spend limits are stored preferences and are not enforced by a running agent.</p>
-            </div>
-          </section>
-          <section class="app-settings-pane" id="settingsPaneApps" role="tabpanel" aria-labelledby="settingsTabApps" hidden>
-            <div class="app-settings-card">
-              <div class="app-settings-card-header"><h3>App labels</h3><span class="app-settings-status">0 connected</span></div>
-              <p>These six labels may be selected per agent. They do not connect a provider or grant access to an account.</p>
-            </div>
-            <div class="app-settings-service-grid" aria-label="Preview-only app labels">
-              <div class="app-settings-service"><div><strong>PayPal Sandbox</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
-              <div class="app-settings-service"><div><strong>Channel3</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
-              <div class="app-settings-service"><div><strong>KERNEL</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
-              <div class="app-settings-service"><div><strong>WhatsApp</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
-              <div class="app-settings-service"><div><strong>Inbox</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
-              <div class="app-settings-service"><div><strong>Instagram Shops</strong><small>Preview label only</small></div><span class="app-settings-status neutral">Not connected</span></div>
-            </div>
-            <div class="app-settings-card" id="paypalWalletCard">
-              <div class="app-settings-card-header">
-                <h3>Autonomous Purchasing Wallet</h3>
-                <span class="app-settings-status neutral" id="paypalWalletStatusBadge">Checking wallet...</span>
-              </div>
-              <p>Link a PayPal Sandbox Vault payment method to this workspace once. Once linked, autonomous purchase mandates authorized by you will place temporary Sandbox authorization holds using this workspace&#39;s distinct Vault token without requiring repeated PayPal logins.</p>
-
-              <div id="paypalWalletActiveDetails" hidden style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-                <div class="app-settings-facts">
-                  <div class="app-settings-fact"><span>Payer Sandbox Email</span><strong id="paypalWalletPayerEmail">-</strong></div>
-                  <div class="app-settings-fact"><span>Vault Token ID</span><strong id="paypalWalletMaskedToken">-</strong></div>
-                  <div class="app-settings-fact"><span>Status</span><strong style="color: var(--cue-gold);" id="paypalWalletStatusText">Active Vault Link</strong></div>
-                  <div class="app-settings-fact"><span>Linked At</span><strong id="paypalWalletLinkedAtText">-</strong></div>
-                </div>
-                <div class="settings-form-actions" style="margin-top: 6px;">
-                  <button class="pill-btn dark" id="paypalWalletUnlinkBtn" type="button">Unlink Sandbox Wallet</button>
-                </div>
-              </div>
-
-              <div id="paypalWalletSetupDetails" style="margin-top: 10px;">
-                <form class="settings-form" id="paypalWalletLinkForm" onsubmit="event.preventDefault();">
-                  <label for="paypalWalletBuyerEmailInput">Sandbox Buyer Email
-                    <input class="form-input" id="paypalWalletBuyerEmailInput" name="buyerEmail" type="email" placeholder="sb-buyer@personal.example.com" value="test-buyer@personal.example.com" required>
-                  </label>
-                  <p class="settings-form-status" id="paypalWalletFormStatus" role="status" aria-live="polite"></p>
-                  <div class="settings-form-actions">
-                    <button class="pill-btn light" id="paypalWalletLinkBtn" type="button">One-Time Link Sandbox Wallet</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-            <div class="app-settings-card" id="passkeyCard">
-              <div class="app-settings-card-header">
-                <h3>Transaction-Bound Passkeys</h3>
-                <span class="app-settings-status neutral" id="passkeyStatusBadge">Checking passkeys...</span>
-              </div>
-              <p>Register a hardware passkey (Touch ID, Face ID, Windows Hello, or security key) for cryptographic transaction approval. When an autonomous agent requests a purchase, approving with your passkey creates a signed WebAuthn assertion bound directly to the purchase mandate challenge.</p>
-
-              <div id="passkeyListContainer" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
-                <div class="app-settings-facts" id="passkeyListFacts">
-                  <div class="app-settings-fact"><span>Registered Devices</span><strong id="passkeyCountText">0 devices</strong></div>
-                  <div class="app-settings-fact"><span>Biometric Status</span><strong id="passkeyBiometricText">Ready</strong></div>
-                </div>
-                <div class="settings-form-actions" style="margin-top: 6px; display: flex; gap: 8px;">
-                  <button class="pill-btn light" id="registerPasskeyBtn" type="button">Register Desktop Passkey</button>
-                </div>
-                <p class="settings-form-status" id="passkeyFormStatus" role="status" aria-live="polite"></p>
-              </div>
-            </div>
-            <div class="app-settings-card" id="skillExportCard">
-              <div class="app-settings-card-header">
-                <h3>Procurement Policy and SKILL.md Export</h3>
-                <span class="app-settings-status" style="color: var(--cue-green); border-color: rgba(50, 213, 131, 0.3);">Deterministic Policy</span>
-              </div>
-              <p>Export a cryptographically-bound SKILL.md specification defining this workspace&#39;s autonomous procurement constraints, spend ceilings, approved merchant domains, and passkey verification protocol.</p>
-              <div class="settings-form-actions" style="margin-top: 10px; display: flex; gap: 8px;">
-                <button class="pill-btn light" id="exportSkillMdBtn" type="button">Export Verified SKILL.md</button>
-              </div>
-              <p class="settings-form-status" id="skillExportStatus" role="status" aria-live="polite" style="margin-top: 8px; font-family: monospace; font-size: 11px; word-break: break-all;"></p>
-            </div>
-          </section>
-          <section class="app-settings-pane" id="settingsPaneUsage" role="tabpanel" aria-labelledby="settingsTabUsage" hidden>
-            <div class="app-settings-card">
-              <div class="app-settings-card-header"><h3>Competition allowance</h3><span class="app-settings-status neutral">Staging configuration</span></div>
-              <div class="app-settings-facts"><div class="app-settings-fact"><span>Daily cap</span><strong>7,000,000 AI tokens</strong></div><div class="app-settings-fact"><span>Reset</span><strong>UTC midnight</strong></div></div>
-              <p style="margin-top:10px">The allowance is per verified account across its authorized workspaces; different accounts remain separate. Live token totals are not available because the agent runtime is not connected.</p>
-            </div>
-            <div class="app-settings-card">
-              <div class="app-settings-card-header"><h3>Subscription</h3><span class="app-settings-status">Not active</span></div>
-              <p>PayPal is the intended future subscription provider. Paid checkout, webhook reconciliation, and cancellation are not implemented; agent purchase payments remain a separate product boundary.</p>
             </div>
           </section>
           <section class="app-settings-pane" id="settingsPaneAccount" role="tabpanel" aria-labelledby="settingsTabAccount" hidden>
@@ -3989,9 +3895,10 @@
     if (openOverlayId === id) openOverlayId = null;
     if (restoreFocus && lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
   }
-  const settingsPaneIds = ['workspace', 'agents', 'apps', 'usage', 'account', 'audio', 'appearance'];
+  const settingsPaneIds = ['workspace', 'account', 'audio', 'appearance'];
   function setSettingsPane(key) {
-    const selected = settingsPaneIds.includes(key) ? key : 'workspace';
+    const agentDetail = key === 'agents' && Boolean(document.getElementById('generalOverlayBackdrop')?.dataset?.agentSettingsId);
+    const selected = agentDetail ? 'agents' : (settingsPaneIds.includes(key) ? key : 'workspace');
     const settingsNotice = document.getElementById('settingsPreviewNotice');
     if (settingsNotice) settingsNotice.hidden = selected === 'audio';
     if (selected === 'audio') void window.keusLocalAudio?.refreshDevices();
@@ -4010,10 +3917,6 @@
       pane.classList.toggle('is-active', active);
       pane.hidden = !active;
     });
-    if (selected === 'apps' && typeof loadPayPalWalletStatus === 'function') {
-      void loadPayPalWalletStatus();
-      void loadPasskeyStatus();
-    }
     if (selected === 'account') void refreshPendingEmailChange();
   }
   function resetAgentSettingsView() {
@@ -4470,7 +4373,7 @@
     } else if (authenticated) {
       if (badge) badge.textContent = 'Account connected';
       if (heading) heading.textContent = 'Changes save to your account';
-      if (copy) copy.textContent = 'Profile, theme, workspace name, and saved agent settings persist to this signed-in staging account. Usage totals and integration statuses remain informational.';
+      if (copy) copy.textContent = 'Profile, theme, and workspace name save to your signed-in account. Open an agent’s settings from its name in the chat header.';
       textById('workspaceSettingsBadge', owner ? 'Owner editable' : 'Read-only');
       textById('themeSettingsBadge', 'Saved to account');
     } else {
