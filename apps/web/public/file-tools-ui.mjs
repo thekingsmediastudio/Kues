@@ -16,23 +16,34 @@ export function fileErrorCopy(code){return ({
 })[code]||'The file operation could not complete. Your draft is unchanged.'}
 export function createFileToolsUI(adapter){
  const picker=document.getElementById('chatFilePicker'),host=document.getElementById('chatAttachments');
- let files=[],contextKey='',upload=null;
+ let files=[],contextKey='',upload=null,notice='';
+ function report(message){notice=message;render();adapter.status(message)}
  const key=()=>{const c=adapter.context();return `${c.agentId}:${c.version}`};
  const removeRemote=(file,agentId)=>fetch(`/api/files/remove?agentId=${encodeURIComponent(agentId)}`,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:file.id})}).catch(()=>{});
  function render(){
-  host.replaceChildren();host.hidden=!files.length&&!upload;
+  host.replaceChildren();host.hidden=!files.length&&!upload&&!notice;
+  if(notice){const note=document.createElement('p');note.className='file-attachment-note';note.role='status';note.textContent=notice;host.append(note)}
   if(upload){const status=document.createElement('p');status.role='status';status.textContent='Extracting file text…';host.append(status)}
   for(const file of files){const row=document.createElement('div');row.className='file-attachment';const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent=file.name;const notes=document.createElement('p');notes.textContent=`${file.characters.toLocaleString()} characters extracted. `+(file.notes||[]).join(' ');details.append(summary,notes);const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.ariaLabel=`Remove ${file.name}`;remove.onclick=()=>{files=files.filter(item=>item.id!==file.id);void removeRemote(file,file.agentId);render()};row.append(details,remove);host.append(row)}
   if(files.length){const note=document.createElement('p');note.className='file-attachment-note';note.textContent='Temporary text expires after 15 minutes. It goes to the AI only when you send. Open a filename to review extraction limits.';host.append(note)}
  }
- function sync(){const next=key();if(next!==contextKey){upload?.abort();upload=null;const previous=files;files=[];contextKey=next;previous.forEach(file=>void removeRemote(file,file.agentId));render()}}
- document.getElementById('attachFilesButton').onclick=()=>{sync();const c=adapter.context();if(!c.canUse)return;adapter.closeMenu?.();if(!c.agent?.settings?.toolPermissions?.read_files){adapter.status(fileErrorCopy('file_permission_required'));return}picker.click()};
+ function sync(){const next=key();if(next!==contextKey){upload?.abort();upload=null;const previous=files;files=[];notice='';contextKey=next;previous.forEach(file=>void removeRemote(file,file.agentId));render()}}
+ document.getElementById('attachFilesButton').onclick=()=>{
+  sync();const c=adapter.context();adapter.closeMenu?.();
+  if(!c.canUse){report(c.blockedReason||'Attachments are unavailable right now. Wait for the current action to finish and try again.');return}
+  if(upload){report('Wait for the current file to finish uploading.');return}
+  if(!c.agent?.settings?.toolPermissions?.read_files){report(fileErrorCopy('file_permission_required'));return}
+  notice='';render();
+  try{picker.click()}catch{report('The file picker could not open. Refresh this page and try again.')}
+ };
  picker.onchange=async()=>{
   sync();const selected=[...picker.files];picker.value='';const c=adapter.context();const startingKey=key();
-  if(upload||!c.canUse)return;
-  if(files.length+selected.length>3){adapter.status('Attach up to three files per message.');return}
-  if(selected.some(file=>!supported.test(file.name))){adapter.status(fileErrorCopy('file_type_unsupported'));return}
-  if(selected.some(file=>!file.size||file.size>MAX_BYTES)){adapter.status(fileErrorCopy('file_size_invalid'));return}
+  if(!selected.length)return;
+  if(upload||!c.canUse){report(c.blockedReason||'Wait for the current action to finish, then attach the file again.');return}
+  if(!c.agent?.settings?.toolPermissions?.read_files){report(fileErrorCopy('file_permission_required'));return}
+  if(files.length+selected.length>3){report('Attach up to three files per message.');return}
+  if(selected.some(file=>!supported.test(file.name))){report(fileErrorCopy('file_type_unsupported'));return}
+  if(selected.some(file=>!file.size||file.size>MAX_BYTES)){report(fileErrorCopy('file_size_invalid'));return}
   const controller=new AbortController();upload=controller;render();
   try{
    for(const file of selected){
@@ -43,15 +54,15 @@ export function createFileToolsUI(adapter){
       files.push({...data,agentId:c.agentId});render();
     }finally{clearTimeout(timer)}
    }
-   if(startingKey===key())adapter.status('File text is ready. Ask your question, review the answer, then choose a download format if needed.');
-  }catch(error){if(startingKey===key())adapter.status(controller.signal.aborted?'File upload canceled or timed out. Your draft is unchanged.':fileErrorCopy(error.message))}
+   if(startingKey===key())report('File text is ready. Ask your question, review the answer, then choose a download format if needed.');
+  }catch(error){if(startingKey===key())report(controller.signal.aborted?'File upload canceled or timed out. Your draft is unchanged.':fileErrorCopy(error.message))}
   finally{if(upload===controller)upload=null;render()}
  };
  function prepareSend(message){
-  sync();if(upload){adapter.status('Wait for file text extraction to finish before sending.');return false}
+  sync();if(upload){report('Wait for file text extraction to finish before sending.');return false}
   if(!files.length)return [];
-  if(files.some(file=>Date.parse(file.expiresAt)<=Date.now())){adapter.status(fileErrorCopy('file_unavailable'));return false}
-  if(/^\/research(?:\s|$)/i.test(message)){adapter.status(fileErrorCopy('file_research_combination_unsupported'));return false}
+  if(files.some(file=>Date.parse(file.expiresAt)<=Date.now())){report(fileErrorCopy('file_unavailable'));return false}
+  if(/^\/research(?:\s|$)/i.test(message)){report(fileErrorCopy('file_research_combination_unsupported'));return false}
   if(!window.confirm('Send the extracted text from these files to your selected AI provider? Only extracted text is sent here. Originals explicitly saved in Workspace files remain in cloud storage until deleted. Temporary extracted text expires after 15 minutes. Your question, filenames and the AI answer are saved in chat history. Continue?'))return false;
   return files.map(file=>file.id);
  }
@@ -68,6 +79,6 @@ export function createFileToolsUI(adapter){
   bar.append(select,button,save,status,note);answerNode.append(bar);
  }
  window.addEventListener('pagehide',()=>upload?.abort());sync();
- function addSaved(file,agentId,version){sync();if(upload||files.length>=3||String(agentId)!==String(adapter.context().agentId)||version!==adapter.context().version){void removeRemote(file,agentId);adapter.status('Attachment not added: the agent changed, an upload is running, or three files are already attached.');return false}files.push({...file,agentId});render();adapter.status('Saved file attached for this message. Extracted text goes to the AI only after Send and confirmation.');return true}
+ function addSaved(file,agentId,version){sync();if(upload||files.length>=3||String(agentId)!==String(adapter.context().agentId)||version!==adapter.context().version){void removeRemote(file,agentId);report('Attachment not added: the agent changed, an upload is running, or three files are already attached.');return false}files.push({...file,agentId});render();report('Saved file attached for this message. Extracted text goes to the AI only after Send and confirmation.');return true}
  return {sync,prepareSend,addDownloads,addSaved};
 }

@@ -8616,8 +8616,16 @@
     const { createFileToolsUI } = await import('/file-tools-ui.mjs');
     window.keusFiles = createFileToolsUI({
       closeMenu() { closePopovers(); },
-      context() { return { agent: findSelectedChatAgent(), agentId: String(selectedAgentId || ''), version: chatHistoryLoadVersion,
-        canUse: Boolean(currentBootstrap?.user?.id && chatAvailable && chatHistoryReady && !chatPending && !dictationSession && !chatHistoryLoading) }; },
+      context() {
+        const agent = findSelectedChatAgent();
+        const blockedReason = !currentBootstrap?.user?.id ? 'Sign in and load your workspace before attaching files.'
+          : !agent || agent.status === 'archived' ? 'Select an active agent before attaching files.'
+          : document.documentElement.dataset.reviewFixture === 'true' ? 'Attachments are unavailable in the sample preview.'
+          : chatPending ? 'Wait for the reply to finish, or stop it before attaching files.'
+          : dictationSession ? 'Finish microphone recording before attaching files.' : '';
+        return { agent, agentId: String(selectedAgentId || ''), version: chatHistoryLoadVersion,
+          canUse: !blockedReason, blockedReason };
+      },
       status(message) { chatNotice = message; syncChatComposer(); },
     });
     document.querySelectorAll('.chat-answer-text').forEach(node => { if (node._keusExport) window.keusFiles.addDownloads(node, node._keusExport.text, node._keusExport.agentId); });
