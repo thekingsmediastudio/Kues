@@ -321,6 +321,7 @@ async function executePurchaseProductTool(toolCall, { db, workspaceId, userId, a
       offerId: toolCall.offerId,
       product: toolCall.product,
       items: toolCall.items,
+      quantity: toolCall.quantity,
     });
 
     if (!mandateResult.allowed) {
@@ -357,40 +358,28 @@ async function executePurchaseProductTool(toolCall, { db, workspaceId, userId, a
       mandateResult.items.forEach((item, idx) => {
         fields.push({
           label: `Item ${idx + 1}`,
-          value: `${item.title} ($${(item.amountMinor / 100).toFixed(2)} ${item.currency})`,
+          value: `${item.quantity} × $${(item.unitAmountMinor / 100).toFixed(2)} = $${(item.lineTotalMinor / 100).toFixed(2)} ${item.currency} — ${item.title}`,
         });
       });
       fields.push({ label: 'Bundle Total', value: priceText });
       fields.push({ label: 'Merchants', value: mandateResult.product.merchantDomain });
     } else {
       fields.push({ label: 'Item', value: mandateResult.product.title });
-      fields.push({ label: 'Price', value: priceText });
+      fields.push({ label: 'Quantity', value: String(mandateResult.items[0].quantity) });
+      fields.push({ label: 'Unit price', value: `$${(mandateResult.items[0].unitAmountMinor/100).toFixed(2)} ${mandateResult.product.currency}` });
+      fields.push({ label: 'Item subtotal', value: priceText });
       fields.push({ label: 'Merchant', value: mandateResult.product.merchantDomain });
     }
     fields.push({ label: 'Policy Status', value: `Approved (Within $${(mandateResult.limits.maxPerOrderMinor / 100).toFixed(2)} limit)` });
     fields.push({ label: 'Mandate ID', value: mandateResult.mandateId });
     fields.push({ label: 'Evidence Hash', value: `${mandateResult.product.evidenceHash.slice(0, 24)}…` });
 
-    const railEval = evaluateCheckoutRail({
-      merchantDomain: mandateResult.product.merchantDomain,
-      offerId: mandateResult.product.offerId || null,
-      amountMinor: mandateResult.product.amountMinor,
-      currency: mandateResult.product.currency,
-    });
-    fields.push({
-      label: 'Autonomous Rail',
-      value: railEval.selectedRail === 'card_bridge'
-        ? 'Tier 3: Single-Use Virtual Card Bridge (PayPal JIT Drawdown)'
-        : (railEval.selectedRail === 'channel3_ucp'
-          ? 'Tier 2: Channel3 UCP Direct API'
-          : 'Tier 1: PayPal Native Vault'),
-    });
-    fields.push({ label: 'Routing Strategy', value: railEval.reasoning });
+    fields.push({label:'Checkout',value:'Buyer-approved PayPal sandbox authorization only. No capture, seller order or shipment. Shipping and tax are not included.'});
 
-    const title = isBundle ? 'Authorize Bundle Purchase Mandate' : 'Authorize Purchase Mandate';
+    const title = isBundle ? 'Review bundle purchase quantities' : 'Review purchase quantities';
     const summary = isBundle
-      ? `Authorize bundle purchase of ${mandateResult.items.length} items for ${priceText} across ${mandateResult.product.merchantDomain}.`
-      : `Authorize purchase of “${mandateResult.product.title}” for ${priceText} from ${mandateResult.product.merchantDomain}.`;
+      ? `Review ${mandateResult.items.length} product lines (${mandateResult.items.reduce((n,i)=>n+i.quantity,0)} units) for ${priceText} across ${mandateResult.product.merchantDomain}.`
+      : `Review ${mandateResult.items[0].quantity} × “${mandateResult.product.title}” for ${priceText} from ${mandateResult.product.merchantDomain}.`;
 
     const prepared = {
       type: 'purchase_product',
@@ -400,6 +389,7 @@ async function executePurchaseProductTool(toolCall, { db, workspaceId, userId, a
         amountMinor: mandateResult.product.amountMinor,
         currency: mandateResult.product.currency,
         productTitle: mandateResult.product.title,
+        quantitySummary: mandateResult.items.map(i=>`${i.quantity} × ${i.title}`).join(', '),
         merchantDomain: mandateResult.product.merchantDomain,
         evidenceHash: mandateResult.product.evidenceHash,
         isBundle,
@@ -1689,7 +1679,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
                 chatAgentId: agentId,
                 prepared: purchaseExec.prepared,
               });
-              visibleReply = `I evaluated our spend policy and formulated an autonomous purchase mandate for **${escapeMarkdown(purchaseExec.prepared.payload.productTitle)}** ($${(purchaseExec.prepared.payload.amountMinor / 100).toFixed(2)} ${purchaseExec.prepared.payload.currency}). Please review and authorize the purchase below:`;
+              visibleReply = `I checked the spend policy and prepared a purchase review for **${escapeMarkdown(purchaseExec.prepared.payload.quantitySummary)}** ($${(purchaseExec.prepared.payload.amountMinor / 100).toFixed(2)} ${purchaseExec.prepared.payload.currency}). Review the quantities, unit prices and item subtotal below. PayPal approval is a separate step:`;
             } else {
               visibleReply = purchaseExec.text;
             }
@@ -1817,7 +1807,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           });
           if (purchaseExec.kind === 'proposal') {
             preparedWorkspaceProposal = { workspaceId: workspace.id, prepared: purchaseExec.prepared };
-            visibleReply = `I evaluated our spend policy and formulated an autonomous purchase mandate for **${escapeMarkdown(purchaseExec.prepared.payload.productTitle)}** ($${(purchaseExec.prepared.payload.amountMinor / 100).toFixed(2)} ${purchaseExec.prepared.payload.currency}). Please review and authorize the purchase below:`;
+            visibleReply = `I checked the spend policy and prepared a purchase review for **${escapeMarkdown(purchaseExec.prepared.payload.quantitySummary)}** ($${(purchaseExec.prepared.payload.amountMinor / 100).toFixed(2)} ${purchaseExec.prepared.payload.currency}). Review the quantities, unit prices and item subtotal below. PayPal approval is a separate step:`;
           } else {
             visibleReply = purchaseExec.text;
           }
@@ -2620,6 +2610,7 @@ async function handleCommerceRequest(req, res, url, {
         offerId: body.offerId,
         product: body.product,
         items: body.items,
+        quantity: body.quantity,
       });
       sendJson(res, mandateResult.allowed ? 201 : 403, { ok: mandateResult.allowed, mandate: mandateResult });
       return true;

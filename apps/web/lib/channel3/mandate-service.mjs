@@ -1,3 +1,4 @@
+import {purchaseQuantity,quantityLine,purchaseItemsHash} from '../commerce/purchase-items.mjs';
 import crypto from 'node:crypto';
 import { withReadTransaction, withWriteTransaction } from '../db/transaction.mjs';
 import { createAgentRun } from './discovery.mjs';
@@ -232,6 +233,7 @@ export async function createPurchaseMandate({
   offerId = null,
   product = null,
   items = null,
+  quantity = undefined,
   runId = null,
   now = Date.now(),
   ttlMs = 15 * 60 * 1000, // 15 minute expiration
@@ -245,6 +247,13 @@ export async function createPurchaseMandate({
 
   let targetRunId = runId;
   const resolvedItems = [];
+  try {
+    if(items!==null){if(!Array.isArray(items)||items.length<1||items.length>10||quantity!==undefined||offerId||product)throw Error('purchase_items_invalid');
+      for(const i of items){if(!i||typeof i!=='object'||Array.isArray(i))throw Error('purchase_items_invalid');purchaseQuantity(i.quantity);}
+      const offers=items.filter(i=>i.offerId).map(i=>i.offerId);if(new Set(offers).size!==offers.length)throw Error('duplicate_purchase_offer');
+    }else{if(offerId&&product)throw Error('purchase_items_ambiguous');if(quantity!==undefined&&product?.quantity!==undefined)throw Error('purchase_quantity_ambiguous');purchaseQuantity(quantity===undefined?product?.quantity:quantity);}
+  }catch(e){throw new MandatePolicyError(e.message,400,e.message);}
+
 
   if (Array.isArray(items) && items.length > 0) {
     for (const rawItem of items) {
@@ -253,8 +262,8 @@ export async function createPurchaseMandate({
           sql: `SELECT id, run_id, source, source_url, merchant_name, merchant_domain,
                        title, amount_minor, currency, availability, evidence_hash
                 FROM product_offers
-                WHERE workspace_id = ? AND id = ?`,
-          args: [workspaceId, rawItem.offerId],
+                WHERE workspace_id = ? AND id = ? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=product_offers.run_id AND r.workspace_id=product_offers.workspace_id AND r.user_id=? AND r.agent_id=?)`,
+          args: [workspaceId, rawItem.offerId,userId,agentId],
         });
         const offer = offerResult.rows[0];
         if (!offer) throw new MandatePolicyError('product_offer_not_found', 404, `Product offer ${rawItem.offerId} not found`);
@@ -264,6 +273,7 @@ export async function createPurchaseMandate({
           merchantName: offer.merchant_name,
           merchantDomain: offer.merchant_domain,
           amountMinor: offer.amount_minor,
+          quantity: rawItem.quantity,
           currency: offer.currency,
           url: offer.source_url,
           evidenceHash: offer.evidence_hash,
@@ -283,19 +293,20 @@ export async function createPurchaseMandate({
           merchantName: rawItem.merchantName || merchantDomain,
           merchantDomain,
           amountMinor,
+          quantity: rawItem.quantity,
           currency: rawItem.currency || 'USD',
           url: rawItem.url || '',
           evidenceHash,
         });
-      }
+      } else { throw new MandatePolicyError('invalid_product_details',400,'Each item must identify an offer or product'); }
     }
   } else if (offerId) {
     const offerResult = await db.execute({
       sql: `SELECT id, run_id, source, source_url, merchant_name, merchant_domain,
                    title, amount_minor, currency, availability, evidence_hash
             FROM product_offers
-            WHERE workspace_id = ? AND id = ?`,
-      args: [workspaceId, offerId],
+            WHERE workspace_id = ? AND id = ? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=product_offers.run_id AND r.workspace_id=product_offers.workspace_id AND r.user_id=? AND r.agent_id=?)`,
+      args: [workspaceId, offerId,userId,agentId],
     });
     const offer = offerResult.rows[0];
     if (!offer) throw new MandatePolicyError('product_offer_not_found', 404, `Product offer ${offerId} not found`);
@@ -305,6 +316,7 @@ export async function createPurchaseMandate({
       merchantName: offer.merchant_name,
       merchantDomain: offer.merchant_domain,
       amountMinor: offer.amount_minor,
+      quantity,
       currency: offer.currency,
       url: offer.source_url,
       evidenceHash: offer.evidence_hash,
@@ -320,6 +332,7 @@ export async function createPurchaseMandate({
       merchantName: product.merchantName || product.merchantDomain,
       merchantDomain: product.merchantDomain,
       amountMinor: product.amountMinor,
+      quantity: quantity===undefined?product.quantity:quantity,
       currency: product.currency || 'USD',
       url: product.url || '',
       evidenceHash: product.evidenceHash,
@@ -332,12 +345,16 @@ export async function createPurchaseMandate({
     throw new MandatePolicyError('items_empty', 400, 'Must supply at least one valid item');
   }
 
+  try {for(let i=0;i<resolvedItems.length;i++)resolvedItems[i]=quantityLine(resolvedItems[i]);}
+  catch(e){throw new MandatePolicyError(e.message,400,e.message);}
   const primaryCurrency = resolvedItems[0].currency;
   if (resolvedItems.some((i) => i.currency !== primaryCurrency)) {
     throw new MandatePolicyError('currency_mismatch', 400, 'All bundle items must share the same currency');
   }
 
   const totalAmountMinor = resolvedItems.reduce((acc, i) => acc + i.amountMinor, 0);
+  if(!Number.isSafeInteger(totalAmountMinor)||totalAmountMinor>100000000)throw new MandatePolicyError('purchase_amount_invalid',400);
+  const itemsHash=purchaseItemsHash(resolvedItems);
   const isBundle = resolvedItems.length > 1;
 
   let targetProduct = null;
@@ -378,7 +395,7 @@ export async function createPurchaseMandate({
   }
 
   // 3. Evaluate spend policy (outside inner tx to prevent write-queue deadlock)
-  const policyResult = await evaluateSpendPolicy({
+  let policyResult = await evaluateSpendPolicy({
     db,
     workspaceId,
     agentId,
@@ -388,6 +405,13 @@ export async function createPurchaseMandate({
     currency: targetProduct.currency,
     now,
   });
+
+  // Every line's merchant must pass policy; a permitted first line cannot hide another.
+  for(const item of resolvedItems.slice(1)){
+    if(!policyResult.allowed)break;
+    const check=await evaluateSpendPolicy({db,workspaceId,agentId,amountMinor:totalAmountMinor,merchantDomain:item.merchantDomain,payee:item.merchantName,currency:primaryCurrency,now});
+    if(!check.allowed)policyResult=check;
+  }
 
   const decisionId = `pdec_${crypto.randomUUID().replaceAll('-', '')}`;
 
@@ -454,7 +478,7 @@ export async function createPurchaseMandate({
       amountMinor: targetProduct.amountMinor,
       currency: targetProduct.currency,
       merchantDomain: targetProduct.merchantDomain,
-      evidenceHash: targetProduct.evidenceHash,
+      evidenceHash: targetProduct.evidenceHash+':'+itemsHash,
       nonce,
     });
 
@@ -468,6 +492,7 @@ export async function createPurchaseMandate({
       evidenceHash: targetProduct.evidenceHash,
       nonceHash,
       challengeHash,
+      purchaseItemsHash:itemsHash,
     };
     const mandateHash = `sha256:${sha256(JSON.stringify(mandatePayload))}`;
 
@@ -513,6 +538,9 @@ export async function createPurchaseMandate({
       ],
     });
 
+    await tx.execute({sql:'UPDATE mandates SET purchase_items_hash=? WHERE id=? AND workspace_id=?',args:[itemsHash,mandateId,workspaceId]});
+    for(const [index,item] of resolvedItems.entries())await tx.execute({sql:'INSERT INTO mandate_purchase_items(mandate_id,workspace_id,line_number,offer_id,title,merchant_domain,currency,unit_amount_minor,quantity,line_total_minor,evidence_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?)',args:[mandateId,workspaceId,index+1,item.offerId||null,item.title,item.merchantDomain,item.currency,item.unitAmountMinor,item.quantity,item.lineTotalMinor,item.evidenceHash]});
+
     // Insert mandate approval ceremony record
     await tx.execute({
       sql: `INSERT INTO mandate_approvals (
@@ -547,7 +575,7 @@ export async function createPurchaseMandate({
           targetProduct.merchantName,
           targetProduct.merchantDomain,
           targetProduct.title,
-          targetProduct.amountMinor,
+          targetProduct.unitAmountMinor,
           targetProduct.currency,
           targetProduct.evidenceHash,
           timestamp,

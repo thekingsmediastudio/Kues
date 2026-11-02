@@ -1,3 +1,4 @@
+import {purchaseQuantity} from '../commerce/purchase-items.mjs';
 import crypto from 'node:crypto';
 
 const TOOL_MARKER = '[[KEUS_WORKSPACE_TOOL:';
@@ -18,7 +19,7 @@ export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
   '- search_products: arguments {"query":string,"minPrice":number,"maxPrice":number,"currency":"USD","availability":"in_stock"|"any","sortBy":"relevance"|"price_asc"|"price_desc","merchantDomain":string,"limit":integer}; discovers real products matching a query with optional structured price limits, availability, sorting, and merchant filters. Use this when the user asks to find, search for, or buy products, goods, or items.',
   '- review_basket: arguments {"items":[{"offerId":string,"quantity":integer}],"budgetMinor":integer}. Read-only subtotal/review of 1–8 previously discovered offers for this agent, using stored prices. Quantity 1–20. budgetMinor is an optional total USD budget in cents. Never invent offer IDs, convert currencies, or treat this as purchase approval. Use for basket checks before any purchase request.',
-  '- purchase_product: arguments {"offerId":string} or {"productTitle":string,"merchantDomain":string,"amountMinor":integer,"currency":"USD","evidenceHash":string} or {"items":[{"offerId":string}, ...]}; checks spend policies and prepares a purchase review. The user must then approve that specific checkout on PayPal sandbox. This creates an authorization hold only, not a capture, merchant order, or shipment. No saved wallet is needed. Use this when the user asks to buy or purchase a specific discovered product or a bundle of products.',
+  '- purchase_product: arguments {"offerId":string,"quantity":integer} or {"productTitle":string,"merchantDomain":string,"amountMinor":integer,"quantity":integer,"currency":"USD","evidenceHash":string} or {"items":[{"offerId":string,"quantity":integer}, ...]}; quantity is a whole number 1–20 per item (omit only for one). amountMinor always means UNIT price in cents, never a multiplied total. Preserve requested quantities from chat or basket review; use each offer once and never silently reduce a requested quantity. Prefer saved offerId so the server retrieves the unit price. Never change a quantity on an already-reviewed mandate: prepare a fresh review. Checks spend policies against the full multiplied subtotal and prepares a purchase review. The user must then approve that specific checkout on PayPal sandbox. This creates an authorization hold only, not a capture, merchant order, or shipment. No saved wallet is needed. Use this when the user asks to buy or purchase a specific discovered product or a bundle of products.',
   'When presenting discovered products or when the user asks to see a product picture, you can and should embed product images directly in chat using Markdown image syntax: ![Product Title](image_url). The desktop chat interface renders Markdown images directly.',
   'For create_agent, update_agent, rename_workspace, and purchase_product, the application will show the exact proposed change or purchase mandate and wait for explicit user approval. Do not claim that an action happened before approval. New agents start Active for chat but remain preview-only; do not invent permissions, capabilities, or external integrations. No tool can activate an existing paused agent, grant external access, or bypass per-write approval. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
 ].join('\n');
@@ -335,6 +336,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
     return preparedSearch;
   }
   if (call.name === 'purchase_product' || call.name === 'purchase_bundle') {
+    const qty=value=>{try{return purchaseQuantity(value)}catch{throw new WorkspaceToolError('workspace_tool_arguments_invalid')}};
     if (args.items && Array.isArray(args.items)) {
       assertOnlyKeys(args, ['items']);
       if (args.items.length < 1 || args.items.length > 10) {
@@ -343,10 +345,10 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
       const sanitizedItems = args.items.map((item) => {
         if (!isRecord(item)) throw new WorkspaceToolError('workspace_tool_arguments_invalid');
         if (item.offerId) {
-          assertOnlyKeys(item, ['offerId']);
-          return { offerId: cleanText(item.offerId, 'offer_id', 64) };
+          assertOnlyKeys(item, ['offerId', 'quantity']);
+          return { offerId: cleanText(item.offerId, 'offer_id', 64), quantity:qty(item.quantity) };
         }
-        assertOnlyKeys(item, ['productTitle', 'merchantDomain', 'amountMinor', 'currency', 'evidenceHash']);
+        assertOnlyKeys(item, ['productTitle', 'merchantDomain', 'amountMinor', 'currency', 'evidenceHash', 'quantity']);
         const productTitle = cleanText(item.productTitle, 'product_title', 200);
         const merchantDomain = cleanText(item.merchantDomain, 'merchant_domain', 100);
         if (!Number.isSafeInteger(item.amountMinor) || item.amountMinor <= 0) {
@@ -358,24 +360,26 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
           productTitle,
           merchantDomain,
           amountMinor: item.amountMinor,
+          quantity:qty(item.quantity),
           currency,
           evidenceHash,
         };
       });
+      const offers=sanitizedItems.filter(i=>i.offerId).map(i=>i.offerId);if(new Set(offers).size!==offers.length)throw new WorkspaceToolError('workspace_tool_arguments_invalid');
       return {
         kind: 'purchase_product',
         items: sanitizedItems,
       };
     }
     if (args.offerId) {
-      assertOnlyKeys(args, ['offerId']);
+      assertOnlyKeys(args, ['offerId', 'quantity']);
       const offerId = cleanText(args.offerId, 'offer_id', 64);
       return {
         kind: 'purchase_product',
         offerId,
-      };
+        quantity:qty(args.quantity),      };
     }
-    assertOnlyKeys(args, ['productTitle', 'merchantDomain', 'amountMinor', 'currency', 'evidenceHash']);
+    assertOnlyKeys(args, ['productTitle', 'merchantDomain', 'amountMinor', 'currency', 'evidenceHash', 'quantity']);
     const productTitle = cleanText(args.productTitle, 'product_title', 200);
     const merchantDomain = cleanText(args.merchantDomain, 'merchant_domain', 100);
     if (!Number.isSafeInteger(args.amountMinor) || args.amountMinor <= 0) {
@@ -389,6 +393,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
         title: productTitle,
         merchantDomain,
         amountMinor: args.amountMinor,
+        quantity:qty(args.quantity),
         currency,
         evidenceHash,
       },

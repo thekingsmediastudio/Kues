@@ -1,3 +1,4 @@
+import {readPurchaseItems,paypalLineItems} from '../commerce/purchase-items.mjs';
 import crypto from "node:crypto";
 import { withWriteTransaction } from "../db/transaction.mjs";
 const BASE = "https://api-m.sandbox.paypal.com";
@@ -93,7 +94,7 @@ export function createCheckoutClient({
     });
   }
   return {
-    create: ({ id, amountMinor, returnUrl, cancelUrl }) =>
+    create: ({ id, amountMinor, returnUrl, cancelUrl, items=[] }) =>
       api("/v2/checkout/orders", {
         method: "POST",
         key: id + "-create",
@@ -105,9 +106,11 @@ export function createCheckoutClient({
               custom_id: id,
               description:
                 "Keus sandbox authorization demo — no seller order or shipment",
+              ...(items.length?{items:paypalLineItems(items)}:{}),
               amount: {
                 currency_code: "USD",
                 value: (amountMinor / 100).toFixed(2),
+                ...(items.length?{breakdown:{item_total:{currency_code:"USD",value:(amountMinor/100).toFixed(2)}}}:{}),
               },
             },
           ],
@@ -151,6 +154,7 @@ function snapshot(m) {
       m.merchant_domain,
       m.payee,
       m.evidence_hash,
+      ...(m.purchase_items_hash?[m.purchase_items_hash]:[]),
     ]),
   );
 }
@@ -175,6 +179,10 @@ function verifiedOrder(order, row) {
     unit.payments?.captures?.length
   )
     fail("paypal_order_mismatch", 409);
+  if(row.purchaseItems?.length){
+    const expected=paypalLineItems(row.purchaseItems);
+    if(!Array.isArray(unit.items)||unit.items.length!==expected.length||expected.some((item,i)=>String(unit.items[i].quantity)!==item.quantity||unit.items[i].unit_amount?.currency_code!==item.unit_amount.currency_code||unit.items[i].unit_amount?.value!==item.unit_amount.value||unit.items[i].name!==item.name))fail('paypal_quantity_mismatch',409);
+  }
   if (row.merchant_id && unit.payee?.merchant_id !== row.merchant_id)
     fail("paypal_merchant_mismatch", 409);
   return unit;
@@ -210,7 +218,9 @@ export function createStandardCheckoutService({
       args: [id, c.workspaceId, c.userId, c.userId],
     });
     if (!r.rows[0]) fail("checkout_not_found", 404);
-    return r.rows[0];
+    const m=r.rows[0];
+    try{m.purchaseItems=await readPurchaseItems(tx,c.workspaceId,m);}catch{fail('purchase_items_changed',409)}
+    return m;
   }
   async function safety(tx, c, m, { fresh = true } = {}) {
     if (
@@ -264,19 +274,10 @@ export function createStandardCheckoutService({
       } catch {
         fail("policy_invalid", 409);
       }
-      const domain = String(m.merchant_domain).toLowerCase();
-      const matches = (x) =>
-        domain === String(x).toLowerCase() ||
-        domain.endsWith("." + String(x).toLowerCase());
-      if (
-        (allow.length && !allow.some(matches)) ||
-        blocked.some(
-          (x) =>
-            matches(x) ||
-            String(m.payee).toLowerCase() === String(x).toLowerCase(),
-        )
-      )
-        fail("merchant_policy_changed", 409);
+      const domains=m.purchaseItems.length?m.purchaseItems.map(i=>i.merchantDomain):[m.merchant_domain];
+      for(const rawDomain of domains){const domain=String(rawDomain).toLowerCase();const matches=x=>domain===String(x).toLowerCase()||domain.endsWith('.'+String(x).toLowerCase());
+        if((allow.length&&!allow.some(matches))||blocked.some(x=>matches(x)||String(m.payee).toLowerCase()===String(x).toLowerCase()))fail('merchant_policy_changed',409);
+      }
     }
     const day = iso(now()).slice(0, 10) + "T00:00:00.000Z";
     const sum = await tx.execute({
@@ -293,11 +294,14 @@ export function createStandardCheckoutService({
       args: [id, c.workspaceId, c.userId],
     });
     if (!r.rows[0]) fail("checkout_not_found", 404);
-    return r.rows[0];
+    const m=await withWriteTransaction(db,tx=>mandate(tx,c,id));
+    return {...r.rows[0],purchaseItems:m.purchaseItems};
   }
   async function event(tx, row, type, extra = {}) {
     const date = iso(now());
+    const itemRows=await tx.execute({sql:'SELECT quantity,unit_amount_minor,line_total_minor FROM mandate_purchase_items WHERE mandate_id=? ORDER BY line_number',args:[row.mandate_id]});
     const details = JSON.stringify({
+      quantities:itemRows.rows.map(i=>({quantity:i.quantity,unitAmountMinor:i.unit_amount_minor,lineTotalMinor:i.line_total_minor})),
       checkoutId: row.id,
       mandateId: row.mandate_id,
       amountMinor: row.amount_minor,
@@ -326,20 +330,21 @@ export function createStandardCheckoutService({
     orderId: r.order_id || null,
     authorizationId: r.authorization_id || null,
     authorizedAt: r.authorized_at || null,
+    items:r.purchaseItems||[],
   });
   async function list(c) {
     context(c);
     const rows = await execute({
-      sql: `SELECT m.id AS mandate_id,m.amount_minor,m.currency,m.merchant_domain,m.expires_at,c.status,c.order_id,c.authorization_id,c.authorized_at FROM mandates m JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id JOIN mandate_approvals ma ON ma.mandate_id=m.id LEFT JOIN paypal_standard_checkouts c ON c.mandate_id=m.id WHERE m.workspace_id=? AND r.user_id=? AND ma.user_id=? AND ma.status='verified' AND m.status IN ('authorized','voided','rejected') ORDER BY m.created_at DESC LIMIT 20`,
+      sql: `SELECT m.id AS mandate_id,m.amount_minor,m.currency,m.merchant_domain,m.expires_at,m.purchase_items_hash,m.run_id,c.status,c.order_id,c.authorization_id,c.authorized_at FROM mandates m JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id JOIN mandate_approvals ma ON ma.mandate_id=m.id LEFT JOIN paypal_standard_checkouts c ON c.mandate_id=m.id WHERE m.workspace_id=? AND r.user_id=? AND ma.user_id=? AND ma.status='verified' AND m.status IN ('authorized','voided','rejected') ORDER BY m.created_at DESC LIMIT 20`,
       args: [c.workspaceId, c.userId, c.userId],
     });
-    return rows.rows.map((r) => ({
-      ...publicRow(r),
-      merchantDomain: r.merchant_domain,
-      status:
-        r.status || (Date.parse(r.expires_at) > now() ? "ready" : "expired"),
-    }));
+    const result=[];
+    for(const r of rows.rows){let purchaseItems;try{purchaseItems=await withWriteTransaction(db,tx=>readPurchaseItems(tx,c.workspaceId,{...r,id:r.mandate_id}));}catch{fail('purchase_items_changed',409)}
+      result.push({...publicRow({...r,purchaseItems}),merchantDomain:r.merchant_domain,status:r.status||(Date.parse(r.expires_at)>now()?'ready':'expired')});
+    }
+    return result;
   }
+
   async function begin(c, mandateId, origin) {
     context(c);
     configured(env);
@@ -369,7 +374,7 @@ export function createStandardCheckoutService({
         args: [mandateId],
       });
       if (old.rows[0]) {
-        row = old.rows[0];
+        row = {...old.rows[0],purchaseItems:m.purchaseItems};
         if (
           row.status === "pending" &&
           row.session_hash === hash(c.sessionToken) &&
@@ -386,6 +391,7 @@ export function createStandardCheckoutService({
         currency: m.currency,
         status: "creating",
         snapshot_hash: snapshot(m),
+        purchaseItems:m.purchaseItems,
         expires_at: Math.min(Date.parse(m.expires_at), now() + 1200000),
       };
       await tx.execute({
@@ -415,6 +421,7 @@ export function createStandardCheckoutService({
       const order = await provider.create({
         id,
         amountMinor: row.amount_minor,
+        items:row.purchaseItems,
         returnUrl: base + "&outcome=approved",
         cancelUrl: base + "&outcome=cancelled",
       });
@@ -493,6 +500,7 @@ export function createStandardCheckoutService({
   async function complete(c, state) {
     configured(env);
     const row = await stateRow(c, state);
+    row.purchaseItems=(await rowFor(c,row.mandate_id)).purchaseItems;
     await withWriteTransaction(db, async (tx) => {
       const m = await mandate(tx, c, row.mandate_id);
       await safety(tx, c, m);

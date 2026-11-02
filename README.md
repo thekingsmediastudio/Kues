@@ -16,6 +16,14 @@ Keus combines AI-assisted product discovery, purchase reviews and spending limit
 
 The shared demo identity cannot execute checkout: use your own Keus account and a PayPal sandbox buyer. Missing credentials and provider failures never fall back to simulated success in this flow.
 
+## Purchase quantities
+
+Ask for a quantity in chat, for example **“Buy 3 of that notebook.”** Purchase reviews and checkout listings show the quantity, unit price and line subtotal. Bundles can contain up to ten product lines, each with a whole-number quantity from 1 to 20. Omitting quantity means one. Saved offer IDs use their stored unit prices; direct product details remain reviewed inputs, not independent price verification.
+
+The server calculates totals in integer cents and applies spending limits to the full subtotal. The PayPal order carries matching item quantities, unit amounts and item-total breakdown; authorization verifies these values. Price, quantity and line totals are persisted and bound to the purchase review. Changing quantity requires a fresh review and approval, not editing an already-reviewed hold. Receipt messages and the agent's verified checkout context include the quantities. Shipping and tax are not invented or included.
+
+Older mandates without quantity metadata still use their existing amount verification; the UI does not invent a breakdown for them. The new itemized PayPal payload is locally tested with provider mocks; it has not yet been exercised against real PayPal or deployed.
+
 ## Development
 
 Use Node 24 (see `.node-version`).
@@ -27,7 +35,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `/desktop-preview` on the configured server (default port 3100). Configure the existing database, authentication and AI-provider services for a functional authenticated shopping demo. The desktop uses WorkOS authentication and libSQL/Turso storage; product discovery configuration remains separate from payment configuration. The server applies numbered database migrations on startup; back up an existing database before deploying migration `0015_paypal_standard_checkouts.sql`.
+Open `/desktop-preview` on the configured server (default port 3100). Configure the existing database, authentication and AI-provider services for a functional authenticated shopping demo. The desktop uses WorkOS authentication and libSQL/Turso storage; product discovery configuration remains separate from payment configuration. The server applies numbered database migrations on startup; back up an existing database before deploying migrations, including `0016_purchase_quantities.sql` (adds quantity metadata while preserving older mandates).
 
 For payments configure only server-side sandbox credentials:
 
@@ -43,7 +51,7 @@ Use a public HTTPS origin for the PayPal return flow (localhost HTTP is accepted
 npm test
 ```
 
-Local verification: **353 passing tests**, including 14 standard-checkout tests covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
+Local verification: **364 passing tests**, including 14 standard-checkout tests covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
 
 Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). This used the real standard-checkout service with a local test identity/database and manual approval verification in the original helper tab. No capture or Vault calls occurred. **Deployed Keus authentication and the automatic PayPal return callback remain externally unverified.** The local browser checks use mocks and are separate from this real provider evidence. Nothing here claims deployment.
 

@@ -1,3 +1,4 @@
+import {paypalLineItems} from '../../apps/web/lib/commerce/purchase-items.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@libsql/client";
@@ -19,7 +20,7 @@ const env = {
   PAYPAL_CLIENT_ID: "mock-client",
   PAYPAL_CLIENT_SECRET: "mock-secret",
 };
-async function fixture(t) {
+async function fixture(t, {quantity=1}={}) {
   const db = createClient({ url: ":memory:" });
   t.after(() => db.close());
   await applyMigrations(db);
@@ -62,6 +63,7 @@ async function fixture(t) {
     agentId: boot.agents[0].id,
     product: {
       title: "Test product",
+      quantity,
       merchantDomain: "shop.example",
       amountMinor: 1000,
       currency: "USD",
@@ -84,9 +86,10 @@ async function fixture(t) {
         intent: "AUTHORIZE",
         purchase_units: [
           {
+            items:paypalLineItems(x.items||[]),
             reference_id: x.id,
             custom_id: x.id,
-            amount: { currency_code: "USD", value: "10.00" },
+            amount: { currency_code: "USD", value: (x.amountMinor/100).toFixed(2) },
             payee: { merchant_id: "MOCK-MERCHANT" },
           },
         ],
@@ -111,7 +114,7 @@ async function fixture(t) {
           {
             id: "MOCK-AUTH",
             status: "CREATED",
-            amount: { currency_code: "USD", value: "10.00" },
+            amount: order.purchase_units[0].amount,
           },
         ],
       };
@@ -122,7 +125,7 @@ async function fixture(t) {
       return {
         id: "MOCK-AUTH",
         status: voided ? "VOIDED" : "CREATED",
-        amount: { currency_code: "USD", value: "10.00" },
+        amount: order.purchase_units[0].amount,
       };
     },
     void: async () => {
@@ -272,7 +275,7 @@ test("changed mandate and lower agent budget prevent provider authorization", as
     );
     await assert.rejects(
       f.service().complete(f.c, state),
-      /purchase_changed|spend_limit_exceeded/,
+      /purchase_changed|purchase_items_changed|spend_limit_exceeded/,
     );
     assert.deepEqual(f.calls, ["create"]);
   }
@@ -476,3 +479,9 @@ test('void facts follow authorization even at identical timestamps, and survive 
 test('cancel returns to the owning agent without any success fact',async t=>{const f=await fixture(t),state=await f.begin(),r=await f.service().returnContext(f.c,state);await f.service().cancel(f.c,state);const h=await historyFor(f).getHistory({...f.c,agentId:r.agentId});assert.equal(h.messages.length,1);assert.match(h.messages[0].content,/checkout cancelled/);assert.doesNotMatch(h.messages[0].content,/authorization successful/);assert.equal((await f.service().returnContext(f.c,state)).status,'cancelled');});
 test('unconfirmed and uncertain returns cannot generate success notices or history',async t=>{const f=await fixture(t),state=await f.begin(),r=await f.service().returnContext(f.c,state);f.approve();f.provider.authorize=async()=>{throw Error('timeout')};await assert.rejects(f.service().complete(f.c,state));assert.equal((await historyFor(f).getHistory({...f.c,agentId:r.agentId})).messages.length,0);for(const status of ['pending','uncertain','failed','expired'])assert.doesNotMatch(checkoutNotice(status),/authorization successful/i);});
 test('return context HTTP requires same-origin authenticated ownership and excludes client redirect URLs',async t=>{const f=await fixture(t),state=await f.begin();const server=createServer({db:f.db,authService:f.authService,workspaceService:f.workspaceService,config:loadServerConfig({TURSO_DATABASE_URL:'file:./local.db'})});await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));const base='http://127.0.0.1:'+server.address().port,headers={Cookie:'kues_session='+f.c.sessionToken,'Content-Type':'application/json',Origin:base};const call=body=>fetch(base+'/api/commerce/paypal/checkout/return-context',{method:'POST',headers,body:JSON.stringify(body)});const r=await call({state});assert.equal(r.status,200);assert.ok((await r.json()).checkout.agentId);assert.equal((await call({state,returnUrl:'https://evil.example'})).status,400);assert.equal((await call({state:'x'.repeat(43)})).status,403);});
+
+test('quantity three uses a 3000-cent mandate, itemized PayPal order, and durable agent facts',async t=>{const f=await fixture(t,{quantity:3});assert.equal(f.m.product.amountMinor,3000);assert.equal(f.m.items[0].unitAmountMinor,1000);assert.equal(f.m.items[0].lineTotalMinor,3000);const state=await f.begin();assert.equal(f.order().purchase_units[0].items[0].quantity,'3');assert.equal(f.order().purchase_units[0].amount.value,'30.00');assert.equal((await f.service().list(f.c))[0].items[0].quantity,3);f.approve();const result=await f.service().complete(f.c,state);assert.equal(result.amountMinor,3000);const context=await f.service().returnContext(f.c,state);const facts=await historyFor(f).getCheckoutContext({...f.c,agentId:context.agentId});assert.match(facts[0].content,/3 × 10.00 USD = 30.00 USD/);});
+test('changing quantities or unit prices after review fails closed even if the total is unchanged',async t=>{const f=await fixture(t),state=await f.begin();f.approve();await f.db.execute({sql:'UPDATE mandate_purchase_items SET quantity=2,unit_amount_minor=500 WHERE mandate_id=?',args:[f.m.mandateId]});await assert.rejects(f.service().complete(f.c,state),/purchase_items_changed/);assert.equal(f.calls.includes('authorize'),false);});
+test('mismatched PayPal line quantities cannot be authorized',async t=>{const f=await fixture(t,{quantity:3}),state=await f.begin();f.approve();f.order().purchase_units[0].items[0].quantity='1';await assert.rejects(f.service().complete(f.c,state),/quantity_mismatch/);assert.equal(f.calls.includes('authorize'),false);});
+test('old mandates without quantity metadata continue through the legacy amount verification',async t=>{const f=await fixture(t);await f.db.execute({sql:'DELETE FROM mandate_purchase_items WHERE mandate_id=?',args:[f.m.mandateId]});await f.db.execute({sql:'UPDATE mandates SET purchase_items_hash=NULL WHERE id=?',args:[f.m.mandateId]});const state=await f.begin();f.approve();assert.equal((await f.service().complete(f.c,state)).status,'authorized');assert.deepEqual((await f.service().list(f.c))[0].items,[]);});
+test('quantity-aware client sends exact unit prices, quantities and item_total breakdown',async()=>{let payload;const client=createCheckoutClient({env,fetchImpl:async(url,opts)=>{if(url.endsWith('/token'))return new Response(JSON.stringify({access_token:'MOCK'}));payload=JSON.parse(opts.body);return new Response(JSON.stringify({id:'MOCK'}))}});await client.create({id:'test',amountMinor:999,returnUrl:'https://keus.example/return',cancelUrl:'https://keus.example/cancel',items:[{title:'Notebook',quantity:3,unitAmountMinor:333,lineTotalMinor:999,currency:'USD'}]});const unit=payload.purchase_units[0];assert.equal(unit.amount.value,'9.99');assert.equal(unit.amount.breakdown.item_total.value,'9.99');assert.equal(unit.items[0].quantity,'3');assert.equal(unit.items[0].unit_amount.value,'3.33');assert.equal(payload.intent,'AUTHORIZE');});

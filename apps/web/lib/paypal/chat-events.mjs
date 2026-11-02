@@ -8,7 +8,7 @@ export async function readCheckoutChatEvents({
   limit = 100,
 }) {
   const rows = await db.execute({
-    sql: `SELECT e.id,e.event_type,e.created_at,c.amount_minor,c.currency,c.mandate_id
+    sql: `SELECT e.id,e.event_type,e.created_at,e.details_json,c.amount_minor,c.currency,c.mandate_id
  FROM paypal_standard_checkout_events e
  JOIN paypal_standard_checkouts c ON c.id=e.checkout_id
  JOIN mandates m ON m.id=c.mandate_id AND m.workspace_id=c.workspace_id
@@ -32,9 +32,11 @@ export async function readCheckoutChatEvents({
         : r.event_type === "sandbox_voided"
           ? `Sandbox authorization voided for ${amount}. PayPal confirmed the hold was voided; funds were not captured.`
           : `PayPal checkout cancelled for ${amount}. Keus did not request an authorization for this checkout.`;
+    let quantityText='';
+    try{const q=JSON.parse(r.details_json).quantities;if(Array.isArray(q)&&q.length)quantityText='\nQuantities: '+q.map((i,n)=>`item ${n+1}: ${i.quantity} × ${(i.unitAmountMinor/100).toFixed(2)} ${r.currency} = ${(i.lineTotalMinor/100).toFixed(2)} ${r.currency}`).join('; ')+'.';}catch{}
     return {
       role: "assistant",
-      content: `Verified checkout update: ${text}\nNo seller order or shipment was placed.\nCheckout reference: ${r.mandate_id}`,
+      content: `Verified checkout update: ${text}${quantityText}\nNo seller order or shipment was placed.\nCheckout reference: ${r.mandate_id}`,
       createdAt: r.created_at,
     };
   });

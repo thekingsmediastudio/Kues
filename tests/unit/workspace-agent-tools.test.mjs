@@ -232,3 +232,5 @@ test('agent proposals remove app and approval preferences while preserving legac
     assert.throws(()=>prepareWorkspaceToolCall({name:'create_agent',arguments:{name:'New helper',role:'Shopping',avatar:'bulb',...changes}},source),/workspace_tool_arguments_invalid/);
   }
 });
+
+test('purchase tools preserve requested quantities and reject fractions, strings and duplicate offers',()=>{const source=bootstrap();for(const quantity of [1,3,20]){const tool=prepareWorkspaceToolCall({name:'purchase_product',arguments:{offerId:'offer-1',quantity}},source);assert.equal(tool.quantity,quantity);}for(const quantity of [0,21,1.5,'2',null])assert.throws(()=>prepareWorkspaceToolCall({name:'purchase_product',arguments:{offerId:'offer-1',quantity}},source),/arguments_invalid/);const bundle=prepareWorkspaceToolCall({name:'purchase_bundle',arguments:{items:[{offerId:'one',quantity:2},{offerId:'two',quantity:3}]}},source);assert.deepEqual(bundle.items.map(i=>i.quantity),[2,3]);assert.throws(()=>prepareWorkspaceToolCall({name:'purchase_bundle',arguments:{items:[{offerId:'same',quantity:2},{offerId:'same',quantity:3}]}},source),/arguments_invalid/);});
