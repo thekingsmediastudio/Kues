@@ -158,6 +158,7 @@ export async function linkWorkspaceWallet({
               payer_email = excluded.payer_email,
               payer_id = excluded.payer_id,
               status = 'active',
+              verified_at = NULL,
               updated_at = excluded.updated_at`,
       args: [
         walletId,

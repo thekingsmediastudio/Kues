@@ -1211,7 +1211,8 @@ test('startup defers settings-only reads and history abort retains stale-respons
   const boot = desktopHtml.slice(desktopHtml.lastIndexOf("document.getElementById('uiWaitRetry')"));
   assert.doesNotMatch(boot, /void loadPayPalWalletStatus|void loadPasskeyStatus/);
   const panes = desktopHtml.slice(desktopHtml.indexOf('  function setSettingsPane'), desktopHtml.indexOf('  function openGeneralOverlay'));
-  assert.doesNotMatch(panes, /loadPasskeyStatus|loadPayPalWalletStatus/);
+  assert.doesNotMatch(panes, /loadPasskeyStatus/);
+  assert.match(panes, /selected === 'wallet'.*loadPayPalWalletStatus/);
   assert.match(panes, /selected === 'account'.*refreshPendingEmailChange/);
   assert.match(desktopHtml, /historyReadController\?\.abort\(\)/);
   assert.match(desktopHtml, /signal: historyReadController.signal/);

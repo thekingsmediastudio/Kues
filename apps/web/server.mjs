@@ -1,3 +1,4 @@
+import { createWalletLinkService, WalletLinkError, WALLET_RETURN_HTML } from './lib/paypal/wallet-link.mjs';
 import { reviewShoppingBasket } from './lib/ai-agent/shopping-basket.mjs';
 import { reviewDocumentContext, documentCoverageMarkdown } from './lib/ai-agent/document-reading.mjs';
 import { Freestyle } from 'freestyle';
@@ -42,10 +43,6 @@ import {
   captureSandboxPaymentAuthorization,
   refundSandboxPaymentCapture,
   getSandboxPaymentTransaction,
-  createWalletSetupToken,
-  linkWorkspaceWallet,
-  getWorkspaceWallet,
-  unlinkWorkspaceWallet,
   PayPalSandboxError,
 } from './lib/paypal/service.mjs';
 import {
@@ -871,17 +868,6 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
           },
         });
       }
-
-      try {
-        await linkWorkspaceWallet({
-          db,
-          workspaceId: wsId,
-          userId: sessionResult.user.id,
-          setupTokenId: 'ST-SANDBOX-JUDGE-PRELINKED-WALLET',
-          payerEmail: 'judge-sandbox@personal.example.com',
-          simulate: true,
-        });
-      } catch {}
 
       await db.execute({
         sql: `INSERT INTO workspace_onboarding (
@@ -2606,6 +2592,14 @@ async function handleCommerceRequest(req, res, url, {
   db,
 }) {
   if (!url.pathname.startsWith('/api/commerce/')) return false;
+  if (req.method === 'GET' && url.pathname === '/api/commerce/paypal/wallet/return') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'" });
+    res.end(WALLET_RETURN_HTML);
+    return true;
+  }
+
 
   if (!authService) {
     sendJson(res, 503, { error: 'auth_storage_not_configured' });
@@ -2954,80 +2948,38 @@ async function handleCommerceRequest(req, res, url, {
     return true;
   }
 
-  if (req.method === 'GET' && url.pathname === '/api/commerce/paypal/wallet') {
-    const wallet = await getWorkspaceWallet({ db, workspaceId });
-    if (!wallet) {
-      sendJson(res, 200, { ok: true, linked: false, wallet: null });
-      return true;
+  if (url.pathname === '/api/commerce/paypal/wallet' || url.pathname.startsWith('/api/commerce/paypal/wallet/')) {
+    const demoIdentity = await db.execute({sql: 'SELECT id FROM auth_identities WHERE user_id=? AND provider_subject=? LIMIT 1', args:[user.id,'sub_paypal_hackathon_judge']});
+    if (demoIdentity.rows.length) { sendJson(res,403,{error:'wallet_personal_account_required'}); return true; }
+    const walletService = createWalletLinkService({ db });
+    const context = { workspaceId, userId: user.id, sessionToken };
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      if (req.method === 'GET' && url.pathname === '/api/commerce/paypal/wallet') {
+        sendJson(res, 200, { ok: true, ...await walletService.status(context) });
+        return true;
+      }
+      if (req.method !== 'POST') { sendJson(res, 405, { error: 'method_not_allowed' }); return true; }
+      requireSameOrigin(req);
+      if (bootstrap.workspace.role !== 'owner' || bootstrap.workspace.status !== 'active') { sendJson(res, 403, { error: 'workspace_owner_required' }); return true; }
+      const action = url.pathname.slice('/api/commerce/paypal/wallet/'.length);
+      if (action === 'link') { sendJson(res, 410, { error: 'paypal_approval_flow_required' }); return true; }
+      if (!['setup-token','complete','cancel','unlink'].includes(action)) { sendJson(res, 404, { error: 'not_found' }); return true; }
+      const body = await readJsonBody(req, 4096);
+      const allowed = ['complete','cancel'].includes(action) ? ['state'] : [];
+      if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !allowed.includes(key))) {
+        sendJson(res, 400, { error: 'wallet_arguments_invalid' }); return true;
+      }
+      const result = action === 'setup-token' ? await walletService.begin(context, requestOrigin(req).value)
+        : action === 'complete' ? await walletService.complete(context, body.state)
+        : action === 'cancel' ? await walletService.cancel(context, body.state)
+        : await walletService.unlink(context);
+      sendJson(res, action === 'setup-token' ? 201 : 200, { ok: true, ...result });
+    } catch (error) {
+      const known = error instanceof WalletLinkError || error instanceof RequestError;
+      sendJson(res, known ? (error.status || 400) : 500, { error: known ? error.code : 'wallet_request_failed' });
     }
-    sendJson(res, 200, { ok: true, linked: true, wallet });
     return true;
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/wallet/setup-token') {
-    let body = {};
-    try { body = await readJsonBody(req, 4096); } catch {}
-    try {
-      const result = await createWalletSetupToken({
-        workspaceId,
-        userId: user.id,
-        returnUrl: body.returnUrl,
-        cancelUrl: body.cancelUrl,
-        simulate: Boolean(body.simulate),
-      });
-      sendJson(res, 201, { ok: true, ...result });
-      return true;
-    } catch (err) {
-      if (err instanceof PayPalSandboxError) {
-        sendJson(res, err.statusCode, { error: err.code, message: err.message });
-        return true;
-      }
-      sendJson(res, 500, { error: 'setup_token_failed', message: err.message });
-      return true;
-    }
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/wallet/link') {
-    let body;
-    try { body = await readJsonBody(req, 4096); }
-    catch { sendJson(res, 400, { error: 'invalid_json_body' }); return true; }
-
-    try {
-      const wallet = await linkWorkspaceWallet({
-        db,
-        workspaceId,
-        userId: user.id,
-        setupTokenId: body.setupTokenId,
-        vaultTokenId: body.vaultTokenId,
-        payerEmail: body.payerEmail,
-        payerId: body.payerId,
-        simulate: Boolean(body.simulate),
-      });
-      sendJson(res, 200, { ok: true, wallet });
-      return true;
-    } catch (err) {
-      if (err instanceof PayPalSandboxError) {
-        sendJson(res, err.statusCode, { error: err.code, message: err.message });
-        return true;
-      }
-      sendJson(res, 500, { error: 'wallet_link_failed', message: err.message });
-      return true;
-    }
-  }
-
-  if (req.method === 'POST' && url.pathname === '/api/commerce/paypal/wallet/unlink') {
-    try {
-      const result = await unlinkWorkspaceWallet({ db, workspaceId, userId: user.id });
-      sendJson(res, 200, { ok: true, ...result });
-      return true;
-    } catch (err) {
-      if (err instanceof PayPalSandboxError) {
-        sendJson(res, err.statusCode, { error: err.code, message: err.message });
-        return true;
-      }
-      sendJson(res, 500, { error: 'wallet_unlink_failed', message: err.message });
-      return true;
-    }
   }
 
   if (req.method === 'GET' && url.pathname === '/api/commerce/passkeys') {

@@ -627,86 +627,29 @@ test('one-time wallet linking stores distinct Vault ID and auto-resolves in mand
   assert.equal(postUnlink, null);
 });
 
-test('HTTP Wallet Routes: setup-token, link, get, and unlink work over REST', async () => {
+test('HTTP wallet routes reject simulated linking, token injection and cross-origin writes', async () => {
   const { db, authService, workspaceService, session, wsId, userId } = await setupTestEnvironment();
-
-  const config = loadServerConfig({
-    TURSO_DATABASE_URL: 'file:./local.db',
-  });
-
-  const ctx = {
-    db,
-    authService,
-    workspaceService,
-  };
-
-  await withServer(config, ctx, async (base) => {
-    // 1. Initial GET wallet -> linked: false
-    const initRes = await fetch(`${base}/api/commerce/paypal/wallet`, {
-      headers: { Cookie: `kues_session=${session.sessionToken}` },
-    });
-    assert.equal(initRes.status, 200);
-    const initData = await initRes.json();
-    assert.equal(initData.linked, false);
-
-    // 2. Request setup token
-    const setupRes = await fetch(`${base}/api/commerce/paypal/wallet/setup-token`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ simulate: true }),
-    });
-    assert.equal(setupRes.status, 201);
-    const setupData = await setupRes.json();
-    assert.match(setupData.setupTokenId, /^ST-SANDBOX-/);
-
-    // 3. Link wallet
-    const linkRes = await fetch(`${base}/api/commerce/paypal/wallet/link`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        setupTokenId: setupData.setupTokenId,
-        payerEmail: 'api-buyer@personal.example.com',
-        simulate: true,
-      }),
-    });
-    assert.equal(linkRes.status, 200);
-    const linkData = await linkRes.json();
-    assert.equal(linkData.ok, true);
-    assert.equal(linkData.wallet.payerEmail, 'api-buyer@personal.example.com');
-    assert.match(linkData.wallet.vaultTokenId, /^VAULT-SANDBOX-/);
-
-    // 4. GET wallet -> linked: true
-    const activeRes = await fetch(`${base}/api/commerce/paypal/wallet`, {
-      headers: { Cookie: `kues_session=${session.sessionToken}` },
-    });
-    assert.equal(activeRes.status, 200);
-    const activeData = await activeRes.json();
-    assert.equal(activeData.linked, true);
-    assert.equal(activeData.wallet.payerEmail, 'api-buyer@personal.example.com');
-    assert.match(activeData.wallet.maskedVaultId, /^\*\*\*\*/);
-
-    // 5. Unlink wallet
-    const unlinkRes = await fetch(`${base}/api/commerce/paypal/wallet/unlink`, {
-      method: 'POST',
-      headers: { Cookie: `kues_session=${session.sessionToken}` },
-    });
-    assert.equal(unlinkRes.status, 200);
-    const unlinkData = await unlinkRes.json();
-    assert.equal(unlinkData.unlinked, true);
-
-    // 6. Final GET wallet -> linked: false
-    const finalRes = await fetch(`${base}/api/commerce/paypal/wallet`, {
-      headers: { Cookie: `kues_session=${session.sessionToken}` },
-    });
-    assert.equal(finalRes.status, 200);
-    const finalData = await finalRes.json();
-    assert.equal(finalData.linked, false);
+  const config = loadServerConfig({ TURSO_DATABASE_URL: 'file:./local.db' });
+  await withServer(config, { db, authService, workspaceService }, async base => {
+    const headers = { Cookie: `kues_session=${session.sessionToken}`, 'Content-Type':'application/json' };
+    const initial = await fetch(`${base}/api/commerce/paypal/wallet`, {headers});
+    assert.equal((await initial.json()).linked, false);
+    const noOrigin = await fetch(`${base}/api/commerce/paypal/wallet/setup-token`, {method:'POST',headers,body:'{}'});
+    assert.equal(noOrigin.status, 403);
+    const badOrigin = await fetch(`${base}/api/commerce/paypal/wallet/setup-token`, {method:'POST',headers:{...headers,Origin:'https://evil.example'},body:'{}'});
+    assert.equal(badOrigin.status,403);
+    const fake = await fetch(`${base}/api/commerce/paypal/wallet/setup-token`, {method:'POST',headers:{...headers,Origin:base},body:JSON.stringify({simulate:true})});
+    assert.equal(fake.status,400);
+    const injection = await fetch(`${base}/api/commerce/paypal/wallet/link`, {method:'POST',headers:{...headers,Origin:base},body:JSON.stringify({vaultTokenId:'attacker-token'})});
+    assert.equal(injection.status,410);
+    await linkWorkspaceWallet({db,workspaceId:wsId,userId,simulate:true});
+    const legacy = await fetch(`${base}/api/commerce/paypal/wallet`, {headers});
+    const data=await legacy.json();assert.equal(data.linked,false);assert.equal(data.needsRelink,true);assert.equal(data.wallet,null);
+    const unlink=await fetch(`${base}/api/commerce/paypal/wallet/unlink`,{method:'POST',headers:{...headers,Origin:base},body:'{}'});
+    assert.equal(unlink.status,200);
+    const callback=await fetch(`${base}/api/commerce/paypal/wallet/return?state=bad`);
+    assert.equal(callback.status,200);assert.match(callback.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+    assert.equal(callback.headers.get('referrer-policy'),'no-referrer');
   });
 });
 
@@ -889,5 +832,20 @@ test('HTTP Commerce Routes: /api/commerce/paypal/refund, /receipts/:id, and /ski
     assert.ok(skillData.skill.markdown.includes('office-ergonomics-scout'));
     assert.ok(skillData.skill.markdown.includes('desk accessories'));
     assert.ok(skillData.skill.policyHash.length === 64);
+  });
+});
+
+test('wallet linking requires an active workspace owner and rejects the shared demo identity', async () => {
+  const {db,authService,workspaceService,session}=await setupTestEnvironment();
+  const config=loadServerConfig({TURSO_DATABASE_URL:'file:./local.db'});
+  const restricted={...workspaceService,getBootstrap:async input=>{const b=await workspaceService.getBootstrap(input);b.workspace.role='member';return b;}};
+  await withServer(config,{db,authService,workspaceService:restricted},async base=>{
+    const r=await fetch(`${base}/api/commerce/paypal/wallet/setup-token`,{method:'POST',headers:{Cookie:`kues_session=${session.sessionToken}`,Origin:base,'Content-Type':'application/json'},body:'{}'});
+    assert.equal(r.status,403);assert.equal((await r.json()).error,'workspace_owner_required');
+  });
+  const demo=await authService.createWorkOSSession({providerSubject:'sub_paypal_hackathon_judge',email:'judge@paypal.sandbox',emailVerified:true,displayName:'Shared demo'});
+  await withServer(config,{db,authService,workspaceService},async base=>{
+    const r=await fetch(`${base}/api/commerce/paypal/wallet`,{headers:{Cookie:`kues_session=${demo.sessionToken}`}});
+    assert.equal(r.status,403);assert.equal((await r.json()).error,'wallet_personal_account_required');
   });
 });
