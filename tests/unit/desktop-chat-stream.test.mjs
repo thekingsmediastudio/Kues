@@ -9,8 +9,8 @@ const desktopHtml = fs.readFileSync(path.resolve(testDir, '../../apps/web/public
 
 
 test('desktop chat progressively renders answers, removes the completed progress card, and preserves Scout action cues', () => {
-  assert.match(desktopHtml, /headers:\s*\{\s*Accept:\s*'text\/event-stream',\s*'Content-Type':\s*'application\/json'\s*\}/);
-  assert.match(desktopHtml, /\['delta', 'avatar_cue', 'tool_approval_required', 'done', 'error'\]\.includes\(name\)/);
+  assert.match(desktopHtml, /headers:\s*\{\s*Accept:\s*'text\/event-stream',\s*'Content-Type':\s*'application\/json',\s*\.\.\.\(wantsResearch/);
+  assert.match(desktopHtml, /\['delta', 'avatar_cue', 'tool_approval_required', 'research_status', 'done', 'error'\]\.includes\(name\)/);
   assert.match(desktopHtml, /const answerText = assistantRow\?\.querySelector\('\.chat-answer-text'\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, replyText, \{ streaming: true \}\)/);
   assert.match(desktopHtml, /renderChatMarkdown\(answerText, reply\)/);

@@ -3259,6 +3259,20 @@
   .agent-legacy-labels summary{font-size:12px;color:var(--text-sec);cursor:pointer;margin-bottom:12px}
   @media(max-width:640px){.agent-settings-tabs button{font-size:11px;min-height:44px;padding:8px 6px}.agent-tool-row{padding:12px}.agent-settings-panel textarea{font-size:16px!important}}
 
+  .research-progress{padding:12px 0;color:var(--text-sec);font-size:13px;line-height:1.5}
+
+  .chat-attachments{max-height:180px;overflow:auto;margin-bottom:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--bg-card);font-size:12px}
+  .chat-attachments[hidden]{display:none}
+  .file-attachment{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:5px 0}
+  .file-attachment details{min-width:0;flex:1}.file-attachment summary{cursor:pointer;overflow-wrap:anywhere;color:var(--text-main)}
+  .file-attachment p,.file-attachment-note{font-size:10px;line-height:1.6;color:var(--text-sec);margin-top:6px}
+  .file-attachment button{border:0;background:transparent;color:var(--text-sec);font-size:19px;width:32px;height:32px;cursor:pointer;flex:none}
+  .reply-downloads{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 0;margin-top:14px;border-top:1px solid var(--border)}
+  .reply-downloads select,.reply-downloads button{min-height:36px;padding:7px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg-card);color:var(--text-main);font:12px var(--font);max-width:100%}
+  .reply-downloads button{cursor:pointer}.reply-downloads span{font-size:11px;color:var(--text-sec)}
+  .reply-downloads small{flex-basis:100%;font-size:10px;color:var(--text-sec);line-height:1.6}
+  @media(max-width:640px){.reply-downloads select,.reply-downloads button,.file-attachment button{min-height:44px}.chat-attachments{max-height:140px}}
+
 </style>
 </head>
 <body>
@@ -3394,10 +3408,15 @@
     </div>
     <footer class="composer-area" id="chatComposer" aria-label="Message composer">
       <div class="composer-inner">
+        <div id="chatAttachments" class="chat-attachments" aria-label="Attached files" hidden></div><input id="chatFilePicker" type="file" accept=".pdf,.docx,.txt,.md,.csv,.xlsx" multiple hidden>
         <div class="composer-pill">
           <svg class="composer-border-trace" aria-hidden="true"><path data-edge="top" pathLength="100"/><path data-edge="bottom" pathLength="100"/></svg>
           <!-- Popover for '+' button -->
           <div class="plus-popover" id="chatPlusPopover" role="menu" aria-label="Quick actions" hidden>
+            <button class="pop-item" type="button" id="pythonJobsButton"><span class="pop-ico" aria-hidden="true">⌘</span><span>Python jobs · review before running</span></button>
+            <button class="pop-item" type="button" id="workspaceFilesButton"><span class="pop-ico" aria-hidden="true">▤</span><span>Workspace files</span></button>
+            <button class="pop-item" type="button" id="attachFilesButton"><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9"/></svg></span><span>Attach files · up to 2 MB</span></button>
+            <button class="pop-item" type="button" id="researchPromptButton" onclick="enableWebResearch(); closePopovers();"><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span><span>Research the web</span></button>
             <button class="pop-item" type="button" onclick="insertPromptSuggestion('Find studio headphones under $120.'); closePopovers();">
               <span class="pop-ico" style="color:var(--cue-gold);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
               <span>Find studio headphones<span class="pop-sub">Search Channel3 catalog under $120</span></span>
@@ -3529,7 +3548,7 @@
 <label for="settingsAgentInstructions">Instructions<textarea class="form-input settings-textarea" id="settingsAgentInstructions" rows="5" maxlength="4000" placeholder="Describe this agent’s purpose, preferred tone, and how it should approach tasks."></textarea></label><p class="settings-form-hint">Applies to this agent’s replies. Instructions cannot grant tool access or bypass approval. Maximum 4,000 characters.</p>                <fieldset class="settings-choice-fieldset"><legend>Avatar</legend><div class="settings-agent-avatar-options" id="settingsAgentAvatarOptions" role="group" aria-label="Choose agent avatar"></div></fieldset>
                 <label for="settingsAgentMemory">Memory preferences, optional<textarea class="form-input settings-textarea" id="settingsAgentMemory" rows="3" maxlength="1600" placeholder="One preference per line"></textarea></label>
                 <fieldset class="settings-choice-fieldset settings-color-fieldset"><legend>Avatar color</legend><div class="new-agent-color-options settings-agent-color-options" id="settingsAgentColorOptions" role="group" aria-label="Choose avatar color"></div></fieldset>
-</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Save which new tools this agent may use once installed. All start off. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Work with documents and spreadsheets you provide.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Prepare reports and spreadsheets for download.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><p class="agent-settings-disclosure">No new tool runs yet. Saving permission does not activate a provider, upload files, or incur a tool charge.</p></section><section class="agent-settings-panel" id="agentPanelAccounts" role="tabpanel" aria-labelledby="agentTabAccounts" hidden><p class="settings-form-hint">Connected accounts will be managed per user, with access granted separately to each agent. Connection setup is not implemented yet.</p><div class="agent-account-row"><strong>Cloud storage</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Calendar</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Email</strong><span>Not connected</span></div><p class="agent-settings-disclosure">No account credentials or messages are accessible through these rows. Sending, scheduling, and saving externally will require explicit approval.</p><details class="agent-legacy-labels"><summary>Existing app labels</summary>                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
+</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Choose what this agent may use. Web research requires both web permissions. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Work with documents and spreadsheets you provide.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Prepare reports and spreadsheets for download.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><label class="agent-tool-row"><span><strong>Run Python code</strong><small>Execute explicitly reviewed code in a cloud sandbox. No automatic execution.</small><em>Server setup required · approval on every run</em></span><input type="checkbox" data-agent-tool="run_code" aria-label="Allow reviewed Python code execution"></label><p class="agent-settings-disclosure">Web research needs both web permissions and server setup. Use + → Research the web, or type /research followed by your question. File analysis uses temporary extracted text, sent to your AI only with the message. Downloads export an agent reply. Saving permission alone does not run a tool.</p></section><section class="agent-settings-panel" id="agentPanelAccounts" role="tabpanel" aria-labelledby="agentTabAccounts" hidden><p class="settings-form-hint">Connected accounts will be managed per user, with access granted separately to each agent. Connection setup is not implemented yet.</p><div class="agent-account-row"><strong>Cloud storage</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Calendar</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Email</strong><span>Not connected</span></div><p class="agent-settings-disclosure">No account credentials or messages are accessible through these rows. Sending, scheduling, and saving externally will require explicit approval.</p><details class="agent-legacy-labels"><summary>Existing app labels</summary>                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
                   <div class="settings-app-grid" id="settingsAgentAppsOptions">
                     <label class="settings-app-option"><input type="checkbox" value="paypal"><span>PayPal Sandbox</span></label>
                     <label class="settings-app-option"><input type="checkbox" value="channel3"><span>Channel3</span></label>
@@ -3935,6 +3954,8 @@
   let currentSettingsApprovalPath = 'desktop';
   let savedAgentRowTemplate = null;
   let chatAvailable = false;
+  let researchConfigured = false;
+  let fileToolsAvailable = false;
   let chatPending = false;
   let dictationSession = null;
   let chatHistoryLoading = false;
@@ -4209,6 +4230,17 @@
       closePopovers();
     }
   });
+
+  function enableWebResearch() {
+    const input = document.getElementById('chatInput');
+    if (!input || input.disabled || input.readOnly) return;
+    const draft = String(input.value || '');
+    if (!/^\/research(?:\s|$)/i.test(draft)) {
+      if (draft.length > 1000) { chatNotice = 'Shorten your research question to 1,000 characters. Your draft is unchanged.'; syncChatComposer(); return; }
+      input.value = '/research ' + draft;
+    }
+    syncChatComposer(); input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+  }
 
   function insertPromptSuggestion(text) {
     const input = document.getElementById('chatInput');
@@ -4580,7 +4612,17 @@
     document.getElementById('settingsAgentDailyCap').value = String(settings.dailyCap ?? limits.dailyWorkspace?.amount ?? 100);
     document.getElementById('settingsAgentMemory').value = memoryPills.join('\n');
     document.getElementById('settingsAgentInstructions').value = String(settings.instructions || '');
-    document.querySelectorAll('[data-agent-tool]').forEach(input => { input.checked = settings.toolPermissions?.[input.dataset.agentTool] === true; });
+    document.querySelectorAll('[data-agent-tool]').forEach(input => {
+      input.checked = settings.toolPermissions?.[input.dataset.agentTool] === true;
+      if (['web_search', 'read_webpage'].includes(input.dataset.agentTool)) {
+        const label = input.closest('.agent-tool-row').querySelector('em');
+        label.textContent = researchConfigured ? 'Server configured · credentials checked on use' : 'Needs server setup';
+      } else if (input.dataset.agentTool === 'run_code') {
+        input.closest('.agent-tool-row').querySelector('em').textContent='Check + → Python jobs for availability · approval on every run';
+      } else {
+        input.closest('.agent-tool-row').querySelector('em').textContent = fileToolsAvailable ? (input.dataset.agentTool === 'read_files' ? 'Installed · 2 MB per file, up to 3 attachments' : 'Installed · Word, spreadsheet and text downloads') : 'Server availability not confirmed';
+      }
+    });
     document.querySelectorAll('#settingsAgentAppsOptions input[type="checkbox"]').forEach((checkbox) => {
       checkbox.checked = apps.includes(checkbox.value);
     });
@@ -4967,6 +5009,9 @@
   function syncChatComposer() {
     const input = document.getElementById('chatInput');
     resizeChatInput(input);
+    if (typeof window !== 'undefined') window.keusFiles?.sync();
+    if (typeof window !== 'undefined') window.keusWorkspaceFiles?.sync();
+    if (typeof window !== 'undefined') window.keusExecution?.sync();
     const sendButton = document.getElementById('chatSendButton');
     const charCounter = document.getElementById('chatCharCounter');
     if (charCounter && input) {
@@ -6216,6 +6261,8 @@
       const answerText = document.createElement('div');
       answerText.className = 'chat-answer-text';
       renderChatMarkdown(answerText, content);
+      answerText._keusExport = { text: content, agentId: agent?.id };
+      if (typeof window !== 'undefined') window.keusFiles?.addDownloads(answerText, content, agent?.id);
       text.append(answerText);
 
       const holdMatch = /\[PayPal Sandbox Hold Created:\s*(AUTH-SANDBOX-[A-Za-z0-9_-]+)\]/i.exec(content);
@@ -6817,6 +6864,23 @@
       ai_chat_agent_unavailable: 'That agent is not available in this workspace.',
       ai_chat_history_unavailable: 'Your saved conversation could not be loaded or saved. Refresh and try again.',
       authentication_required: 'Sign in again to continue.',
+      file_permission_required: 'Enable Read uploaded files in this agent’s Tools settings.',
+      file_unavailable: 'An attachment expired or is unavailable for this agent. Remove it and attach it again.',
+      file_consent_required: 'File analysis requires agreement to send extracted text to your AI provider.',
+      file_selection_invalid: 'Choose up to three valid attachments.',
+      file_research_combination_unsupported: 'Use file analysis and web research in separate messages for this trial.',
+      research_not_configured: 'Web research needs server setup. Your draft is unchanged.',
+      research_permission_required: 'Enable Web search and Read webpages in this agent’s Tools settings before researching.',
+      research_consent_required: 'Research requires agreement to third-party processing before it can run.',
+      research_query_invalid: 'Type /research followed by a question of up to 1,000 characters.',
+      research_rate_limited: 'Research limit reached. Please wait before trying again.',
+      research_provider_limit: 'The search provider’s limit was reached. Nothing was retried automatically.',
+      research_credentials_rejected: 'The server’s search credentials were rejected. Ask the workspace owner to check setup.',
+      research_canceled_or_timeout: 'Research was canceled or timed out. No automatic retry was made.',
+      research_search_unavailable: 'Web search is unavailable right now. No automatic retry was made.',
+      research_network_unavailable: 'Research could not connect. Check your connection and try again.',
+      research_no_sources: 'No usable public sources were found. Try a more specific question.',
+      research_invalid_response: 'The search provider returned an invalid response. No automatic retry was made.',
     };
     const copy = messages[code] || 'I could not get a reply. Please try again.';
     return requestId ? `${copy} Reference: ${requestId}` : copy;
@@ -7349,6 +7413,8 @@
         return;
       }
       chatAvailable = response.ok && data.available === true;
+      researchConfigured = response.ok && data.researchConfigured === true;
+      fileToolsAvailable = response.ok && data.fileToolsAvailable === true;
       renderAdminChatControls(data);
     } catch {
       chatAvailable = false;
@@ -7388,7 +7454,7 @@
       const data = dataLines.join('\n');
       eventName = 'message';
       dataLines = [];
-      if (!['delta', 'avatar_cue', 'tool_approval_required', 'done', 'error'].includes(name)) return;
+      if (!['delta', 'avatar_cue', 'tool_approval_required', 'research_status', 'done', 'error'].includes(name)) return;
       let payload;
       try { payload = JSON.parse(data); }
       catch { throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' }); }
@@ -7441,6 +7507,10 @@
       : String(input?.value || '').trim();
     const agent = findSelectedChatAgent();
     if (!content || !chatAvailable || !chatHistoryReady || chatHistoryLoading || !agent || chatPending || dictationSession) return;
+    const fileIds = window.keusFiles ? window.keusFiles.prepareSend(content) : [];
+    if (fileIds === false) return;
+    const wantsResearch = /^\/research(?:\s|$)/i.test(content);
+    if (wantsResearch && !window.confirm('Web research sends your question to Tavily and public-page excerpts to your selected AI provider. The question and answer are saved in chat history. Continue?')) return;
     const requestAgentId = String(agent.id);
     const requestViewVersion = chatHistoryLoadVersion;
     setAdminChatDiagnostics(null);
@@ -7459,7 +7529,7 @@
     let completed = false;
     let requestId = '';
     let replyAttribution = null;
-    const requestBody = { agentId: requestAgentId, message: content };
+    const requestBody = { agentId: requestAgentId, message: content, ...(fileIds.length ? { fileIds } : {}) };
     const appliedChoice = chatAdminAppliedChoice;
     const providerKey = appliedChoice?.providerKey || '';
     const selectedProvider = providerKey
@@ -7473,7 +7543,7 @@
       const response = await fetch('/api/chat', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json' },
+        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(wantsResearch ? { 'X-Research-Consent': 'web-research-v1' } : {}), ...(fileIds.length ? { 'X-File-Consent': 'file-analysis-v1' } : {}) },
         body: JSON.stringify(requestBody),
         signal: abortSignal,
       });
@@ -7496,7 +7566,15 @@
       }
 
       await readChatEventStream(response, async (eventName, payload) => {
-        if (eventName === 'delta') {
+        if (eventName === 'research_status') {
+          const copy = { searching: 'Searching the web…', reading: 'Reading public pages…', writing: 'Writing an answer with sources…' }[payload?.stage];
+          if (!copy) return;
+          const host = pendingRow?.querySelector('.msg-text');
+          if (!host) return;
+          let status = host.querySelector('.research-progress');
+          if (!status) { status = document.createElement('div'); status.className = 'research-progress'; status.setAttribute('role', 'status'); host.append(status); }
+          status.textContent = copy;
+        } else if (eventName === 'delta') {
           if (typeof payload?.text !== 'string' || !payload.text) return;
           if (!assistantRow) {
             assistantRow = pendingRow;
@@ -7551,7 +7629,7 @@
       setChatLiveStatus(assistantRow, 'complete');
       const reply = replyText.trim();
       const answerText = assistantRow?.querySelector('.chat-answer-text');
-      if (answerText) renderChatMarkdown(answerText, reply);
+      if (answerText) { renderChatMarkdown(answerText, reply); answerText._keusExport = {text: reply, agentId: requestAgentId}; window.keusFiles?.addDownloads(answerText, reply, requestAgentId); }
       appendChatProviderAttribution(assistantRow, replyAttribution);
       chatMessages.push({ role: 'assistant', content: reply });
       while (chatMessages.length > 100) chatMessages.shift();
@@ -8531,6 +8609,31 @@
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); }
   });
 })();
+</script>
+
+<script type="module">
+  try {
+    const { createFileToolsUI } = await import('/file-tools-ui.mjs');
+    window.keusFiles = createFileToolsUI({
+      closeMenu() { closePopovers(); },
+      context() { return { agent: findSelectedChatAgent(), agentId: String(selectedAgentId || ''), version: chatHistoryLoadVersion,
+        canUse: Boolean(currentBootstrap?.user?.id && chatAvailable && chatHistoryReady && !chatPending && !dictationSession && !chatHistoryLoading) }; },
+      status(message) { chatNotice = message; syncChatComposer(); },
+    });
+    document.querySelectorAll('.chat-answer-text').forEach(node => { if (node._keusExport) window.keusFiles.addDownloads(node, node._keusExport.text, node._keusExport.agentId); });
+  } catch { document.getElementById('attachFilesButton').disabled = true; }
+</script>
+<script type="module">
+try {
+ const {createWorkspaceFilesUI}=await import('/workspace-files-ui.mjs');
+ window.keusWorkspaceFiles=createWorkspaceFilesUI({
+  context(){return {agent:findSelectedChatAgent(),agentId:String(selectedAgentId||''),version:chatHistoryLoadVersion}},
+  closeMenu(){closePopovers()},focusComposer(){document.getElementById('chatInput').focus()},restoreFocus(){document.getElementById('chatPlusButton').focus()}
+ });
+} catch { document.getElementById('workspaceFilesButton').disabled=true; }
+</script>
+<script type="module">
+try{const {createExecutionUI}=await import('/execution-ui.mjs');window.keusExecution=createExecutionUI({context(){return{agent:findSelectedChatAgent(),agentId:String(selectedAgentId||''),version:chatHistoryLoadVersion}},closeMenu(){closePopovers()},restoreFocus(){document.getElementById('chatPlusButton').focus()}})}catch{document.getElementById('pythonJobsButton').disabled=true}
 </script>
 </body>
 </html>

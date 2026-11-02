@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeAgentExtensions, defaultAgentExtensions, agentToolAccess, assertAgentToolAccess } from '../../apps/web/lib/ai-agent/agent-settings.mjs';
 test('new agent tools default off and reject unknown permissions or coercion',()=>{
- assert.deepEqual(Object.values(defaultAgentExtensions().toolPermissions),[false,false,false,false]);
+ assert.deepEqual(Object.values(defaultAgentExtensions().toolPermissions),[false,false,false,false,false]);
  assert.deepEqual(normalizeAgentExtensions({}),{});
  for(const toolPermissions of [null,[],{web_search:'true'},{send_email:true},{__unknown:true}]) assert.throws(()=>normalizeAgentExtensions({toolPermissions}));
  assert.equal(normalizeAgentExtensions({toolPermissions:{web_search:true}}).toolPermissions.read_files,false);

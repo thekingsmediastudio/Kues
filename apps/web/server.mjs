@@ -1,3 +1,10 @@
+import { Freestyle } from 'freestyle';
+import { createExecutionJobs } from './lib/ai-agent/execution-jobs.mjs';
+import { createExecutionRoutes } from './lib/ai-agent/execution-routes.mjs';
+import { workspaceLibraryFromEnv } from './lib/ai-agent/workspace-storage.mjs';
+import { createWorkspaceFileRoutes } from './lib/ai-agent/workspace-file-routes.mjs';
+import { createFileTools, createFileRoutes, FileToolError, FILE_CONSENT } from './lib/ai-agent/file-tools.mjs';
+import { createWebResearch, researchSourcesMarkdown, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
 import http from 'node:http';
 import { createAudioRoutes, createGroqTranscription } from './lib/audio/groq-transcription.mjs';
 import crypto from 'node:crypto';
@@ -72,6 +79,9 @@ const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
+  ['/execution-ui.mjs', ['execution-ui.mjs', 'text/javascript; charset=utf-8']],
+  ['/workspace-files-ui.mjs', ['workspace-files-ui.mjs', 'text/javascript; charset=utf-8']],
+  ['/file-tools-ui.mjs', ['file-tools-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/local-audio.mjs', ['local-audio.mjs', 'text/javascript; charset=utf-8']],
   ['/local-audio-capture.mjs', ['local-audio-capture.mjs', 'text/javascript; charset=utf-8']],
   ['/local-dictation-worker.mjs', ['local-dictation-worker.mjs', 'text/javascript; charset=utf-8']],
@@ -1304,6 +1314,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
   usageService,
   rateWindows,
   pendingToolApprovals,
+  researchService,
+  filesService,
   channel3Client,
   db,
 }) {
@@ -1406,7 +1418,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     if (enabledForAdmin) {
       try { available = await aiChatService.isReady(); } catch { available = false; }
     }
-    const statusPayload = { available: available === true };
+    const statusPayload = { available: available === true, ...(enabledForAdmin ? { researchConfigured: researchService?.configured === true, fileToolsAvailable: filesService?.ready === true } : {}) };
     if (available && typeof aiProviderService?.listProviders === 'function') {
       try {
         const configured = await aiProviderService.listProviders();
@@ -1520,11 +1532,12 @@ async function handleDesktopAiChatRequest(req, res, url, {
   let requestProviderKey;
   let requestModelId;
   let newUserMessage = null;
+  let fileContext = null;
   let idempotencyKey = null;
   try {
     consumeAiChatRateLimit(rateWindows, String(user.id || ''));
     const input = await readJsonBody(req, 16 * 1024);
-    if (Object.keys(input).some((key) => !['agentId', 'message', 'providerKey', 'modelId', 'agentMode'].includes(key))) {
+    if (Object.keys(input).some((key) => !['agentId', 'message', 'providerKey', 'modelId', 'agentMode', 'fileIds'].includes(key))) {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
     if (input.agentMode !== undefined && typeof input.agentMode !== 'boolean') {
@@ -1549,9 +1562,42 @@ async function handleDesktopAiChatRequest(req, res, url, {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
     newUserMessage = normalizeAiChatMessages([{ role: 'user', content: input.message }])[0];
+    const wantsResearch = /^\/research(?:\s|$)/i.test(newUserMessage.content);
+    const researchQuery = wantsResearch ? newUserMessage.content.replace(/^\/research\s*/i, '').trim() : '';
+    let researchContext = null;
+    if (input.fileIds !== undefined && (!Array.isArray(input.fileIds) || input.fileIds.length < 1 || input.fileIds.length > 3)) throw new FileToolError('file_selection_invalid');
+    if (input.fileIds && req.headers['x-file-consent'] !== FILE_CONSENT) throw new FileToolError('file_consent_required');
+    if (input.fileIds && wantsResearch) throw new FileToolError('file_research_combination_unsupported');
+    if (wantsResearch) {
+      if (req.headers['x-research-consent'] !== RESEARCH_CONSENT) throw new ResearchError('research_consent_required', 400);
+      if (!researchService?.configured) throw new ResearchError('research_not_configured', 503);
+      if (!researchQuery || researchQuery.length > 1000) throw new ResearchError('research_query_invalid', 400);
+    }
     if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
 
     ({ workspace, agent } = await loadOwnedAgent(agentId));
+    if (input.fileIds) fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent });
+    const requireResearchPermissions = async () => {
+      const current = await loadOwnedAgent(agentId);
+      if (current.workspace.id !== workspace.id || current.agent.settings?.toolPermissions?.web_search !== true || current.agent.settings?.toolPermissions?.read_webpage !== true) throw new ResearchError('research_permission_required', 403);
+    };
+    if (wantsResearch) await requireResearchPermissions();
+    const refreshFileContext = async () => {
+      if (!input.fileIds) return;
+      const current = await loadOwnedAgent(agentId);
+      if (current.workspace.id !== workspace.id) throw new FileToolError('file_unavailable', 404);
+      fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent: current.agent });
+    };
+    const researchBeforeReply = async (signal, onStage) => {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      if (signal?.aborted || req.aborted || res.destroyed) abort();
+      signal?.addEventListener('abort', abort, { once: true }); res.once('close', abort);
+      try {
+        researchContext = await researchService.run({ agent, query: researchQuery, userId: user.id, signal: controller.signal, onStage });
+        await requireResearchPermissions();
+      } finally { signal?.removeEventListener('abort', abort); res.off('close', abort); }
+    };
     const storedMessages = await aiChatHistoryService.getRecentMessages({
       workspaceId: workspace.id,
       userId: user.id,
@@ -1571,7 +1617,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
-    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + 600;
+    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? JSON.stringify(fileContext).length + 1000 : 0) + 600;
     const estimatedTokens = Math.ceil((messageCharacters + profileCharacters + 1_000) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
     idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
@@ -1600,6 +1646,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
       });
       res.flushHeaders?.();
       try {
+        await refreshFileContext();
+        if (wantsResearch) await researchBeforeReply(streamController.signal, stage => writeSseEvent(res, 'research_status', { stage }, streamController.signal));
         const requestedMoodCue = explicitAvatarEmotionCue(newUserMessage?.content);
         if (requestedMoodCue) {
           streamAvatarCueCount += 1;
@@ -1610,7 +1658,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
         const completion = await aiChatService.stream({
           agent,
           messages,
-          workspaceTools: true,
+          workspaceTools: !wantsResearch && !fileContext,
+          ...(researchContext ? { researchContext } : {}),
+          ...(fileContext ? { fileContext } : {}),
           ...(requestProviderKey ? { providerKey: requestProviderKey } : {}),
           ...(requestModelId ? { modelId: requestModelId } : {}),
           signal: streamController.signal,
@@ -1638,7 +1688,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
         const safePrefix = streamWorkspaceGate.visibleText();
         let visibleReply = typeof completion.text === 'string' ? completion.text : '';
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
-        if (toolCall.kind === 'invalid') {
+        if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
+          visibleReply = 'The analysis response could not be safely presented. No action was taken.';
+          await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
+        } else if (toolCall.kind === 'invalid') {
           visibleReply = safePrefix.trim()
             ? safePrefix
             : 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
@@ -1709,6 +1762,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
             await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
           }
         }
+        if (researchContext) { const sources = researchSourcesMarkdown(researchContext); visibleReply += sources; await writeSseEvent(res, 'delta', { text: sources }, streamController.signal); }
         streamCompletion = { ...completion, text: visibleReply };
         if (streamCompletion.fallbackUsed === true) {
           const fallbackAttempts = Number.isSafeInteger(streamCompletion.fallbackAttempts) ? streamCompletion.fallbackAttempts : 0;
@@ -1728,7 +1782,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           workspaceId: workspace.id,
           userId: user.id,
           agentId,
-          userMessage: newUserMessage.content,
+          userMessage: newUserMessage.content + (fileContext ? '\n\n[Attached files: ' + fileContext.files.map(file => file.name).join(', ') + ']' : ''),
           assistantMessage: streamCompletion.text,
         });
         streamHistoryPersisted = true;
@@ -1747,10 +1801,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
 
     let completion;
     try {
+      await refreshFileContext();
+      if (wantsResearch) await researchBeforeReply();
       completion = await aiChatService.complete({
         agent,
         messages,
-        workspaceTools: true,
+        workspaceTools: !wantsResearch && !fileContext,
+        ...(researchContext ? { researchContext } : {}),
+          ...(fileContext ? { fileContext } : {}),
         ...(requestProviderKey ? { providerKey: requestProviderKey } : {}),
         ...(requestModelId ? { modelId: requestModelId } : {}),
       });
@@ -1765,7 +1823,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const toolCall = parseWorkspaceToolCall(completion.text);
     let visibleReply = typeof completion.text === 'string' ? completion.text : '';
     let preparedWorkspaceProposal = null;
-    if (toolCall.kind === 'invalid') {
+    if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
+      visibleReply = 'The analysis response could not be safely presented. No action was taken.';
+    } else if (toolCall.kind === 'invalid') {
       visibleReply = 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
     } else if (toolCall.kind === 'tool') {
       visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
@@ -1809,6 +1869,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       }
     }
     if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
+    if (researchContext) visibleReply += researchSourcesMarkdown(researchContext);
     completion = { ...completion, text: visibleReply };
 
     try {
@@ -1843,7 +1904,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       workspaceId: workspace.id,
       userId: user.id,
       agentId,
-      userMessage: newUserMessage.content,
+      userMessage: newUserMessage.content + (fileContext ? '\n\n[Attached files: ' + fileContext.files.map(file => file.name).join(', ') + ']' : ''),
       assistantMessage: completion.text,
     });
     streamHistoryPersisted = true;
@@ -1856,7 +1917,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     });
   } catch (error) {
     const safeCode = error instanceof UsageLimitError || error instanceof UsageReservationError
-      || error instanceof RequestError || error instanceof AiProviderError || error instanceof AiChatHistoryError
+      || error instanceof RequestError || error instanceof ResearchError || error instanceof FileToolError || error instanceof AiProviderError || error instanceof AiChatHistoryError
       ? String(error.code || 'request_failed').slice(0, 80)
       : 'internal_error';
     const upstreamStatus = Number.isInteger(error?.upstreamStatus) && error.upstreamStatus >= 100 && error.upstreamStatus <= 599
@@ -1930,7 +1991,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
             workspaceId: workspace.id,
             userId: user.id,
             agentId,
-            userMessage: newUserMessage.content,
+            userMessage: newUserMessage.content + (fileContext ? '\n\n[Attached files: ' + fileContext.files.map(file => file.name).join(', ') + ']' : ''),
             assistantMessage: completionToSave.text,
           });
         } catch (historyError) {
@@ -1950,7 +2011,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         if (streamFailure instanceof UsageLimitError) publicError = 'token_usage_limit_exceeded';
         else if (streamFailure instanceof UsageReservationError) {
           publicError = streamFailure.code === 'active_entitlement_required' ? 'active_entitlement_required' : 'ai_chat_unavailable';
-        } else if (streamFailure instanceof RequestError) publicError = streamFailure.code;
+        } else if (streamFailure instanceof RequestError || streamFailure instanceof ResearchError || streamFailure instanceof FileToolError) publicError = streamFailure.code;
         else if (streamFailure instanceof AiChatHistoryError) publicError = 'ai_chat_history_unavailable';
         else if (streamFailure instanceof WorkspaceError) publicError = 'ai_chat_agent_unavailable';
         else if (streamFailure instanceof AiProviderError && streamFailure.code === 'ai_chat_messages_invalid') {
@@ -1971,7 +2032,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         error: error.code === 'active_entitlement_required' ? 'active_entitlement_required' : 'ai_chat_unavailable',
         requestId,
       }));
-    } else if (error instanceof RequestError) {
+    } else if (error instanceof RequestError || error instanceof ResearchError || error instanceof FileToolError) {
       sendJson(res, error.status, addAdminDiagnostics({ error: error.code, requestId }));
     } else if (error instanceof AiChatHistoryError) {
       sendJson(res, error.status, addAdminDiagnostics({ error: 'ai_chat_history_unavailable', requestId }));
@@ -3100,6 +3161,10 @@ export function createServer({
   aiChatService = null,
   aiChatHistoryService = null,
   audioTranscriptionService = null,
+  webResearchService = null,
+  fileToolsService = null,
+  workspaceLibraryService = null,
+  executionJobsService = null,
   usageService = null,
   channel3Client = null,
   db = null,
@@ -3112,6 +3177,31 @@ export function createServer({
     config,
     workosAuth,
   };
+  const filesService = fileToolsService || createFileTools();
+  const getFileScope = async (req, agentId) => {
+      const token = cookieValue(req, sessionCookieName(runtime.config));
+      const user = token && authService ? await authService.getSession({ token }) : null;
+      if (!user) throw new FileToolError('authentication_required', 401);
+      if (runtime.config.aiProviderChatTestEnabled !== true || !aiProviderAdminAllowed(runtime.config, user)) throw new FileToolError('file_admin_required', 403);
+      if (!workspaceService) throw new FileToolError('file_service_unavailable', 503);
+      const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
+      const agent = bootstrap.agents?.find(item => item.id === agentId && item.status !== 'archived');
+      if (!agent || bootstrap.workspace?.status !== 'active') throw new FileToolError('file_agent_unavailable', 404);
+      return { userId: user.id, workspaceId: bootstrap.workspace.id, agent };
+    };
+  const fileOrigin = req => { const origin = requestOrigin(req); return origin.present && origin.valid && origin.sameOrigin; };
+  const fileRoutes = createFileRoutes({service: filesService, sameOrigin: fileOrigin, getScope: getFileScope});
+  let libraryService = workspaceLibraryService;
+  if (!libraryService) { try { libraryService = workspaceLibraryFromEnv(); } catch { console.error('Workspace storage configuration invalid; library disabled.'); libraryService = workspaceLibraryFromEnv({}); } }
+  const workspaceFileRoutes = createWorkspaceFileRoutes({library: libraryService, files: filesService, sameOrigin: fileOrigin, getScope: getFileScope, executionReady:()=>jobsService?.configured===true});
+  let jobsService=executionJobsService;
+  if(!jobsService && process.env.WORKSPACE_EXECUTION_ENABLED==='1' && process.env.FREESTYLE_FREE_PLAN_CONFIRMED==='1' && process.env.EXECUTION_IMAGE_VERIFIED==='1' && process.env.FREESTYLE_SNAPSHOT_ID && process.env.FREESTYLE_API_KEY && db && libraryService.configured) {
+    try { jobsService=createExecutionJobs({db,library:libraryService,client:new Freestyle({apiKey:process.env.FREESTYLE_API_KEY,fetch:(url,init={})=>fetch(url,{...init,signal:AbortSignal.any([AbortSignal.timeout(30000),...(init.signal?[init.signal]:[])])})}),apiKey:process.env.FREESTYLE_API_KEY,snapshotId:process.env.FREESTYLE_SNAPSHOT_ID,encryptionKey:process.env.EXECUTION_ENCRYPTION_KEY,
+      resolveScope:async scope=>{const b=await workspaceService.getBootstrap({userId:scope.userId});const agent=b.agents?.find(a=>a.id===scope.agent.id&&a.status!=='archived');if(!agent||b.workspace?.status!=='active'||b.workspace.id!==scope.workspaceId||!aiProviderAdminAllowed(config,b.user||{}))return null;return{...scope,agent}}
+    }); } catch { console.error('Execution configuration invalid; code jobs disabled.'); }
+  }
+  const executionRoutes=createExecutionRoutes({service:jobsService,getScope:getFileScope,sameOrigin:fileOrigin});
+  const researchService = config.webResearchEnabled ? (webResearchService || createWebResearch({ enabled: true, apiKey: process.env.TAVILY_API_KEY || '' })) : createWebResearch();
   const audioRoutes = createAudioRoutes({
     getUser: async req => {
       const token = cookieValue(req, sessionCookieName(runtime.config));
@@ -3124,7 +3214,7 @@ export function createServer({
   const aiChatRateWindows = new Map();
   const aiChatPendingToolApprovals = new Map();
 
-  return http.createServer((req, res) => {
+  const server = http.createServer((req, res) => {
     void (async () => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -3251,6 +3341,9 @@ export function createServer({
         if (handled) return;
       }
 
+      if (url.pathname.startsWith('/api/execution/')) { await executionRoutes(req,res,url); return; }
+      if (url.pathname.startsWith('/api/workspace-files/')) { await workspaceFileRoutes(req, res, url); return; }
+      if (url.pathname.startsWith('/api/files/')) { await fileRoutes(req, res, url); return; }
       if (url.pathname.startsWith('/api/audio/')) { await audioRoutes(req, res, url); return; }
 
       if (url.pathname.startsWith('/api/workspace/') || url.pathname.startsWith('/api/onboarding/')) {
@@ -3295,6 +3388,8 @@ export function createServer({
           usageService,
           rateWindows: aiChatRateWindows,
           pendingToolApprovals: aiChatPendingToolApprovals,
+          researchService,
+          filesService,
           channel3Client: activeChannel3Client,
           db,
         });
@@ -3537,6 +3632,9 @@ export function createServer({
       else res.destroy();
     });
   });
+  let recoveryTimer;
+  if(jobsService?.configured&&typeof jobsService.recover==='function'){const recover=()=>void jobsService.recover().catch(()=>console.error('Execution recovery deferred.'));server.once('listening',()=>{recover();recoveryTimer=setInterval(recover,30000);recoveryTimer.unref()});server.once('close',()=>clearInterval(recoveryTimer))}
+  return server;
 }
 
 const isMain = process.argv[1]

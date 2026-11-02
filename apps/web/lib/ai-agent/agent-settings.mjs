@@ -1,5 +1,5 @@
 // New tool permissions are explicit opt-ins. Availability is separate and fail-closed.
-export const AGENT_TOOL_KEYS = Object.freeze(['web_search', 'read_webpage', 'read_files', 'create_files']);
+export const AGENT_TOOL_KEYS = Object.freeze(['web_search', 'read_webpage', 'read_files', 'create_files', 'run_code']);
 export function normalizeAgentExtensions(input) {
   const result = {};
   if (Object.hasOwn(input, 'instructions')) {

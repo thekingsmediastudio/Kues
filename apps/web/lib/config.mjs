@@ -73,6 +73,9 @@ function isValid32ByteEncryptionKey(value) {
  */
 export function loadServerConfig(env = process.env) {
   const issues = [];
+  const webResearchFlag = String(env.WEB_RESEARCH_ENABLED || '').trim();
+  if (webResearchFlag && !['0', '1'].includes(webResearchFlag)) issues.push('WEB_RESEARCH_ENABLED must be 0 or 1');
+  const webResearchEnabled = webResearchFlag === '1';
   const groqTranscriptionFlag = String(env.GROQ_TRANSCRIPTION_ENABLED || '').trim();
   if (groqTranscriptionFlag && !['0', '1'].includes(groqTranscriptionFlag)) issues.push('GROQ_TRANSCRIPTION_ENABLED must be 0 or 1');
   const groqTranscriptionEnabled = groqTranscriptionFlag === '1';
@@ -258,6 +261,7 @@ export function loadServerConfig(env = process.env) {
     aiProvidersEnabled: aiProviderAdminEmails.length > 0,
     aiProviderAdminEmails: Object.freeze(aiProviderAdminEmails),
     aiProviderChatTestEnabled,
+    webResearchEnabled,
     groqTranscriptionEnabled,
     groqTranscriptionModel,
   });

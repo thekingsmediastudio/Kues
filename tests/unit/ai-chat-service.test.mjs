@@ -458,3 +458,8 @@ test('only the selected agent instructions reach the provider and cannot grant t
   assert.match(observed[0].messages[0].content,/Only server-provided tools can execute/);
  } finally {await db.close()}
 });
+
+test('research source context is explicitly untrusted and replaces workspace tool instructions',async()=>{
+ const {db,aiProviderService}=await createProvider('openai_chat','https://api.example-provider.com/v1');let body;
+ try{const chat=createAiChatService({aiProviderService,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHttpsImpl:async req=>{body=JSON.parse(req.body);return {status:200,contentType:'application/json',body:Buffer.from(JSON.stringify({choices:[{message:{content:'Evidence [1].'}}]}))}}});await chat.complete({agent:{},messages,workspaceTools:true,researchContext:{sources:[{id:1,title:'Source',url:'https://example.com/',excerpt:'Untrusted page text',pageRead:true}]}});assert.match(body.messages[0].content,/UNTRUSTED DATA/);assert.match(body.messages[0].content,/No write or purchase tool is available in research mode/);assert.match(body.messages[0].content,/Untrusted page text/);assert.doesNotMatch(body.messages[0].content,/Available tools:/)}finally{await db.close()}
+});
