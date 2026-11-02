@@ -293,7 +293,7 @@ test('Revocation: Revoking a passkey prevents subsequent signature verification'
   );
 });
 
-test('HTTP Passkey End-to-End: Registration and Mandate Approval through REST APIs', async () => {
+test('HTTP passkey registration remains available but legacy payment execution is disabled', async () => {
   await withServer(async ({ origin, sessionToken, wsId, userId, agentId, db }) => {
     const authHeaders = {
       Cookie: `kues_session=${sessionToken}`,
@@ -375,16 +375,12 @@ test('HTTP Passkey End-to-End: Registration and Mandate Approval through REST AP
         signature: sig.toString('base64url'),
       }),
     });
-    assert.equal(appRes.status, 200);
-    const appData = await appRes.json();
-    assert.ok(appData.ok);
-    assert.ok(appData.verified);
-    assert.ok(appData.paymentHold?.authorizationId);
-    assert.ok(appData.execution?.selectedRail);
+    assert.equal(appRes.status,403);
+    assert.equal((await appRes.json()).error,'standard_checkout_required');
   });
 });
 
-test('Chat Tool Approval with Passkey: Verifies WebAuthn assertion and binds to mandate_approvals', async () => {
+test('Chat purchase review rejects legacy passkey payment bypass', async () => {
   const { db, authService, workspaceService, session, wsId, userId, agentId } = await setupPasskeyTestEnvironment();
 
   // 1. Register passkey
@@ -519,21 +515,11 @@ test('Chat Tool Approval with Passkey: Verifies WebAuthn assertion and binds to 
     });
     assert.equal(approvalRes.status, 200);
     const approvalData = await approvalRes.json();
-    assert.equal(approvalData.status, 'approved');
-    assert.equal(approvalData.passkeyVerified, true);
-    assert.match(approvalData.message, /Passkey Verified: cred_chat_biometric_01/);
-    assert.match(approvalData.message, /PayPal Sandbox Hold Created/);
-    assert.ok(approvalData.paymentHold);
-
-    // 5. Query mandate_approvals table to verify persistence of credential_id and status
-    const approvalRecord = await db.execute({
-      sql: `SELECT status, credential_id, verified_at FROM mandate_approvals WHERE workspace_id = ? AND mandate_id = ?`,
-      args: [wsId, mandateId],
-    });
-    assert.equal(approvalRecord.rows.length, 1);
-    assert.equal(approvalRecord.rows[0].status, 'verified');
-    assert.equal(approvalRecord.rows[0].credential_id, 'cred_chat_biometric_01');
-    assert.ok(approvalRecord.rows[0].verified_at);
+    assert.equal(approvalData.status,'failed');
+    assert.equal(approvalData.paymentHold,undefined);
+    const record=await db.execute({sql:'SELECT status,credential_id FROM mandate_approvals WHERE mandate_id=?',args:[mandateId]});
+    assert.equal(record.rows[0].status,'pending');
+    assert.equal(record.rows[0].credential_id,null);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

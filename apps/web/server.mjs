@@ -1,3 +1,4 @@
+import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
 import { createWalletLinkService, WalletLinkError, WALLET_RETURN_HTML } from './lib/paypal/wallet-link.mjs';
 import { reviewShoppingBasket } from './lib/ai-agent/shopping-basket.mjs';
 import { reviewDocumentContext, documentCoverageMarkdown } from './lib/ai-agent/document-reading.mjs';
@@ -78,6 +79,7 @@ const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
+  ['/standard-checkout-ui.mjs', ['standard-checkout-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/shopping-brief-ui.mjs', ['shopping-brief-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/execution-ui.mjs', ['execution-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/workspace-files-ui.mjs', ['workspace-files-ui.mjs', 'text/javascript; charset=utf-8']],
@@ -484,71 +486,12 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
     } else {
       if (approval.type === 'purchase_product') {
         if (!db) throw new WorkspaceError('database_not_configured', 503);
-        let passkeyVerified = false;
-        let passkeyNotice = '';
-        let mandateAuth;
-
-        if (body.passkey && body.passkey.credentialId) {
-          try {
-            const pResult = await verifyMandatePasskeyApproval({
-              db,
-              workspaceId: approval.workspaceId,
-              mandateId: approval.payload.mandateId,
-              userId: user.id,
-              credentialId: body.passkey.credentialId,
-              signature: body.passkey.signature,
-              authenticatorData: body.passkey.authenticatorData,
-              clientDataJSON: body.passkey.clientDataJSON,
-              simulate: Boolean(body.passkey.simulate),
-            });
-            passkeyVerified = pResult.verified;
-            passkeyNotice = ` [Passkey Verified: ${body.passkey.credentialId}]`;
-            mandateAuth = {
-              mandateId: approval.payload.mandateId,
-              amountMinor: approval.payload.amountMinor,
-              currency: approval.payload.currency || 'USD',
-            };
-          } catch (passkeyErr) {
-            console.warn('Passkey verification note:', passkeyErr.message);
-            throw passkeyErr;
-          }
-        } else {
-          mandateAuth = await authorizePurchaseMandate({
-            db,
-            workspaceId: approval.workspaceId,
-            userId: user.id,
-            mandateId: approval.payload.mandateId,
-            credentialId: null,
-            decision: 'approve',
-          });
-        }
-
-        let holdNotice = '';
-        let paymentHold = null;
-        let checkoutExecution = null;
-        try {
-          checkoutExecution = await executeCheckoutMandate({
-            db,
-            workspaceId: approval.workspaceId,
-            userId: user.id,
-            mandateId: approval.payload.mandateId,
-            channel3Client,
-          });
-          paymentHold = checkoutExecution.paypalHold;
-          if (checkoutExecution.selectedRail === 'card_bridge') {
-            holdNotice = ` [Tier 3: Single-Use Virtual Card Minted (${checkoutExecution.railDetails.maskedPan})] [PayPal Sandbox Hold Created: ${paymentHold.authorizationId}]`;
-          } else if (checkoutExecution.selectedRail === 'channel3_ucp') {
-            holdNotice = ` [Tier 2: Channel3 UCP Direct API Order (${checkoutExecution.railDetails.ucpOrderId})] [PayPal Sandbox Hold Created: ${paymentHold.authorizationId}]`;
-          } else {
-            holdNotice = ` [Tier 1: PayPal Native Vault Order] [PayPal Sandbox Hold Created: ${paymentHold.authorizationId}]`;
-          }
-        } catch (holdErr) {
-          console.warn('Checkout execution note:', holdErr.message);
-        }
-        message = `Authorized purchase mandate \`${mandateAuth.mandateId}\`${passkeyNotice} for “${String(approval.payload.productTitle).slice(0, 50)}” ($${(mandateAuth.amountMinor / 100).toFixed(2)} ${mandateAuth.currency}).${holdNotice}`;
-        approval.paymentHold = paymentHold;
-        approval.checkoutExecution = checkoutExecution;
-        approval.passkeyVerified = passkeyVerified;
+        if (body.passkey) throw new WorkspaceError('standard_checkout_required',400);
+        const current = await workspaceService.getBootstrap({userId:user.id});
+        if(current.workspace?.id!==approval.workspaceId || current.workspace.status!=='active')throw new WorkspaceError('workspace_tool_proposal_stale',409);
+        const mandateAuth = await authorizePurchaseMandate({db,workspaceId:approval.workspaceId,userId:user.id,mandateId:approval.payload.mandateId,decision:'approve'});
+        approval.checkoutMandateId = mandateAuth.mandateId;
+        message = `Reviewed purchase for “${String(approval.payload.productTitle).slice(0,50)}” ($${(mandateAuth.amountMinor/100).toFixed(2)} ${mandateAuth.currency}). Continue to PayPal sandbox checkout to approve this specific authorization. No payment hold, capture, seller order or shipment has occurred.`;
       } else {
         const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
         const workspace = bootstrap?.workspace;
@@ -596,6 +539,7 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
       status: body.decision === 'approve' ? 'approved' : 'rejected',
       message,
       historyUserMessage,
+      checkoutMandateId: approval.checkoutMandateId || null,
       paymentHold: approval.paymentHold || null,
       checkoutExecution: approval.checkoutExecution || null,
       passkeyVerified: approval.passkeyVerified || false,
@@ -2592,6 +2536,12 @@ async function handleCommerceRequest(req, res, url, {
   db,
 }) {
   if (!url.pathname.startsWith('/api/commerce/')) return false;
+  if (req.method === 'GET' && url.pathname === '/api/commerce/paypal/checkout/return') {
+    res.writeHead(200, { 'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer',
+      'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'" });
+    res.end(CHECKOUT_RETURN_HTML); return true;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/commerce/paypal/wallet/return') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
@@ -2622,6 +2572,32 @@ async function handleCommerceRequest(req, res, url, {
   const workspaceId = bootstrap?.workspace?.id;
   if (!workspaceId || !db) {
     sendJson(res, 503, { error: 'workspace_database_unavailable' });
+    return true;
+  }
+
+  // The interactive checkout is the only payment execution route in this build.
+  if (req.method === 'POST' && (['/api/commerce/paypal/authorize','/api/commerce/paypal/void','/api/commerce/paypal/capture','/api/commerce/paypal/refund'].includes(url.pathname) || url.pathname.includes('/passkey-approve'))) {
+    sendJson(res,403,{error:url.pathname.endsWith('/capture')?'payment_capture_disabled':'standard_checkout_required'}); return true;
+  }
+  if (url.pathname === '/api/commerce/paypal/checkout' || url.pathname.startsWith('/api/commerce/paypal/checkout/')) {
+    res.setHeader('Cache-Control','no-store');
+    try {
+      if (bootstrap.workspace.status !== 'active') throw new CheckoutError('workspace_inactive',403);
+      const demo=await db.execute({sql:'SELECT id FROM auth_identities WHERE user_id=? AND provider_subject=? LIMIT 1',args:[user.id,'sub_paypal_hackathon_judge']});
+      if(demo.rows.length)throw new CheckoutError('checkout_personal_account_required',403);
+      const service=createStandardCheckoutService({db});const context={workspaceId,userId:user.id,sessionToken};
+      if(req.method==='GET'&&url.pathname==='/api/commerce/paypal/checkout'){sendJson(res,200,{ok:true,checkouts:await service.list(context)});return true;}
+      if(req.method!=='POST'){sendJson(res,405,{error:'method_not_allowed'});return true;}
+      requireSameOrigin(req);
+      const action=url.pathname.slice('/api/commerce/paypal/checkout/'.length);
+      if(!['begin','complete','cancel','reconcile','void'].includes(action)){sendJson(res,404,{error:'not_found'});return true;}
+      const body=await readJsonBody(req,4096);const key=['complete','cancel'].includes(action)?'state':'mandateId';
+      if(!body||Array.isArray(body)||Object.keys(body).length!==1||typeof body[key]!=='string'||body[key].length>255)throw new CheckoutError('checkout_arguments_invalid');
+      const result=action==='begin'?await service.begin(context,body.mandateId,requestOrigin(req).value)
+        :action==='complete'?await service.complete(context,body.state):action==='cancel'?await service.cancel(context,body.state)
+        :action==='void'?await service.voidHold(context,body.mandateId):await service.reconcile(context,body.mandateId);
+      sendJson(res,200,{ok:true,checkout:result});
+    }catch(error){const known=error instanceof CheckoutError||error instanceof RequestError;sendJson(res,known?(error.status||400):500,{error:known?error.code:'checkout_request_failed'});}
     return true;
   }
 

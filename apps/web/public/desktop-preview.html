@@ -3484,9 +3484,7 @@
         <button class="modal-nav-btn active" id="settingsTabWorkspace" type="button" role="tab" aria-selected="true" aria-controls="settingsPaneWorkspace" data-settings-pane="workspace">
           <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M3 17V5.5L10 3l7 2.5V17H3Z"/><path d="M7 17v-4h6v4M6.5 8h.01M10 8h.01M13.5 8h.01"/></svg></span><span>Workspace</span>
         </button>
-        <button class="modal-nav-btn" id="settingsTabWallet" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneWallet" data-settings-pane="wallet">
-          <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 8h16M6 12h3"/></svg></span><span>PayPal wallet</span>
-        </button>
+        <button class="modal-nav-btn" id="settingsTabPayments" type="button" role="tab" aria-selected="false" aria-controls="settingsPanePayments" data-settings-pane="payments"><span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><rect x="2" y="4" width="16" height="12" rx="2"/><path d="M2 8h16M6 12h3"/></svg></span><span>PayPal checkout</span></button>
         <button class="modal-nav-btn" id="settingsTabAccount" type="button" role="tab" aria-selected="false" aria-controls="settingsPaneAccount" data-settings-pane="account">
           <span class="modal-nav-ico" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 2.5 16 5v4.3c0 3.7-2.4 6.3-6 8.2-3.6-1.9-6-4.5-6-8.2V5l6-2.5Z"/><path d="m7.3 10 1.8 1.8 3.7-3.9"/></svg></span><span>Account &amp; security</span>
         </button>
@@ -3558,7 +3556,11 @@
               <p>Desktop transaction-bound WebAuthn approval is planned. This preview has no agent runtime, live approval, or payment flow; displayed spend limits are stored preferences and are not enforced by a running agent.</p>
             </div>
           </section>
-          <section class="app-settings-pane" id="settingsPaneWallet" role="tabpanel" aria-labelledby="settingsTabWallet" hidden>
+          <section class="app-settings-pane" id="settingsPanePayments" role="tabpanel" aria-labelledby="settingsTabPayments" hidden>
+            <div class="app-settings-card"><h3>PayPal sandbox checkout</h3><p>No linked wallet is required. Review a purchase in chat, then approve that specific checkout on PayPal. Only a sandbox authorization hold is created; capture is disabled. The sandbox merchant is this app's test business, not the product seller. No seller order or shipment is placed.</p><button class="pill-btn dark" id="checkoutRefresh" type="button">Refresh checkouts</button><p id="checkoutStatus" class="settings-form-status" role="status" aria-live="polite"></p></div>
+            <div id="checkoutList"></div>
+          </section>
+          <section class="app-settings-pane" id="settingsPaneWallet" role="tabpanel" aria-label="Deferred PayPal wallet setup" hidden>
             <div class="app-settings-card" id="paypalWalletCard">
               <div class="app-settings-card-header">
                 <h3>PayPal sandbox wallet</h3>
@@ -3930,12 +3932,12 @@
     if (openOverlayId === id) openOverlayId = null;
     if (restoreFocus && lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
   }
-  const settingsPaneIds = ['workspace', 'wallet', 'account', 'audio', 'appearance'];
+  const settingsPaneIds = ['workspace', 'payments', 'account', 'audio', 'appearance'];
   function setSettingsPane(key) {
     const agentDetail = key === 'agents' && Boolean(document.getElementById('generalOverlayBackdrop')?.dataset?.agentSettingsId);
     const selected = agentDetail ? 'agents' : (settingsPaneIds.includes(key) ? key : 'workspace');
     const settingsNotice = document.getElementById('settingsPreviewNotice');
-    if (settingsNotice) settingsNotice.hidden = selected === 'audio';
+    if (settingsNotice) settingsNotice.hidden = selected === 'audio' || selected === 'payments';
     if (selected === 'audio') void window.keusLocalAudio?.refreshDevices();
     else window.keusLocalAudio?.stopTest();
     document.querySelectorAll('.app-settings-nav [data-settings-pane]').forEach((button) => {
@@ -3952,7 +3954,7 @@
       pane.classList.toggle('is-active', active);
       pane.hidden = !active;
     });
-    if (selected === 'wallet') void loadPayPalWalletStatus();
+    if (selected === 'payments') void window.keusCheckoutUI?.refresh();
     if (selected === 'account') void refreshPendingEmailChange();
   }
   function resetAgentSettingsView() {
@@ -6294,19 +6296,10 @@
     const buttons = document.createElement('div');
     buttons.className = 'workspace-tool-approval-buttons';
     const isPurchase = typeof action.title === 'string' && action.title.toLowerCase().includes('purchase');
-    if (isPurchase) {
-      const passkeyApprove = document.createElement('button');
-      passkeyApprove.type = 'button';
-      passkeyApprove.className = 'workspace-tool-approve workspace-tool-passkey-approve';
-      passkeyApprove.textContent = 'Approve with Passkey';
-      passkeyApprove.setAttribute('title', 'Biometric WebAuthn hardware assertion');
-      passkeyApprove.addEventListener('click', () => { void decideWorkspaceToolApproval(actionId, 'approve', card, threadAgentId, true); });
-      buttons.append(passkeyApprove);
-    }
     const approve = document.createElement('button');
     approve.type = 'button';
     approve.className = 'workspace-tool-approve';
-    approve.textContent = isPurchase ? 'Authorize Standard' : 'Approve change';
+    approve.textContent = isPurchase ? 'Review checkout' : 'Approve change';
     const reject = document.createElement('button');
     reject.type = 'button';
     reject.className = 'workspace-tool-reject';
@@ -6328,47 +6321,14 @@
     if (status) {
       if (isPurchase) {
         status.textContent = decision === 'approve'
-          ? (usePasskey ? 'Verifying biometric passkey assertion…' : 'Authorizing purchase mandate…')
+          ? 'Recording your checkout review…'
           : 'Declining mandate…';
       } else {
         status.textContent = decision === 'approve' ? 'Applying your approved change…' : 'Cancelling the proposal…';
       }
     }
-    let passkeyPayload = null;
-    if (decision === 'approve' && usePasskey) {
-      try {
-        const pListRes = await fetch('/api/commerce/passkeys');
-        const pListData = await pListRes.json();
-        let credId = pListData.passkeys && pListData.passkeys[0] ? pListData.passkeys[0].credentialId : null;
-        if (!credId) {
-          const optRes = await fetch('/api/commerce/passkeys/register/options', { method: 'POST' });
-          const optData = await optRes.json();
-          const regRes = await fetch('/api/commerce/passkeys/register/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              credential: {
-                id: 'cred_desktop_' + Math.random().toString(36).slice(2, 10),
-                label: 'Desktop Touch ID',
-                challenge: optData.options && optData.options.challenge ? optData.options.challenge : '',
-              },
-            }),
-          });
-          const regData = await regRes.json();
-          credId = regData.credentialId;
-        }
-        passkeyPayload = {
-          credentialId: credId,
-          signature: 'sig_simulated_' + Math.random().toString(36).slice(2, 12),
-          simulate: true,
-        };
-      } catch (passErr) {
-        console.warn('Passkey ceremony note:', passErr);
-      }
-    }
     try {
       const requestPayload = { actionId, decision };
-      if (passkeyPayload) requestPayload.passkey = passkeyPayload;
       const response = await fetch('/api/chat/tool-approval', {
         method: 'POST',
         credentials: 'same-origin',
@@ -6393,186 +6353,7 @@
       if (status) status.textContent = String(data.message || 'Approval recorded.');
       card.dataset.state = String(data.status || 'completed');
       const buttonsContainer = card.querySelector('.workspace-tool-approval-buttons');
-      if (data.passkeyVerified && buttonsContainer) {
-        const passkeyBadge = document.createElement('div');
-        passkeyBadge.className = 'workspace-tool-passkey-badge';
-        passkeyBadge.style.fontSize = '11px';
-        passkeyBadge.style.color = '#34d399';
-        passkeyBadge.style.margin = '4px 0';
-        passkeyBadge.style.fontWeight = '600';
-        passkeyBadge.textContent = 'Hardware Passkey WebAuthn Signature Verified';
-        buttonsContainer.before(passkeyBadge);
-      }
-      if (data.checkoutExecution && buttonsContainer) {
-        const railBadge = document.createElement('div');
-        railBadge.className = 'workspace-tool-rail-badge';
-        railBadge.style.fontSize = '11px';
-        railBadge.style.color = '#38bdf8';
-        railBadge.style.margin = '6px 0';
-        railBadge.style.fontWeight = '600';
-        if (data.checkoutExecution.selectedRail === 'card_bridge') {
-          railBadge.textContent = `Tier 3: Single-Use Virtual Card ${data.checkoutExecution.railDetails && data.checkoutExecution.railDetails.maskedPan ? data.checkoutExecution.railDetails.maskedPan : ''} (PayPal-Funded Hold)`;
-        } else if (data.checkoutExecution.selectedRail === 'channel3_ucp') {
-          railBadge.textContent = `Tier 2: Channel3 UCP Order ${data.checkoutExecution.railDetails && data.checkoutExecution.railDetails.ucpOrderId ? data.checkoutExecution.railDetails.ucpOrderId : ''} (PayPal-Funded Hold)`;
-        } else {
-          railBadge.textContent = 'Tier 1: PayPal Commerce Native Vault Hold';
-        }
-        buttonsContainer.before(railBadge);
-      }
-      if (data.paymentHold && buttonsContainer) {
-        const voidBtn = document.createElement('button');
-        voidBtn.type = 'button';
-        voidBtn.className = 'workspace-tool-void-hold-btn';
-        voidBtn.textContent = 'Void Sandbox Hold';
-        voidBtn.setAttribute('title', 'Safely void this test authorization in PayPal Sandbox');
-
-        const captureBtn = document.createElement('button');
-        captureBtn.type = 'button';
-        captureBtn.className = 'workspace-tool-approve';
-        captureBtn.style.background = '#0284c7';
-        captureBtn.style.borderColor = '#38bdf8';
-        captureBtn.textContent = 'Capture Sandbox Hold';
-        captureBtn.setAttribute('title', 'Settle this test authorization in PayPal Sandbox');
-
-        voidBtn.addEventListener('click', async () => {
-          voidBtn.disabled = true;
-          captureBtn.disabled = true;
-          if (status) status.textContent = 'Voiding PayPal Sandbox hold…';
-          try {
-            const vRes = await fetch('/api/commerce/paypal/void', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mandateId: data.paymentHold.mandateId, transactionId: data.paymentHold.id }),
-            });
-            const vData = await vRes.json();
-            if (vRes.ok) {
-              if (status) status.textContent = `PayPal Sandbox authorization hold ${data.paymentHold.authorizationId} voided safely.`;
-              voidBtn.remove();
-              captureBtn.remove();
-            } else {
-              if (status) status.textContent = `Could not void hold: ${vData.message || vData.error}`;
-              voidBtn.disabled = false;
-              captureBtn.disabled = false;
-            }
-          } catch {
-            if (status) status.textContent = 'Could not void hold. Please retry.';
-            voidBtn.disabled = false;
-            captureBtn.disabled = false;
-          }
-        });
-
-        captureBtn.addEventListener('click', async () => {
-          captureBtn.disabled = true;
-          voidBtn.disabled = true;
-          if (status) status.textContent = 'Capturing PayPal Sandbox hold…';
-          try {
-            const capRes = await fetch('/api/commerce/paypal/capture', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mandateId: data.paymentHold.mandateId, transactionId: data.paymentHold.id, simulate: true }),
-            });
-            const capData = await capRes.json();
-            if (capRes.ok && capData.transaction) {
-              const capId = capData.transaction.captureId;
-              if (status) status.textContent = `Captured in PayPal Sandbox (${capId}). Sandbox test funds settled.`;
-              captureBtn.remove();
-              voidBtn.remove();
-
-              const refundBtn = document.createElement('button');
-              refundBtn.type = 'button';
-              refundBtn.className = 'workspace-tool-reject';
-              refundBtn.textContent = 'Refund Sandbox Capture';
-              refundBtn.setAttribute('title', 'Issue full refund for this captured sandbox payment');
-              refundBtn.addEventListener('click', async () => {
-                refundBtn.disabled = true;
-                if (status) status.textContent = 'Refunding captured payment in PayPal Sandbox…';
-                try {
-                  const refRes = await fetch('/api/commerce/paypal/refund', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mandateId: data.paymentHold.mandateId, captureId: capId, simulate: true }),
-                  });
-                  const refData = await refRes.json();
-                  if (refRes.ok && refData.refund) {
-                    if (status) status.textContent = `Refunded in PayPal Sandbox (${refData.refund.refundId}). Status: refunded.`;
-                    refundBtn.remove();
-                    const liveStatusLine = card.querySelector('.workspace-tool-receipt-status');
-                    if (liveStatusLine) liveStatusLine.textContent = 'Status: REFUNDED | Rail: PayPal Sandbox Payments v2';
-                  } else {
-                    if (status) status.textContent = `Could not refund: ${refData.message || refData.error}`;
-                    refundBtn.disabled = false;
-                  }
-                } catch {
-                  if (status) status.textContent = 'Refund request failed. Please retry.';
-                  refundBtn.disabled = false;
-                }
-              });
-              buttonsContainer.append(refundBtn);
-
-              const receiptBtn = document.createElement('button');
-              receiptBtn.type = 'button';
-              receiptBtn.className = 'workspace-tool-approve';
-              receiptBtn.style.background = '#059669';
-              receiptBtn.style.borderColor = '#34d399';
-              receiptBtn.textContent = 'Flight-Recorder Receipt';
-              receiptBtn.setAttribute('title', 'Inspect tamper-evident receipt and SHA-256 integrity hash');
-              receiptBtn.addEventListener('click', async () => {
-                receiptBtn.disabled = true;
-                try {
-                  const rcptRes = await fetch(`/api/commerce/receipts/${data.paymentHold.mandateId}`);
-                  const rcptData = await rcptRes.json();
-                  if (rcptRes.ok && rcptData.receipt) {
-                    let rcptPanel = card.querySelector('.workspace-tool-receipt-panel');
-                    if (!rcptPanel) {
-                      rcptPanel = document.createElement('div');
-                      rcptPanel.className = 'workspace-tool-receipt-panel';
-                      rcptPanel.style.marginTop = '10px';
-                      rcptPanel.style.padding = '10px 12px';
-                      rcptPanel.style.borderRadius = '8px';
-                      rcptPanel.style.background = 'rgba(255, 255, 255, 0.05)';
-                      rcptPanel.style.border = '1px solid rgba(255, 255, 255, 0.12)';
-                      rcptPanel.style.fontSize = '11px';
-                      rcptPanel.style.fontFamily = 'monospace';
-                      rcptPanel.style.lineHeight = '1.6';
-                      rcptPanel.style.wordBreak = 'break-all';
-
-                      const head = document.createElement('div');
-                      head.style.fontWeight = 'bold';
-                      head.style.color = '#34d399';
-                      head.textContent = 'Flight-Recorder Immutable Receipt';
-
-                      const hashLine = document.createElement('div');
-                      hashLine.textContent = `Hash: ${rcptData.receipt.receiptHash}`;
-
-                      const statusLine = document.createElement('div');
-                      statusLine.className = 'workspace-tool-receipt-status';
-                      statusLine.textContent = `Status: ${rcptData.receipt.status.toUpperCase()} | Rail: PayPal Sandbox Orders v2`;
-
-                      rcptPanel.append(head, hashLine, statusLine);
-                      buttonsContainer.after(rcptPanel);
-                    }
-                  }
-                } catch {
-                  if (status) status.textContent = 'Could not load receipt.';
-                } finally {
-                  receiptBtn.disabled = false;
-                }
-              });
-              buttonsContainer.append(receiptBtn);
-            } else {
-              if (status) status.textContent = `Could not capture hold: ${capData.message || capData.error}`;
-              captureBtn.disabled = false;
-              voidBtn.disabled = false;
-            }
-          } catch {
-            if (status) status.textContent = 'Capture request failed. Please retry.';
-            captureBtn.disabled = false;
-            voidBtn.disabled = false;
-          }
-        });
-
-        buttonsContainer.append(captureBtn, voidBtn);
-      }
+      if (data.checkoutMandateId) openGeneralOverlay('payments');
       let workspaceRefreshed = true;
       if (data.status === 'approved') {
         workspaceRefreshed = await loadAuthenticatedWorkspace({ quiet: true });
@@ -8532,5 +8313,10 @@ try {
  });
 }catch{document.querySelectorAll('[data-open-shopping-brief]').forEach(button=>{button.onclick=()=>{chatNotice='Shopping brief could not load. Refresh, or type your list and budget directly in chat.';syncChatComposer()}})}
 </script>
+<script type="module">
+import {installCheckoutUI} from '/standard-checkout-ui.mjs';
+window.keusCheckoutUI=installCheckoutUI({getWorkspaceId:()=>currentBootstrap?.workspace?.id});
+</script>
+
 </body>
 </html>

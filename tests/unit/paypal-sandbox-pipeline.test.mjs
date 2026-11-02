@@ -321,93 +321,18 @@ test('captureSandboxPaymentAuthorization captures hold and records receipt', asy
   assert.equal(lookup.receipt.amountMinor, 3500);
 });
 
-test('HTTP Commerce Routes: /api/commerce/paypal/authorize and /void work over HTTP', async () => {
-  const { db, authService, workspaceService, session, wsId, userId, agentId } = await setupTestEnvironment();
-
-  const config = loadServerConfig({
-    TURSO_DATABASE_URL: 'file:./local.db',
-  });
-
-  const ctx = {
-    db,
-    authService,
-    workspaceService,
-  };
-
-  const mandateResult = await createPurchaseMandate({
-    db,
-    workspaceId: wsId,
-    userId,
-    agentId,
-    product: {
-      title: 'Ergonomic Palm Rest',
-      merchantDomain: 'grovemade.com',
-      amountMinor: 2500,
-      currency: 'USD',
-      evidenceHash: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    },
-  });
-
-  await authorizePurchaseMandate({
-    db,
-    workspaceId: wsId,
-    userId,
-    mandateId: mandateResult.mandateId,
-  });
-
-  await withServer(config, ctx, async (base) => {
-    // 1. Authorize PayPal Sandbox Hold over HTTP
-    const authRes = await fetch(`${base}/api/commerce/paypal/authorize`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mandateId: mandateResult.mandateId,
-        testPayeeEmail: 'sandbox-partner@kues.test',
-      }),
-    });
-
-    assert.equal(authRes.status, 201);
-    const authData = await authRes.json();
-    assert.equal(authData.ok, true);
-    assert.equal(authData.transaction.status, 'authorized');
-    assert.equal(authData.transaction.amountMinor, 2500);
-    assert.match(authData.transaction.authorizationId, /^AUTH-SANDBOX-/);
-
-    // 2. Fetch Transaction over HTTP
-    const getRes = await fetch(`${base}/api/commerce/paypal/transactions/${mandateResult.mandateId}`, {
-      method: 'GET',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-      },
-    });
-    assert.equal(getRes.status, 200);
-    const getData = await getRes.json();
-    assert.equal(getData.ok, true);
-    assert.equal(getData.transaction.authorizationId, authData.transaction.authorizationId);
-
-    // 3. Void PayPal Sandbox Hold over HTTP
-    const voidRes = await fetch(`${base}/api/commerce/paypal/void`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mandateId: mandateResult.mandateId,
-        reason: 'Reviewer test cancellation',
-      }),
-    });
-    assert.equal(voidRes.status, 200);
-    const voidData = await voidRes.json();
-    assert.equal(voidData.ok, true);
-    assert.equal(voidData.transaction.status, 'voided');
-  });
+test('legacy payment execution endpoints fail closed, including simulated capture', async()=>{
+ const e=await setupTestEnvironment();
+ await withServer(loadServerConfig({TURSO_DATABASE_URL:'file:./local.db'}),e,async base=>{
+  for(const action of ['authorize','capture','refund','void']){
+   const r=await fetch(`${base}/api/commerce/paypal/${action}`,{method:'POST',headers:{Cookie:`kues_session=${e.session.sessionToken}`,'Content-Type':'application/json',Origin:base},body:JSON.stringify({mandateId:'anything',simulate:true})});
+   assert.equal(r.status,403);assert.equal((await r.json()).error,action==='capture'?'payment_capture_disabled':'standard_checkout_required');
+  }
+  assert.equal((await e.db.execute('SELECT count(*) AS n FROM agent_payment_transactions')).rows[0].n,0);
+ });
 });
 
-test('chat tool-approval flow creates PayPal Sandbox hold automatically upon mandate approval', async () => {
+test('chat purchase review never auto-executes a payment and returns a checkout mandate', async () => {
   const { db, authService, workspaceService, session, wsId, userId, agentId } = await setupTestEnvironment();
 
   const productEvidence = {
@@ -528,21 +453,11 @@ test('chat tool-approval flow creates PayPal Sandbox hold automatically upon man
     assert.equal(approvalRes.status, 200);
     const approvalData = await approvalRes.json();
     assert.equal(approvalData.status, 'approved');
-    assert.match(approvalData.message, /PayPal Sandbox Hold Created/);
-    assert.ok(approvalData.paymentHold);
-    assert.equal(approvalData.paymentHold.status, 'authorized');
-    assert.match(approvalData.paymentHold.authorizationId, /^AUTH-SANDBOX-/);
-    assert.equal(approvalData.paymentHold.amountMinor, 4500);
-
-    // 3. Verify in database
-    const tx = await getSandboxPaymentTransaction({
-      db,
-      workspaceId: wsId,
-      mandateId: approvalData.paymentHold.mandateId,
-    });
-    assert.ok(tx);
-    assert.equal(tx.status, 'authorized');
-    assert.equal(tx.authorizationId, approvalData.paymentHold.authorizationId);
+    assert.match(approvalData.message,/Continue to PayPal sandbox checkout/);
+    assert.equal(approvalData.paymentHold,null);
+    assert.ok(approvalData.checkoutMandateId);
+    assert.equal(await getSandboxPaymentTransaction({db,workspaceId:wsId,mandateId:approvalData.checkoutMandateId}),null);
+    assert.equal((await db.execute('SELECT count(*) AS n FROM paypal_standard_checkouts')).rows[0].n,0);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -726,7 +641,7 @@ test('refundSandboxPaymentCapture refunds captured payment and updates receipts 
   assert.equal(tx.status, 'refunded');
 });
 
-test('HTTP Commerce Routes: /api/commerce/paypal/refund, /receipts/:id, and /skills/export work over REST', async () => {
+test('HTTP commerce denies legacy settlement while skill export remains available', async () => {
   const env = await setupTestEnvironment();
   const { db, wsId, userId, agentId, session } = env;
   const config = loadServerConfig({
@@ -756,62 +671,11 @@ test('HTTP Commerce Routes: /api/commerce/paypal/refund, /receipts/:id, and /ski
       note: 'Authorized for desk ergonomics',
     });
 
-    // 2. Authorize
-    const authRes = await fetch(`${base}/api/commerce/paypal/authorize`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mandateId: mandateResult.mandateId,
-        simulate: true,
-      }),
-    });
-    assert.equal(authRes.status, 201);
-
-    // 3. Capture
-    const capRes = await fetch(`${base}/api/commerce/paypal/capture`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mandateId: mandateResult.mandateId,
-        simulate: true,
-      }),
-    });
-    assert.equal(capRes.status, 200);
-
-    // 4. Refund over REST
-    const refundRes = await fetch(`${base}/api/commerce/paypal/refund`, {
-      method: 'POST',
-      headers: {
-        Cookie: `kues_session=${session.sessionToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        mandateId: mandateResult.mandateId,
-        simulate: true,
-        note: 'Rest mock refund test',
-      }),
-    });
-    assert.equal(refundRes.status, 200);
-    const refundData = await refundRes.json();
-    assert.equal(refundData.ok, true);
-    assert.equal(refundData.refund.status, 'refunded');
-
-    // 5. Query receipt over REST
-    const receiptRes = await fetch(`${base}/api/commerce/receipts/${mandateResult.mandateId}`, {
-      headers: { Cookie: `kues_session=${session.sessionToken}` },
-    });
-    assert.equal(receiptRes.status, 200);
-    const receiptData = await receiptRes.json();
-    assert.equal(receiptData.ok, true);
-    assert.equal(receiptData.receipt.status, 'refunded');
-    assert.match(receiptData.receipt.receiptHash, /^sha256:/);
-
+    // No legacy settlement or refund is available in this sandbox-only build.
+    for(const action of ['authorize','capture','refund']){
+      const response=await fetch(`${base}/api/commerce/paypal/${action}`,{method:'POST',headers:{Cookie:`kues_session=${session.sessionToken}`,'Content-Type':'application/json'},body:JSON.stringify({mandateId:mandateResult.mandateId,simulate:true})});
+      assert.equal(response.status,403);
+    }
     // 6. Export SKILL.md over REST
     const skillRes = await fetch(`${base}/api/commerce/skills/export`, {
       method: 'POST',

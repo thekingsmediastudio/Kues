@@ -624,8 +624,8 @@ export async function authorizePurchaseMandate({
       sql: `SELECT id, workspace_id, run_id, amount_minor, currency, payee,
                    merchant_domain, evidence_hash, status, expires_at
             FROM mandates
-            WHERE workspace_id = ? AND id = ?`,
-      args: [workspaceId, mandateId],
+            WHERE workspace_id = ? AND id = ? AND EXISTS (SELECT 1 FROM runs r WHERE r.id=mandates.run_id AND r.workspace_id=mandates.workspace_id AND r.user_id=?) AND EXISTS (SELECT 1 FROM mandate_approvals ma WHERE ma.mandate_id=mandates.id AND ma.user_id=?)`,
+      args: [workspaceId, mandateId, userId, userId],
     });
     const mandate = mandateResult.rows[0];
     if (!mandate) throw new MandatePolicyError('mandate_not_found', 404, 'Purchase mandate not found');

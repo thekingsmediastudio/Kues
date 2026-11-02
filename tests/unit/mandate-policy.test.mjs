@@ -468,7 +468,7 @@ test('agent chat flow: purchase_product tool creates pending mandate proposal an
     assert.equal(approvalRes.status, 200);
     const approvalData = await approvalRes.json();
     assert.equal(approvalData.status, 'approved');
-    assert.match(approvalData.message, /Authorized purchase mandate/);
+    assert.match(approvalData.message, /Reviewed purchase/);
     assert.match(approvalData.message, /\$85\.00 USD/);
 
     // 3. Verify in database that mandate is now authorized and verified
