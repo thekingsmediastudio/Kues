@@ -1,7 +1,7 @@
 import { Unzip, UnzipInflate, zipSync, strToU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 export const FILE_BYTES = 2 * 1024 * 1024;
-export const FILE_TEXT = 8000;
+export const FILE_TEXT = 240000;
 export const FILE_EXTENSIONS = ['txt','md','csv','pdf','docx','xlsx'];
 export function fileExtension(name) {
   if (typeof name !== 'string' || !name.trim() || name.length > 160 || /[\u0000-\u001f\u007f/\\]/.test(name)) throw new Error('file_name_invalid');
@@ -52,20 +52,30 @@ export function parseCsv(source, maxRows=500, maxCols=50) {
 }
 export async function parseDocument(bytes, name) {
   const ext=fileExtension(name);if(!bytes.length||bytes.length>FILE_BYTES)throw new Error('file_size_invalid');
-  let text='',notes=[];
+  let text='',notes=[],units=[],totalPages=null,missingPages=[],limited=false;
   if(['txt','md','csv'].includes(ext)){
     text=new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,'');
     if(/\u0000/.test(text))throw new Error('file_binary_unsupported');
-    if(ext==='csv'){const parsed=parseCsv(text);text=parsed.rows.map((row,i)=>`Row ${i+1}: `+JSON.stringify(row)).join('\n');if(parsed.truncated)notes.push('CSV limited to 500 rows and 50 columns.');}
+    if(ext==='csv'){const parsed=parseCsv(text,5000,100);text=parsed.rows.map((row,i)=>`Row ${i+1}: `+JSON.stringify(row)).join('\n');if(parsed.truncated){limited=true;notes.push('CSV limited to 5,000 rows and 100 columns.');}}
   } else if(ext==='pdf'){
     if(new TextDecoder().decode(bytes.subarray(0,5))!=='%PDF-')throw new Error('file_pdf_invalid');
     const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const task=getDocument({data:bytes,isEvalSupported:false,useSystemFonts:false,disableFontFace:true,useWorkerFetch:false,disableAutoFetch:true,stopAtErrors:true,verbosity:0});
-    try{const doc=await task.promise;const cap=Math.min(doc.numPages,20);let read=0;
-      for(let i=1;i<=cap&&text.length<FILE_TEXT;i++){const page=await doc.getPage(i);const tc=await page.getTextContent();text+=`\n[Page ${i}]\n`+tc.items.map(item=>typeof item.str==='string'?item.str+(item.hasEOL?'\n':' '):'').join('');read++;page.cleanup();}
-      notes.push(`Text extracted from ${read} of ${doc.numPages} pages. Images, scans and visual layout are not read.`);
-      if(!text.replace(/\[Page \d+\]/g,'').trim())throw new Error('file_pdf_no_text');
+    const task=getDocument({data:new Uint8Array(bytes),isEvalSupported:false,useSystemFonts:false,disableFontFace:true,useWorkerFetch:false,disableAutoFetch:true,stopAtErrors:true,verbosity:0});
+    try{const doc=await task.promise;totalPages=doc.numPages;const cap=Math.min(doc.numPages,200);limited=cap<doc.numPages;
+      for(let i=1;i<=cap;i++){
+        if(text.length>=FILE_TEXT){limited=true;break}
+        let page;
+        try{page=await doc.getPage(i);const tc=await page.getTextContent();const raw=tc.items.map(item=>typeof item.str==='string'?item.str+(item.hasEOL?'\n':' '):'').join('').trim();
+          if(!raw){missingPages.push(i);continue}
+          const remaining=FILE_TEXT-text.length;const value=raw.slice(0,remaining);if(value.length<raw.length)limited=true;
+          units.push({label:`Page ${i}`,page:i,text:value});text+=value+'\n';
+        }catch{missingPages.push(i)}finally{page?.cleanup()}
+      }
+      notes.push(`Extracted text from ${units.length} of ${doc.numPages} pages. Images, scans and visual layout are not read.`);
+      if(missingPages.length)notes.push(`Pages without readable text or with extraction errors: ${missingPages.join(', ')}. OCR is not available.`);
+      if(!text.trim())throw new Error('file_pdf_no_text');
     }catch(error){if(error.message==='file_pdf_no_text')throw error;throw new Error('file_pdf_unreadable')}finally{await task.destroy();}
+
   }else{
     if(bytes[0]!==80||bytes[1]!==75)throw new Error('file_archive_invalid');const files=unzipXml(bytes);
     if(ext==='docx'){
@@ -76,24 +86,27 @@ export async function parseDocument(bytes, name) {
     }else{
       const shared=files['xl/sharedStrings.xml']?array(xml(files['xl/sharedStrings.xml']).sst?.si).map(content):[];
       const sheets=Object.keys(files).filter(k=>k.startsWith('xl/worksheets/')).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
-      if(!sheets.length)throw new Error('file_xlsx_invalid');let formulas=false;
-      for(const path of sheets.slice(0,3)){
-        const sheet=xml(files[path]);const rows=array(sheet.worksheet?.sheetData?.row);text+=`\n[${path.split('/').at(-1)}]\n`;
-        for(const row of rows.slice(0,300)){
-          const cells=[];for(const c of array(row.c).slice(0,50)){
+      if(!sheets.length)throw new Error('file_xlsx_invalid');let formulas=false;if(sheets.length>20)limited=true;
+      for(const path of sheets.slice(0,20)){
+        const sheet=xml(files[path]);const rows=array(sheet.worksheet?.sheetData?.row);if(rows.length>2000)limited=true;text+=`\n[${path.split('/').at(-1)}]\n`;
+        for(const row of rows.slice(0,2000)){
+          const cells=[];if(array(row.c).length>100)limited=true;for(const c of array(row.c).slice(0,100)){
             const type=c['@_t'];let value=type==='s'?(shared[Number(c.v)]??''):type==='inlineStr'?content(c.is):content(c.v);
             if(c.f!==undefined){formulas=true;if(!value)value='[formula without stored value]'}
             cells.push(`${c['@_r']||'cell'}: ${value}`);
           }text+=cells.join(' | ')+'\n';if(text.length>FILE_TEXT)break;
         }if(text.length>FILE_TEXT)break;
       }
-      notes.push(`Read up to 3 worksheets (${sheets.length} found), 300 rows and 50 cells per row. Dates may be numeric serial values. Charts and formatting are not read.`);
+      notes.push(`Read up to 20 worksheets (${sheets.length} found), 2,000 rows and 100 cells per row. Dates may be numeric serial values. Charts and formatting are not read.`);
       if(formulas)notes.push('Formula cells use stored values only; formulas were not calculated.');
     }
   }
   text=text.replace(/\u0000/g,'').trim();if(!text)throw new Error('file_empty');
-  const truncated=text.length>FILE_TEXT;if(truncated)notes.push(`Text limited to the first ${FILE_TEXT.toLocaleString('en-US')} characters; remaining content was not supplied.`);
-  return {text:text.slice(0,FILE_TEXT),notes,truncated,format:ext};
+  const truncated=limited||text.length>FILE_TEXT;if(truncated)notes.push(`Extraction reached a structural or ${FILE_TEXT.toLocaleString('en-US')}-character safety limit; some content is unavailable.`);
+  text=text.slice(0,FILE_TEXT);
+  if(!units.length)units=[{label:'Document text',text}];
+  const sections=[];for(const unit of units){for(let offset=0;offset<unit.text.length;offset+=3000){sections.push({id:sections.length+1,label:unit.label+(unit.text.length>3000?` · characters ${offset+1}–${Math.min(offset+3000,unit.text.length)}`:''),...(unit.page?{page:unit.page}:{}),text:unit.text.slice(offset,offset+3000)})}}
+  return {text,sections,totalPages,missingPages,notes,truncated,format:ext};
 }
 const escapeXml=value=>String(value).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'})[c]);
 export function reportRows(text) {

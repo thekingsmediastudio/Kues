@@ -53,6 +53,7 @@
     display: flex;
     position: relative;
     overflow: hidden;
+    overflow: clip;
   }
 
   /* =========================================================
@@ -619,6 +620,10 @@
   .chat-answer-text a { color:var(--cue-blue); text-decoration:underline; text-underline-offset:2px; }
   .chat-answer-text hr { margin:.8em 0; border:0; border-top:1px solid var(--border-strong); }
   .chat-answer-text table { display:block; width:max-content; max-width:100%; margin:.5em 0 .75em; overflow-x:auto; border-collapse:collapse; }
+  .chat-answer-text table th { white-space:nowrap; overflow-wrap:normal; }
+  .chat-answer-text table td { overflow-wrap:normal; word-break:normal; }
+  .chat-answer-text table td:not(:first-child) { white-space:nowrap; }
+  .chat-answer-text table td:first-child { min-width:9rem; }
   .chat-answer-text th,.chat-answer-text td { padding:5px 8px; border:1px solid var(--border-strong); text-align:left; vertical-align:top; }
   .chat-answer-text [data-chat-align="center"] { text-align:center; }.chat-answer-text [data-chat-align="right"] { text-align:right; }
   .chat-answer-text img { display:block; max-width:240px; max-height:180px; width:auto; height:auto; object-fit:cover; border-radius:10px; border:1px solid var(--border-strong); margin:8px 0; background:rgba(255,255,255,.04); box-shadow:0 4px 14px rgba(0,0,0,.25); }
@@ -3394,14 +3399,14 @@
       </section>
       <div class="stream-inner" id="streamInner" role="log" aria-label="Conversation message history" aria-live="polite">
         <div class="chat-empty-state" id="chatEmptyState" hidden>
-          <span class="chat-empty-kicker">Test chat</span>
-          <h2>What can I help with?</h2>
-          <p>Scout researches products via live Channel3 catalog data and prepares purchase mandates. All test holds require your passkey approval and run in PayPal Sandbox.</p>
-          <div class="chat-suggestion-list" aria-label="Suggested test prompts">
-            <button type="button" data-chat-suggestion="Find studio headphones under $120.">Find headphones under $120</button>
-            <button type="button" data-chat-suggestion="Find and buy a walnut desk shelf under $150.">Find &amp; buy desk shelf</button>
-            <button type="button" data-chat-suggestion="Compare ergonomic desk accessories under $80.">Compare desk items</button>
-            <button type="button" data-chat-suggestion="What are my current spend limits and policy?">Check spend limits</button>
+          <span class="chat-empty-kicker">Shopping assistant · staging</span>
+          <h2>What are you shopping for?</h2>
+          <p>Start with your list, budget or a supplier quote. Find and compare options, then review a basket. Sample results are labelled; purchase steps still require approval and use PayPal Sandbox.</p>
+          <div class="chat-suggestion-list" aria-label="Shopping actions">
+            <button type="button" data-open-shopping-brief>Shopping list &amp; budget</button>
+            <button type="button" onclick="document.getElementById('attachFilesButton').click()">Attach a list or quote</button>
+            <button type="button" data-chat-suggestion="Compare the products already found using their recorded prices and specifications. Flag missing shipping, tax, availability and delivery information. Do not purchase anything.">Compare found products</button>
+            <button type="button" data-chat-suggestion="Review a basket from the saved offers we discussed. Ask me to select the items, quantities and total budget if they are unclear. Do not place an order or create a payment hold.">Review a basket</button>
           </div>
         </div>
       </div>
@@ -3413,26 +3418,14 @@
           <svg class="composer-border-trace" aria-hidden="true"><path data-edge="top" pathLength="100"/><path data-edge="bottom" pathLength="100"/></svg>
           <!-- Popover for '+' button -->
           <div class="plus-popover" id="chatPlusPopover" role="menu" aria-label="Quick actions" hidden>
-            <button class="pop-item" type="button" id="pythonJobsButton"><span class="pop-ico" aria-hidden="true">⌘</span><span>Python jobs · review before running</span></button>
-            <button class="pop-item" type="button" id="workspaceFilesButton"><span class="pop-ico" aria-hidden="true">▤</span><span>Workspace files</span></button>
-            <button class="pop-item" type="button" id="attachFilesButton"><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9"/></svg></span><span>Attach files · up to 2 MB</span></button>
-            <button class="pop-item" type="button" id="researchPromptButton" onclick="enableWebResearch(); closePopovers();"><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span><span>Research the web</span></button>
-            <button class="pop-item" type="button" onclick="insertPromptSuggestion('Find studio headphones under $120.'); closePopovers();">
-              <span class="pop-ico" style="color:var(--cue-gold);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>
-              <span>Find studio headphones<span class="pop-sub">Search Channel3 catalog under $120</span></span>
-            </button>
-            <button class="pop-item" type="button" onclick="insertPromptSuggestion('Find and buy a walnut desk shelf under $150.'); closePopovers();">
-              <span class="pop-ico" style="color:var(--green);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></span>
-              <span>Buy walnut desk shelf<span class="pop-sub">Stage PayPal Sandbox hold under $150</span></span>
-            </button>
+            <button class="pop-item" type="button" data-open-shopping-brief><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 6h13M8 12h13M8 18h13M3 6h1M3 12h1M3 18h1"/></svg></span><span>Shopping list &amp; budget</span></button>
+            <button class="pop-item" type="button" id="attachFilesButton"><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9"/></svg></span><span>Attach list, quote or specification · 2 MB</span></button>
+            <button class="pop-item" type="button" id="researchPromptButton" onclick="enableWebResearch(); closePopovers();"><span class="pop-ico" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></span><span>Research products &amp; sellers</span></button>
             <button class="pop-item" type="button" onclick="insertPromptSuggestion('What are my current spend limits and policy?'); closePopovers();">
               <span class="pop-ico" style="color:var(--cue-blue);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
               <span>Check spend policy<span class="pop-sub">Inspect order and daily caps</span></span>
             </button>
-            <button class="pop-item" type="button" onclick="openAgentDesktopPreview(); closePopovers();">
-              <span class="pop-ico" style="color:var(--purple);"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
-              <span>Agent Desktop Preview<span class="pop-sub">Autonomous browser and hold view</span></span>
-            </button>
+
           </div>
 
           <button class="composer-icon-btn" id="chatPlusButton" type="button" disabled aria-label="Additional actions, unavailable in this preview" title="Additional actions are not connected in this preview">
@@ -3548,7 +3541,7 @@
 <label for="settingsAgentInstructions">Instructions<textarea class="form-input settings-textarea" id="settingsAgentInstructions" rows="5" maxlength="4000" placeholder="Describe this agent’s purpose, preferred tone, and how it should approach tasks."></textarea></label><p class="settings-form-hint">Applies to this agent’s replies. Instructions cannot grant tool access or bypass approval. Maximum 4,000 characters.</p>                <fieldset class="settings-choice-fieldset"><legend>Avatar</legend><div class="settings-agent-avatar-options" id="settingsAgentAvatarOptions" role="group" aria-label="Choose agent avatar"></div></fieldset>
                 <label for="settingsAgentMemory">Memory preferences, optional<textarea class="form-input settings-textarea" id="settingsAgentMemory" rows="3" maxlength="1600" placeholder="One preference per line"></textarea></label>
                 <fieldset class="settings-choice-fieldset settings-color-fieldset"><legend>Avatar color</legend><div class="new-agent-color-options settings-agent-color-options" id="settingsAgentColorOptions" role="group" aria-label="Choose avatar color"></div></fieldset>
-</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Choose what this agent may use. Web research requires both web permissions. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Work with documents and spreadsheets you provide.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Prepare reports and spreadsheets for download.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><label class="agent-tool-row"><span><strong>Run Python code</strong><small>Execute explicitly reviewed code in a cloud sandbox. No automatic execution.</small><em>Server setup required · approval on every run</em></span><input type="checkbox" data-agent-tool="run_code" aria-label="Allow reviewed Python code execution"></label><p class="agent-settings-disclosure">Web research needs both web permissions and server setup. Use + → Research the web, or type /research followed by your question. File analysis uses temporary extracted text, sent to your AI only with the message. Downloads export an agent reply. Saving permission alone does not run a tool.</p></section><section class="agent-settings-panel" id="agentPanelAccounts" role="tabpanel" aria-labelledby="agentTabAccounts" hidden><p class="settings-form-hint">Connected accounts will be managed per user, with access granted separately to each agent. Connection setup is not implemented yet.</p><div class="agent-account-row"><strong>Cloud storage</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Calendar</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Email</strong><span>Not connected</span></div><p class="agent-settings-disclosure">No account credentials or messages are accessible through these rows. Sending, scheduling, and saving externally will require explicit approval.</p><details class="agent-legacy-labels"><summary>Existing app labels</summary>                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
+</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Choose what this agent may use. Web research requires both web permissions. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Read shopping lists, supplier quotes and product specifications.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Download comparisons, budgets and shopping checklists.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><label class="agent-tool-row" hidden style="display:none" aria-hidden="true"><span><strong>Run Python code</strong><small>Execute explicitly reviewed code in a cloud sandbox. No automatic execution.</small><em>Server setup required · approval on every run</em></span><input type="checkbox" data-agent-tool="run_code" disabled aria-label="Allow reviewed Python code execution"></label><p class="agent-settings-disclosure">Web research needs both web permissions and server setup. Use + → Research products & sellers, or type /research followed by your question. File analysis uses temporary extracted text, sent to your AI only with the message. Downloads export an agent reply. Saving permission alone does not run a tool.</p></section><section class="agent-settings-panel" id="agentPanelAccounts" role="tabpanel" aria-labelledby="agentTabAccounts" hidden><p class="settings-form-hint">Connected accounts will be managed per user, with access granted separately to each agent. Connection setup is not implemented yet.</p><div class="agent-account-row"><strong>Saved file library</strong><span>Interface paused · files retained</span></div><div class="agent-account-row"><strong>Calendar</strong><span>Not connected</span></div><div class="agent-account-row"><strong>Email</strong><span>Not connected</span></div><p class="agent-settings-disclosure">No account credentials or messages are accessible through these rows. Sending, scheduling, and saving externally will require explicit approval.</p><details class="agent-legacy-labels"><summary>Existing app labels</summary>                <fieldset class="settings-choice-fieldset"><legend>App labels</legend>
                   <div class="settings-app-grid" id="settingsAgentAppsOptions">
                     <label class="settings-app-option"><input type="checkbox" value="paypal"><span>PayPal Sandbox</span></label>
                     <label class="settings-app-option"><input type="checkbox" value="channel3"><span>Channel3</span></label>
@@ -5010,6 +5003,7 @@
     const input = document.getElementById('chatInput');
     resizeChatInput(input);
     if (typeof window !== 'undefined') window.keusFiles?.sync();
+    if (typeof window !== 'undefined') window.keusShopping?.sync();
     if (typeof window !== 'undefined') window.keusWorkspaceFiles?.sync();
     if (typeof window !== 'undefined') window.keusExecution?.sync();
     const sendButton = document.getElementById('chatSendButton');
@@ -6125,6 +6119,8 @@
             : divider.endsWith(':') ? 'right' : 'left';
         });
         const table = document.createElement('table');
+        table.tabIndex = 0;
+        table.setAttribute('aria-label', 'Data table. Scroll horizontally to see all columns.');
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
         headerCells.forEach((cellText, cellIndex) => {
@@ -6864,6 +6860,8 @@
       ai_chat_agent_unavailable: 'That agent is not available in this workspace.',
       ai_chat_history_unavailable: 'Your saved conversation could not be loaded or saved. Refresh and try again.',
       authentication_required: 'Sign in again to continue.',
+      file_review_limit: 'This review is too large for one request. Attach one document or ask for a specific page range.',
+      file_review_timeout: 'The section review reached its time limit. It was not completed. Try a smaller page range; completed section calls may have used tokens.',
       file_permission_required: 'Enable Read uploaded files in this agent’s Tools settings.',
       file_unavailable: 'An attachment expired or is unavailable for this agent. Remove it and attach it again.',
       file_consent_required: 'File analysis requires agreement to send extracted text to your AI provider.',
@@ -7454,7 +7452,7 @@
       const data = dataLines.join('\n');
       eventName = 'message';
       dataLines = [];
-      if (!['delta', 'avatar_cue', 'tool_approval_required', 'research_status', 'done', 'error'].includes(name)) return;
+      if (!['delta', 'avatar_cue', 'tool_approval_required', 'research_status', 'document_status', 'done', 'error'].includes(name)) return;
       let payload;
       try { payload = JSON.parse(data); }
       catch { throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' }); }
@@ -7543,7 +7541,7 @@
       const response = await fetch('/api/chat', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(wantsResearch ? { 'X-Research-Consent': 'web-research-v1' } : {}), ...(fileIds.length ? { 'X-File-Consent': 'file-analysis-v1' } : {}) },
+        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(wantsResearch ? { 'X-Research-Consent': 'web-research-v1' } : {}), ...(fileIds.length ? { 'X-File-Consent': 'file-analysis-v2' } : {}) },
         body: JSON.stringify(requestBody),
         signal: abortSignal,
       });
@@ -7566,6 +7564,7 @@
       }
 
       await readChatEventStream(response, async (eventName, payload) => {
+        if(eventName==='document_status'){const completed=Number(payload.completed)||0,total=Number(payload.total)||0;const note=document.getElementById('chatPreviewNote');if(note)note.textContent=completed<total?`Reading document sections: ${completed}/${total}…`:'Writing document summary…';return;}
         if (eventName === 'research_status') {
           const copy = { searching: 'Searching the web…', reading: 'Reading public pages…', writing: 'Writing an answer with sources…' }[payload?.stage];
           if (!copy) return;
@@ -8633,15 +8632,16 @@
 </script>
 <script type="module">
 try {
- const {createWorkspaceFilesUI}=await import('/workspace-files-ui.mjs');
- window.keusWorkspaceFiles=createWorkspaceFilesUI({
-  context(){return {agent:findSelectedChatAgent(),agentId:String(selectedAgentId||''),version:chatHistoryLoadVersion}},
-  closeMenu(){closePopovers()},focusComposer(){document.getElementById('chatInput').focus()},restoreFocus(){document.getElementById('chatPlusButton').focus()}
+ const {createShoppingBriefUI}=await import('/shopping-brief-ui.mjs');
+ window.keusShopping=createShoppingBriefUI({
+  context(){return{userId:currentBootstrap?.user?.id,agentId:selectedAgentId,busy:chatPending||Boolean(dictationSession)}},
+  getDraft(){return document.getElementById('chatInput').value},
+  setDraft(text){const input=document.getElementById('chatInput');input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}))},
+  detachFiles(){return window.keusFiles?.detachForShopping()??true},
+  closeMenu(){closePopovers()},focusComposer(){document.getElementById('chatInput').focus({preventScroll:true})},
+  status(message){chatNotice=message;syncChatComposer()}
  });
-} catch { document.getElementById('workspaceFilesButton').disabled=true; }
-</script>
-<script type="module">
-try{const {createExecutionUI}=await import('/execution-ui.mjs');window.keusExecution=createExecutionUI({context(){return{agent:findSelectedChatAgent(),agentId:String(selectedAgentId||''),version:chatHistoryLoadVersion}},closeMenu(){closePopovers()},restoreFocus(){document.getElementById('chatPlusButton').focus()}})}catch{document.getElementById('pythonJobsButton').disabled=true}
+}catch{document.querySelectorAll('[data-open-shopping-brief]').forEach(button=>{button.onclick=()=>{chatNotice='Shopping brief could not load. Refresh, or type your list and budget directly in chat.';syncChatComposer()}})}
 </script>
 </body>
 </html>

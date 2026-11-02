@@ -1,3 +1,5 @@
+import { reviewShoppingBasket } from './lib/ai-agent/shopping-basket.mjs';
+import { reviewDocumentContext, documentCoverageMarkdown } from './lib/ai-agent/document-reading.mjs';
 import { Freestyle } from 'freestyle';
 import { createExecutionJobs } from './lib/ai-agent/execution-jobs.mjs';
 import { createExecutionRoutes } from './lib/ai-agent/execution-routes.mjs';
@@ -79,6 +81,7 @@ const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const STATIC_ASSETS = new Map([
+  ['/shopping-brief-ui.mjs', ['shopping-brief-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/execution-ui.mjs', ['execution-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/workspace-files-ui.mjs', ['workspace-files-ui.mjs', 'text/javascript; charset=utf-8']],
   ['/file-tools-ui.mjs', ['file-tools-ui.mjs', 'text/javascript; charset=utf-8']],
@@ -1533,6 +1536,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
   let requestModelId;
   let newUserMessage = null;
   let fileContext = null;
+  let fileRetrievalHint = '';
   let idempotencyKey = null;
   try {
     consumeAiChatRateLimit(rateWindows, String(user.id || ''));
@@ -1576,7 +1580,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
 
     ({ workspace, agent } = await loadOwnedAgent(agentId));
-    if (input.fileIds) fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent });
+    if (input.fileIds) fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent, query: newUserMessage.content });
     const requireResearchPermissions = async () => {
       const current = await loadOwnedAgent(agentId);
       if (current.workspace.id !== workspace.id || current.agent.settings?.toolPermissions?.web_search !== true || current.agent.settings?.toolPermissions?.read_webpage !== true) throw new ResearchError('research_permission_required', 403);
@@ -1586,7 +1590,20 @@ async function handleDesktopAiChatRequest(req, res, url, {
       if (!input.fileIds) return;
       const current = await loadOwnedAgent(agentId);
       if (current.workspace.id !== workspace.id) throw new FileToolError('file_unavailable', 404);
-      fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent: current.agent });
+      fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent: current.agent, query: newUserMessage.content, hint: fileRetrievalHint });
+    };
+    const readDocumentBeforeReply = async (signal,onStage) => {
+      if(!fileContext?.reviewBatches)return;
+      const controller=new AbortController();const abort=()=>controller.abort();let timedOut=false;const budgetTimer=setTimeout(()=>{timedOut=true;abort()},180000);
+      if(signal?.aborted||req.aborted||res.destroyed)abort();
+      signal?.addEventListener('abort',abort,{once:true});res.once('close',abort);
+      try{fileContext=await reviewDocumentContext({context:fileContext,agent,providerKey:requestProviderKey,modelId:requestModelId,signal:controller.signal,onStage,
+        authorize:refreshFileContext,
+        call:options=>aiChatService.stream(options),
+        reserve:(key,estimatedTokens)=>usageService.reserveTokens({workspaceId:workspace.id,userId:user.id,idempotencyKey:key,estimatedTokens}),
+        settle:(key,result)=>usageService.settleTokenReservation({workspaceId:workspace.id,idempotencyKey:key,provider:result.provider,model:result.model,inputTokens:result.inputTokens,outputTokens:result.outputTokens}),
+        release:key=>usageService.releaseTokenReservation({workspaceId:workspace.id,idempotencyKey:key})
+      });}catch(error){if(timedOut)throw new FileToolError('file_review_timeout',408);throw error;}finally{clearTimeout(budgetTimer);signal?.removeEventListener('abort',abort);res.off('close',abort);}
     };
     const researchBeforeReply = async (signal, onStage) => {
       const controller = new AbortController();
@@ -1604,6 +1621,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       agentId,
       limit: 11,
     });
+    fileRetrievalHint=storedMessages.slice(-2).map(entry=>String(entry.content||'').slice(0,1000)).join('\n');
     const context = [];
     let contextCharacters = newUserMessage.content.length;
     for (let index = storedMessages.length - 1; index >= 0 && context.length < 11; index -= 1) {
@@ -1617,7 +1635,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
-    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? JSON.stringify(fileContext).length + 1000 : 0) + 600;
+    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600;
     const estimatedTokens = Math.ceil((messageCharacters + profileCharacters + 1_000) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
     idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
@@ -1647,6 +1665,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       res.flushHeaders?.();
       try {
         await refreshFileContext();
+        await readDocumentBeforeReply(streamController.signal, stage=>writeSseEvent(res,'document_status',stage,streamController.signal));
         if (wantsResearch) await researchBeforeReply(streamController.signal, stage => writeSseEvent(res, 'research_status', { stage }, streamController.signal));
         const requestedMoodCue = explicitAvatarEmotionCue(newUserMessage?.content);
         if (requestedMoodCue) {
@@ -1721,6 +1740,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
               userId: user.id,
               agentId,
             });
+          } else if (prepared?.kind === 'review_basket') {
+            visibleReply = await reviewShoppingBasket({db,workspaceId:workspace.id,userId:user.id,agentId,items:prepared.items,budgetMinor:prepared.budgetMinor});
           } else if (prepared?.kind === 'purchase_product') {
             const purchaseExec = await executePurchaseProductTool(prepared, {
               db,
@@ -1763,6 +1784,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           }
         }
         if (researchContext) { const sources = researchSourcesMarkdown(researchContext); visibleReply += sources; await writeSseEvent(res, 'delta', { text: sources }, streamController.signal); }
+        if(fileContext){const coverage=documentCoverageMarkdown(fileContext);visibleReply+=coverage;await writeSseEvent(res,'delta',{text:coverage},streamController.signal);}
         streamCompletion = { ...completion, text: visibleReply };
         if (streamCompletion.fallbackUsed === true) {
           const fallbackAttempts = Number.isSafeInteger(streamCompletion.fallbackAttempts) ? streamCompletion.fallbackAttempts : 0;
@@ -1802,6 +1824,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     let completion;
     try {
       await refreshFileContext();
+      await readDocumentBeforeReply();
       if (wantsResearch) await researchBeforeReply();
       completion = await aiChatService.complete({
         agent,
@@ -1849,7 +1872,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
             userId: user.id,
             agentId,
           });
-        } else if (prepared?.kind === 'purchase_product') {
+        } else if (prepared?.kind === 'review_basket') {
+            visibleReply = await reviewShoppingBasket({db,workspaceId:workspace.id,userId:user.id,agentId,items:prepared.items,budgetMinor:prepared.budgetMinor});
+          } else if (prepared?.kind === 'purchase_product') {
           const purchaseExec = await executePurchaseProductTool(prepared, {
             db,
             workspaceId: workspace.id,
@@ -1870,6 +1895,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     }
     if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
     if (researchContext) visibleReply += researchSourcesMarkdown(researchContext);
+    if (fileContext) visibleReply += documentCoverageMarkdown(fileContext);
     completion = { ...completion, text: visibleReply };
 
     try {

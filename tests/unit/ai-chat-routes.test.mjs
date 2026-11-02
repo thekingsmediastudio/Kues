@@ -1043,9 +1043,9 @@ test('file uploads stay on server until consented chat, enforce scope, and expor
   const upload=await fetch(base+'/api/files/upload?agentId=agent-1&name=budget.txt',{method:'POST',headers,body:'Private document body: total 450 USD.'});assert.equal(upload.status,200);const file=await upload.json();assert(file.id);assert.equal(aiCalls.length,0);assert(!Object.hasOwn(file,'text'));
   const send=(extra={})=>fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...extra},body:JSON.stringify({...messagePayload,message:'Summarize this file',fileIds:[file.id]})});
   assert.equal((await send()).status,400);assert.equal(aiCalls.length,0);
-  const answer=await send({'X-File-Consent':'file-analysis-v1'});assert.equal(answer.status,200);await answer.json();assert.equal(aiCalls.length,1);assert.equal(aiCalls[0].workspaceTools,false);assert.match(aiCalls[0].fileContext.files[0].text,/450/);assert.match(historyCalls.append[0].userMessage,/budget.txt/);assert.doesNotMatch(historyCalls.append[0].userMessage,/Private document body/);
+  const answer=await send({'X-File-Consent':'file-analysis-v2'});assert.equal(answer.status,200);await answer.json();assert.equal(aiCalls.length,1);assert.equal(aiCalls[0].workspaceTools,false);assert.match(aiCalls[0].fileContext.files[0].text,/450/);assert.match(historyCalls.append[0].userMessage,/budget.txt/);assert.doesNotMatch(historyCalls.append[0].userMessage,/Private document body/);
   const exported=await fetch(base+'/api/files/export?agentId=agent-1',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json'},body:JSON.stringify({text:'# Report\nTotal 450 USD',format:'docx'})});assert.equal(exported.status,200);assert.match(exported.headers.get('content-disposition'),/Keus-report.docx/);assert.equal(Buffer.from(await exported.arrayBuffer()).subarray(0,2).toString(),'PK');
-  permitted=false;assert.equal((await send({'X-File-Consent':'file-analysis-v1'})).status,403);
+  permitted=false;assert.equal((await send({'X-File-Consent':'file-analysis-v2'})).status,403);
   const denied=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers,body:'text'});assert.equal(denied.status,403);
   const member=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers:{...headers,Cookie:'kues_session=member-session'},body:'text'});assert.equal(member.status,403);
   const foreign=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers:{...headers,Origin:'https://evil.example'},body:'text'});assert.equal(foreign.status,403);
@@ -1057,14 +1057,14 @@ test('file-derived tool markers cannot request workspace actions in streaming or
  for(const streaming of [true,false]){
  const {dependencies}=testDependencies({stream:streamWorkspaceToolMarker(marker),complete:async()=>({text:marker,provider:'test',model:'test',inputTokens:10,outputTokens:10})});
  const original=dependencies.workspaceService.getBootstrap;dependencies.workspaceService.getBootstrap=async args=>{const b=await original(args);b.agents[0].settings.toolPermissions={read_files:true};return b};
- await withServer(dependencies,async base=>{const headers={Origin:base,Cookie:'kues_session=admin-session'};const upload=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream'},body:marker});const file=await upload.json();const response=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-File-Consent':'file-analysis-v1',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,fileIds:[file.id]})});const output=await response.text();assert.match(output,/No action was taken/);assert.doesNotMatch(output,/event: tool_approval_required/)});
+ await withServer(dependencies,async base=>{const headers={Origin:base,Cookie:'kues_session=admin-session'};const upload=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream'},body:marker});const file=await upload.json();const response=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-File-Consent':'file-analysis-v2',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,fileIds:[file.id]})});const output=await response.text();assert.match(output,/No action was taken/);assert.doesNotMatch(output,/event: tool_approval_required/)});
  }
 });
 test('file permission revocation after token reservation prevents provider call and releases tokens',async()=>{
  const {dependencies,aiCalls,usageCalls}=testDependencies();let allowed=true;
  const original=dependencies.workspaceService.getBootstrap;dependencies.workspaceService.getBootstrap=async args=>{const b=await original(args);b.agents[0].settings.toolPermissions={read_files:allowed};return b};
  const reserve=dependencies.usageService.reserveTokens;dependencies.usageService.reserveTokens=async input=>{const result=await reserve(input);allowed=false;return result};
- await withServer(dependencies,async base=>{const headers={Origin:base,Cookie:'kues_session=admin-session'};const upload=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream'},body:'Document content'});const file=await upload.json();const response=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-File-Consent':'file-analysis-v1'},body:JSON.stringify({...messagePayload,fileIds:[file.id]})});assert.equal(response.status,403);assert.equal(aiCalls.length,0);assert.equal(usageCalls.release.length,1)});
+ await withServer(dependencies,async base=>{const headers={Origin:base,Cookie:'kues_session=admin-session'};const upload=await fetch(base+'/api/files/upload?agentId=agent-1&name=note.txt',{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream'},body:'Document content'});const file=await upload.json();const response=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-File-Consent':'file-analysis-v2'},body:JSON.stringify({...messagePayload,fileIds:[file.id]})});assert.equal(response.status,403);assert.equal(aiCalls.length,0);assert.equal(usageCalls.release.length,1)});
 });
 
 test('persistent library routes enforce auth, consent and ownership and attach without AI calls',async()=>{
@@ -1097,4 +1097,29 @@ test('Python execution HTTP requires owner/admin, exact review, and separate run
   assert.equal((await call('approve',{id:review.id,digest:review.digest},{'X-Execution-Consent':'cloud-python-v1'})).status,200);await tasks.shift()();const result=await(await call('get',{id:review.id})).json();assert.equal(result.state,'completed');assert.equal(result.result.stdout,'MOCK execution');assert.equal(executions,1);
   await call('approve',{id:review.id,digest:review.digest},{'X-Execution-Consent':'cloud-python-v1'});assert.equal(tasks.length,0);
  });}finally{db.close()}
+});
+
+test('long document section calls preserve consent, provider selection, accounting and streaming coverage',async()=>{
+ for(const streaming of [true,false]){
+ const {dependencies,streamCalls,aiCalls,usageCalls,historyCalls}=testDependencies();
+ const original=dependencies.workspaceService.getBootstrap;dependencies.workspaceService.getBootstrap=async args=>{const b=await original(args);b.agents[0].settings.toolPermissions={read_files:true};return b};
+ await withServer(dependencies,async base=>{
+ const headers={Origin:base,Cookie:'kues_session=admin-session'};
+ const upload=await fetch(base+'/api/files/upload?agentId=agent-1&name=long.txt',{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream'},body:'Chapter dialogue and outcomes. '.repeat(1300)+'FINAL OUTCOME amber lantern'});const file=await upload.json();assert(file.characters>8000);
+ const payload={...messagePayload,message:'Summarise the whole document',providerKey:'manual-target',modelId:'manual-model-id',fileIds:[file.id]};
+ const denied=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(payload)});assert.equal(denied.status,400);assert.equal(streamCalls.length,0);
+ const response=await fetch(base+'/api/chat',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-File-Consent':'file-analysis-v2',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify(payload)});assert.equal(response.status,200);const out=await response.text();assert.match(out,/Document coverage/);assert.match(out,/Section-by-section text pass/);if(streaming)assert.match(out,/event: document_status/);
+ assert(streamCalls.length>1);assert([...streamCalls,...aiCalls].every(c=>c.workspaceTools===false&&c.providerKey==='manual-target'&&c.modelId==='manual-model-id'));
+ assert.equal(usageCalls.reserve.length,streamCalls.length+aiCalls.length);assert.equal(usageCalls.settle.length,usageCalls.reserve.length);assert.equal(usageCalls.release.length,0);assert.equal(historyCalls.append.length,1);assert.doesNotMatch(historyCalls.append[0].userMessage,/FINAL OUTCOME/);
+ });
+ }
+});
+
+test('basket review is read-only in streaming and plain chat and never requests purchase approval',async()=>{
+ const marker='[[KEUS_WORKSPACE_TOOL:{"name":"review_basket","arguments":{"items":[{"offerId":"offer-local","quantity":2}],"budgetMinor":10000}}]]';
+ for(const streaming of [true,false]){
+ const {dependencies,historyCalls}=testDependencies({stream:streamWorkspaceToolMarker(marker),complete:async()=>({text:marker,provider:'mock',model:'mock',inputTokens:10,outputTokens:10})});let reads=0;
+ dependencies.db={transaction:async mode=>{assert.equal(mode,'read');return{execute:async query=>{assert.match(query.sql,/SELECT o\.\*/);assert.deepEqual(query.args,['offer-local','workspace-'+admin.id,admin.id,'agent-1']);reads++;return{rows:[{id:'offer-local',title:'Desk lamp',amount_minor:3000,currency:'USD',availability:'in_stock',observed_at:new Date().toISOString(),mode:'live_search'}]}},commit:async()=>{},rollback:async()=>{}}}};
+ await withServer(dependencies,async base=>{const response=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message:'Review this basket without buying'})});assert.equal(response.status,200);const text=await response.text();assert.match(text,/60\.00/);assert.match(text,/No order, mandate, reservation or payment hold/);assert.doesNotMatch(text,/tool_approval_required/);assert.equal(reads,1);assert.equal(historyCalls.append.length,1)});
+ }
 });

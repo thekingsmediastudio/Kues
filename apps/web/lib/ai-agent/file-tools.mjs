@@ -1,13 +1,14 @@
 import crypto from 'node:crypto';
+import { planDocumentContext } from './document-reading.mjs';
 import { Worker } from 'node:worker_threads';
 import { FILE_BYTES, fileExtension, exportReport } from './file-formats.mjs';
-export const FILE_CONSENT='file-analysis-v1';
+export const FILE_CONSENT='file-analysis-v2';
 export class FileToolError extends Error { constructor(code,status=400){super(code);this.code=code;this.status=status} }
 export function parseInWorker(bytes,name,signal){
  return new Promise((resolve,reject)=>{
   if(signal?.aborted){reject(new FileToolError('file_canceled',499));return}
   const worker=new Worker(new URL('./file-parser-worker.mjs',import.meta.url),{execArgv:[],workerData:{bytes,name},resourceLimits:{maxOldGenerationSizeMb:128,maxYoungGenerationSizeMb:16,stackSizeMb:4}});
-  let settled=false;const timer=setTimeout(()=>done(new FileToolError('file_parse_timeout',408)),12000);
+  let settled=false;const timer=setTimeout(()=>done(new FileToolError('file_parse_timeout',408)),30000);
   const abort=()=>done(new FileToolError('file_canceled',499));
   function done(error,result){if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',abort);void worker.terminate();error?reject(error):resolve(result)}
   worker.once('message',message=>message.ok?done(null,message.result):done(new FileToolError(message.code)));
@@ -33,13 +34,14 @@ export function createFileTools({parse=parseInWorker,now=Date.now}={}){
     const id='file_'+crypto.randomBytes(16).toString('hex');const expiresAt=now()+15*60000;
     files.set(id,{...result,id,name,userId,workspaceId,agentId:agent.id,expiresAt});
     setTimeout(()=>files.delete(id),15*60000).unref();
-    return {id,name,format:result.format,characters:result.text.length,notes:result.notes,truncated:result.truncated,expiresAt:new Date(expiresAt).toISOString()};
+    return {id,name,format:result.format,characters:result.text.length,notes:result.notes,truncated:result.truncated,sectionCount:result.sections?.length||1,totalPages:result.totalPages||null,expiresAt:new Date(expiresAt).toISOString()};
    }finally{parsing--}
   },
-  context({ids,userId,workspaceId,agent}){
+  context({ids,userId,workspaceId,agent,query='',hint=''}){
    allowed(agent,'read_files');cleanup();
    if(!Array.isArray(ids)||ids.length<1||ids.length>3||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^file_[0-9a-f]{32}$/.test(id)))throw new FileToolError('file_selection_invalid');
-   return {files:ids.map(id=>{const f=files.get(id);if(!f||f.userId!==userId||f.workspaceId!==workspaceId||f.agentId!==agent.id)throw new FileToolError('file_unavailable',404);return {name:f.name,format:f.format,text:f.text,notes:f.notes,truncated:f.truncated}})};
+   const selected=ids.map(id=>{const f=files.get(id);if(!f||f.userId!==userId||f.workspaceId!==workspaceId||f.agentId!==agent.id)throw new FileToolError('file_unavailable',404);return {name:f.name,format:f.format,text:f.text,sections:f.sections,totalPages:f.totalPages,missingPages:f.missingPages,notes:f.notes,truncated:f.truncated}});
+   try{return planDocumentContext(selected,query,hint)}catch(error){if(error.code==='file_review_limit')throw new FileToolError(error.code,413);throw error}
   },
   remove({id,userId,workspaceId,agentId}){const f=files.get(id);if(f&&f.userId===userId&&f.workspaceId===workspaceId&&f.agentId===agentId)files.delete(id)},
   export({agent,text,format}){allowed(agent,'create_files');try{return exportReport(text,format)}catch(error){throw new FileToolError(error.message)}}

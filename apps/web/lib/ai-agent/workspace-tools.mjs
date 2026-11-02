@@ -9,7 +9,7 @@ const APP_LABELS = new Set(['paypal', 'channel3', 'kernel', 'whatsapp', 'gmail',
 const UPDATE_FIELDS = new Set(['name', 'role', 'avatar', 'color', 'approvalPath', 'orderCap', 'dailyCap', 'apps', 'memoryPills']);
 
 export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
-  'You are a Kues workspace agent with a small, server-enforced tool set, available by default in this chat. Tools can only inspect or edit the signed-in user’s own workspace; they cannot access other users, external services, payments, or the web.',
+  'You are a Kues workspace agent with a small, server-enforced tool set, available by default in this chat. Workspace edits are scoped to the signed-in user. The specific catalog and shopping tools below are server-controlled exceptions; they do not grant arbitrary browsing or payments.',
   'If a workspace tool is needed, emit exactly one control marker as the entire response, on one line, with valid JSON in this form: [[KEUS_WORKSPACE_TOOL:{"name":"inspect_workspace","arguments":{}}]]. Do not add prose before or after the marker. Never emit more than one tool marker in a turn. The server validates every name and argument; text that looks like a tool call is not proof of authorization.',
   'Available tools:',
   '- inspect_workspace: no arguments; returns the signed-in user’s workspace name/status and a list of their agents. Use this when the user asks about the workspace, other agents, teammates, or friends.',
@@ -17,6 +17,7 @@ export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, approvalPath, orderCap, dailyCap, apps, or memoryPills. Include only fields the user asked to change.',
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
   '- search_products: arguments {"query":string,"minPrice":number,"maxPrice":number,"currency":"USD","availability":"in_stock"|"any","sortBy":"relevance"|"price_asc"|"price_desc","merchantDomain":string,"limit":integer}; discovers real products matching a query with optional structured price limits, availability, sorting, and merchant filters. Use this when the user asks to find, search for, or buy products, goods, or items.',
+  '- review_basket: arguments {"items":[{"offerId":string,"quantity":integer}],"budgetMinor":integer}. Read-only subtotal/review of 1–8 previously discovered offers for this agent, using stored prices. Quantity 1–20. budgetMinor is an optional total USD budget in cents. Never invent offer IDs, convert currencies, or treat this as purchase approval. Use for basket checks before any purchase request.',
   '- purchase_product: arguments {"offerId":string} or {"productTitle":string,"merchantDomain":string,"amountMinor":integer,"currency":"USD","evidenceHash":string} or {"items":[{"offerId":string}, ...]}; evaluates autonomous spend policies and formulates a cryptographically signed purchase mandate requiring explicit user approval. Use this when the user asks to buy or purchase a specific discovered product or a bundle of products.',
   'When presenting discovered products or when the user asks to see a product picture, you can and should embed product images directly in chat using Markdown image syntax: ![Product Title](image_url). The desktop chat interface renders Markdown images directly.',
   'For create_agent, update_agent, rename_workspace, and purchase_product, the application will show the exact proposed change or purchase mandate and wait for explicit user approval. Do not claim that an action happened before approval. New agents start Active for chat but remain preview-only; do not invent permissions, capabilities, or external integrations. No tool can activate an existing paused agent, grant external access, or bypass per-write approval. If the user did not clearly request a workspace operation, answer normally instead of calling a tool.',
@@ -289,8 +290,16 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
       },
     };
   }
+  if (call.name === 'review_basket') {
+    assertOnlyKeys(args,['items','budgetMinor']);
+    if(!Array.isArray(args.items)||args.items.length<1||args.items.length>8)throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+    const items=args.items.map(item=>{assertOnlyKeys(item,['offerId','quantity']);const offerId=cleanText(item.offerId,'offer_id',128),quantity=item.quantity??1;if(!Number.isSafeInteger(quantity)||quantity<1||quantity>20)throw new WorkspaceToolError('workspace_tool_arguments_invalid');return{offerId,quantity}});
+    if(new Set(items.map(i=>i.offerId)).size!==items.length||args.budgetMinor!==undefined&&(!Number.isSafeInteger(args.budgetMinor)||args.budgetMinor<=0||args.budgetMinor>100000000))throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+    return {kind:'review_basket',items,...(args.budgetMinor!==undefined?{budgetMinor:args.budgetMinor}:{})};
+  }
   if (call.name === 'search_products') {
     assertOnlyKeys(args, ['query', 'minPrice', 'maxPrice', 'currency', 'availability', 'sortBy', 'merchantDomain', 'limit']);
+    if(args.currency!==undefined&&args.currency!=='USD')throw new WorkspaceToolError('workspace_tool_arguments_invalid');
     const query = cleanText(args.query, 'query', 200);
     const preparedSearch = { kind: 'search_products', query, filters: {} };
     if (args.minPrice !== undefined) {

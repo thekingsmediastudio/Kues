@@ -8,7 +8,7 @@ const report='# Budget\n\n| Category | USD |\n| --- | --- |\n| Office | 120 |\n|
 test('text and CSV parsing are bounded and retain row labels',async()=>{
  const csv=await parseDocument(Buffer.from('Name,Value\n"Line\none",42\n'),'data.csv');assert.match(csv.text,/Line\\none/);assert.match(csv.text,/42/);
  assert.throws(()=>parseCsv('"unclosed'),/file_csv_invalid/);
- const long=await parseDocument(Buffer.from('x'.repeat(10000)),'long.txt');assert.equal(long.text.length,8000);assert.equal(long.truncated,true);
+ const long=await parseDocument(Buffer.from('x'.repeat(10000)),'long.txt');assert.equal(long.text.length,10000);assert.equal(long.truncated,false);assert(long.sections.length>1);
  await assert.rejects(parseDocument(Buffer.alloc(FILE_BYTES+1),'large.txt'),/file_size_invalid/);await assert.rejects(parseDocument(Buffer.from('a'),'legacy.xls'),/file_type_unsupported/);
 });
 test('Word and spreadsheet reports are OOXML and round-trip through extraction',async()=>{
