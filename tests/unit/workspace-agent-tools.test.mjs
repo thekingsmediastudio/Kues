@@ -216,3 +216,19 @@ test('purchase_product tool accepts multi-product bundles and enforces structura
     arguments: { items: [{ unexpectedKey: true }] },
   }, source), /workspace_tool_arguments_invalid/);
 });
+
+
+test('agent proposals remove app and approval preferences while preserving legacy data on unrelated edits', () => {
+  const source = bootstrap();
+  source.agents[0].settings.apps = ['channel3'];
+  const created = prepareWorkspaceToolCall({name:'create_agent',arguments:{name:'New helper',role:'Shopping',avatar:'bulb'}},source);
+  assert.equal(created.payload.input.approvalPath, 'desktop');
+  assert.deepEqual(created.payload.input.apps, []);
+  assert.ok(created.display.fields.every(f=> !/apps|approval path/i.test(f.label)));
+  const edited = prepareWorkspaceToolCall({name:'update_agent',arguments:{agentName:'Desk Helper',changes:{role:'Compare prices'}}},source);
+  assert.deepEqual(edited.payload.input.apps, ['channel3']);
+  for (const changes of [{apps:['channel3']},{approvalPath:'keyfob'}]) {
+    assert.throws(()=>prepareWorkspaceToolCall({name:'update_agent',arguments:{agentName:'Desk Helper',changes}},source),/workspace_tool_arguments_invalid/);
+    assert.throws(()=>prepareWorkspaceToolCall({name:'create_agent',arguments:{name:'New helper',role:'Shopping',avatar:'bulb',...changes}},source),/workspace_tool_arguments_invalid/);
+  }
+});

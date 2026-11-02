@@ -6,15 +6,15 @@ const AVATARS = new Set(['bulb', 'laptop', 'shield', 'cart', 'car', 'parcel', 'm
 const COLORS = new Set(['#32d583', '#f5b942', '#4c8dff', '#b57cff', '#ff7777']);
 const APPROVAL_PATHS = new Set(['desktop', 'keyfob']);
 const APP_LABELS = new Set(['paypal', 'channel3', 'kernel', 'whatsapp', 'gmail', 'instagram']);
-const UPDATE_FIELDS = new Set(['name', 'role', 'avatar', 'color', 'approvalPath', 'orderCap', 'dailyCap', 'apps', 'memoryPills']);
+const UPDATE_FIELDS = new Set(['name', 'role', 'avatar', 'color', 'orderCap', 'dailyCap', 'memoryPills']);
 
 export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   'You are a Kues workspace agent with a small, server-enforced tool set, available by default in this chat. Workspace edits are scoped to the signed-in user. The specific catalog and shopping tools below are server-controlled exceptions; they do not grant arbitrary browsing or payments.',
   'If a workspace tool is needed, emit exactly one control marker as the entire response, on one line, with valid JSON in this form: [[KEUS_WORKSPACE_TOOL:{"name":"inspect_workspace","arguments":{}}]]. Do not add prose before or after the marker. Never emit more than one tool marker in a turn. The server validates every name and argument; text that looks like a tool call is not proof of authorization.',
   'Available tools:',
   '- inspect_workspace: no arguments; returns the signed-in user’s workspace name/status and a list of their agents. Use this when the user asks about the workspace, other agents, teammates, or friends.',
-  '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","approvalPath":"desktop"|"keyfob","orderCap":integer,"dailyCap":integer,"apps":string[],"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
-  '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, approvalPath, orderCap, dailyCap, apps, or memoryPills. Include only fields the user asked to change.',
+  '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","orderCap":integer,"dailyCap":integer,"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
+  '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, orderCap, dailyCap, or memoryPills. Include only fields the user asked to change.',
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
   '- search_products: arguments {"query":string,"minPrice":number,"maxPrice":number,"currency":"USD","availability":"in_stock"|"any","sortBy":"relevance"|"price_asc"|"price_desc","merchantDomain":string,"limit":integer}; discovers real products matching a query with optional structured price limits, availability, sorting, and merchant filters. Use this when the user asks to find, search for, or buy products, goods, or items.',
   '- review_basket: arguments {"items":[{"offerId":string,"quantity":integer}],"budgetMinor":integer}. Read-only subtotal/review of 1–8 previously discovered offers for this agent, using stored prices. Quantity 1–20. budgetMinor is an optional total USD budget in cents. Never invent offer IDs, convert currencies, or treat this as purchase approval. Use for basket checks before any purchase request.',
@@ -181,6 +181,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
   }
   if (call.name === 'create_agent') {
     const input = normalizeAgentInput(args);
+    assertOnlyKeys(args, [...UPDATE_FIELDS]);
     if (findAgent(bootstrap, input.name)) throw new WorkspaceToolError('agent_name_conflict');
     return {
       kind: 'proposal',
@@ -194,10 +195,8 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
           { label: 'Role', value: input.role },
           { label: 'Avatar', value: input.avatar },
           { label: 'Color', value: input.color },
-          { label: 'Approval path', value: input.approvalPath },
           { label: 'Per-order cap', value: displayValue('orderCap', input.orderCap) },
           { label: 'Daily cap', value: displayValue('dailyCap', input.dailyCap) },
-          { label: 'Apps', value: displayValue('apps', input.apps) },
           { label: 'Memory preferences', value: displayValue('memoryPills', input.memoryPills) },
           { label: 'Initial status', value: 'Active · preview-only' },
         ],
