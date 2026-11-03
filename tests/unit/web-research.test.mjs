@@ -50,3 +50,18 @@ test('source selection rejects spoofed authority suffixes and discloses no verif
  const service=createWebResearch({enabled:true,apiKey:'test',transport:async url=>url.hostname==='api.tavily.com'?{status:200,body:JSON.stringify(result)}:{status:200,contentType:'text/plain',body:content}});
  const r=await service.run({agent,query:'Find official documentation',userId:'u'});assert.match(researchSourcesMarkdown(r),/not been verified as authoritative/);
 });
+
+test('named primary publishers restrict search; explicit RFC reference is read even if search only returns blogs',async()=>{
+ let searches=0;const reads=[];const service=createWebResearch({enabled:true,apiKey:'test',transport:async(url,options)=>{if(url.hostname==='api.tavily.com'){searches++;assert.deepEqual(JSON.parse(options.body).include_domains,['iana.org','rfc-editor.org']);return{status:200,body:JSON.stringify(result)}}reads.push(url.href);return{status:200,contentType:'text/plain',body:('Introductory material. '.repeat(200))+' IANA reserves example.com, example.net and example.org for examples. '+content}}});
+ const r=await service.run({agent,query:'What is example.com? Use authoritative primary sources, ideally IANA or RFC 2606.',userId:'u'});assert.equal(searches,1);assert.deepEqual(reads,['https://www.rfc-editor.org/rfc/rfc2606.txt']);assert.equal(r.sources.length,1);assert.equal(r.sources[0].pageRead,true);assert.match(r.sources[0].excerpt,/example\.com/);assert(r.sources[0].excerpt.length<=2400);
+});
+test('targeted sources fail honestly if unavailable and never silently substitute unrelated domains',async()=>{
+ const service=createWebResearch({enabled:true,apiKey:'test',transport:async url=>url.hostname==='api.tavily.com'?{status:200,body:JSON.stringify(result)}:{status:404,contentType:'text/plain',body:''}});
+ await assert.rejects(service.run({agent,query:'Use primary IANA or RFC 2606 sources',userId:'u'}),e=>e.code==='research_no_sources');
+ const {requestedResearchPublishers,researchReferenceCandidates}=await import('../../apps/web/lib/ai-agent/web-research.mjs');assert.deepEqual(requestedResearchPublishers('What is example.com?'),[]);assert.equal(researchReferenceCandidates('Use primary RFC 2606 and RFC 2606 sources').length,1);
+});
+test('canonical bibliography strips generated duplicate sections while preserving other answer sections',async()=>{
+ const {stripResearchBibliography}=await import('../../apps/web/lib/ai-agent/web-research.mjs');
+ for(const heading of ['### Sources','Sources:','**Sources**','## References','__Bibliography__']){const result=stripResearchBibliography('Answer [1].\n\n'+heading+'\n- [1] [fake](https://fake.example.com/)\n\n## Limitations\nCheck relevance.');assert.equal(result,'Answer [1].\n\n## Limitations\nCheck relevance.')}
+ assert.equal(stripResearchBibliography('Sources of error are discussed below.'),'Sources of error are discussed below.');
+});

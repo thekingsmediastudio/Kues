@@ -9,7 +9,7 @@ import { createExecutionRoutes } from './lib/ai-agent/execution-routes.mjs';
 import { workspaceLibraryFromEnv } from './lib/ai-agent/workspace-storage.mjs';
 import { createWorkspaceFileRoutes } from './lib/ai-agent/workspace-file-routes.mjs';
 import { createFileTools, createFileRoutes, FileToolError, FILE_CONSENT } from './lib/ai-agent/file-tools.mjs';
-import { createWebResearch, researchSourcesMarkdown, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
+import { createWebResearch, researchSourcesMarkdown, stripResearchBibliography, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
 import http from 'node:http';
 import { createAudioRoutes, createGroqTranscription } from './lib/audio/groq-transcription.mjs';
 import crypto from 'node:crypto';
@@ -1451,6 +1451,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
   let streamHistoryPersisted = false;
   let pendingApprovalView = null;
   let streamWorkspaceGate = null;
+  let wantsResearch = false;
+  let researchContext = null;
   let workspace = null;
   let agent = null;
   let agentId = '';
@@ -1488,9 +1490,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
     newUserMessage = normalizeAiChatMessages([{ role: 'user', content: input.message }])[0];
-    const wantsResearch = /^\/research(?:\s|$)/i.test(newUserMessage.content);
+    wantsResearch = /^\/research(?:\s|$)/i.test(newUserMessage.content);
     const researchQuery = wantsResearch ? newUserMessage.content.replace(/^\/research\s*/i, '').trim() : '';
-    let researchContext = null;
     if (input.fileIds !== undefined && (!Array.isArray(input.fileIds) || input.fileIds.length < 1 || input.fileIds.length > 3)) throw new FileToolError('file_selection_invalid');
     if (input.fileIds && req.headers['x-file-consent'] !== FILE_CONSENT) throw new FileToolError('file_consent_required');
     if (input.fileIds && wantsResearch) throw new FileToolError('file_research_combination_unsupported');
@@ -1597,7 +1598,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           streamAvatarEmotionCount += 1;
           await writeSseEvent(res, 'avatar_cue', { avatar: 'emotion', cue: requestedMoodCue }, streamController.signal);
         }
-        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => guardPurchaseClaims ? Promise.resolve() : writeSseEvent(res, 'delta', { text }, streamController.signal));
+        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => (guardPurchaseClaims || wantsResearch) ? Promise.resolve() : writeSseEvent(res, 'delta', { text }, streamController.signal));
         const completion = await aiChatService.stream({
           checkoutContext,
           agent,
@@ -1629,7 +1630,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         const toolCall = parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
           ? { kind: 'invalid' }
           : parsedToolCall;
-        const safePrefix = guardPurchaseClaims ? '' : streamWorkspaceGate.visibleText();
+        const safePrefix = (guardPurchaseClaims || wantsResearch) ? '' : streamWorkspaceGate.visibleText();
         let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
         if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
@@ -1700,7 +1701,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
         } else {
           if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
           streamCompletion = { ...completion, text: visibleReply };
-          const alreadySent = guardPurchaseClaims ? '' : streamWorkspaceGate.visibleText();
+          if (researchContext) visibleReply = stripResearchBibliography(visibleReply) || 'The sources were retrieved, but no usable answer was produced.';
+          const alreadySent = (guardPurchaseClaims || wantsResearch) ? '' : streamWorkspaceGate.visibleText();
           if (visibleReply.startsWith(alreadySent)) {
             const remainder = visibleReply.slice(alreadySent.length);
             if (remainder) await writeSseEvent(res, 'delta', { text: remainder }, streamController.signal);
@@ -1820,7 +1822,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       }
     }
     if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
-    if (researchContext) visibleReply += researchSourcesMarkdown(researchContext);
+    if (researchContext) visibleReply = (stripResearchBibliography(visibleReply) || 'The sources were retrieved, but no usable answer was produced.') + researchSourcesMarkdown(researchContext);
     if (fileContext) visibleReply += documentCoverageMarkdown(fileContext);
     completion = { ...completion, text: visibleReply };
 
@@ -1910,6 +1912,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           text: safePrefix.trim() ? safePrefix : 'I could not safely interpret that workspace operation, so nothing was changed. Please try again.',
         };
       }
+      if (wantsResearch && completionToSave) completionToSave = { ...completionToSave, text: (stripResearchBibliography(completionToSave.text) || 'Research was interrupted before a usable answer was produced.') + (researchContext ? researchSourcesMarkdown(researchContext) : '') };
       let streamFailure = error;
 
       if (tokenReservationHeld && completionToSave) {

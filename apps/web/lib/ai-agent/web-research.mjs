@@ -14,12 +14,12 @@ export function publicHttpsUrl(value) {
   url.hash = ''; return url;
 }
 const text = (value, max) => String(value || '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').slice(0, max);
-export function extractPageText(html) {
+export function extractPageText(html, maxCharacters = 2400) {
   return text(html, 524288).replace(/<(script|style|nav|footer|header|noscript|svg)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
     .replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]*>/g, ' ')
     .replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (_, n) => { const code = n[0].toLowerCase() === 'x' ? parseInt(n.slice(1), 16) : Number(n); return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ' '; })
     .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, entity) => ({amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' '})[entity])
-    .replace(/\s+/g, ' ').trim().slice(0, 2400);
+    .replace(/\s+/g, ' ').trim().slice(0, Math.min(maxCharacters, 524288));
 }
 export function createResearchTransport({ resolveHost = host => dns.lookup(host, { all: true, verbatim: true }), requestImpl = requestHttpsStream } = {}) {
   return async (url, { method = 'GET', body, headers = {}, signal } = {}) => {
@@ -45,18 +45,28 @@ export function createResearchTransport({ resolveHost = host => dns.lookup(host,
     } finally { response?.cancel?.(); clearTimeout(timer); signal?.removeEventListener('abort', abort); }
   };
 }
-export async function readPublicPage(rawUrl, { transport = createResearchTransport(), signal } = {}) {
+export function selectPageExcerpt(content, query = '') {
+  if(content.length<=2400 || !query.trim())return content.slice(0,2400);
+  const ignored=new Set('what which where when intended authoritative primary sources ideally answer briefly links purchase official documentation preferred example'.split(' '));
+  const terms=[...new Set((query.toLowerCase().match(/[a-z0-9]+(?:\.[a-z0-9-]+)+|[a-z0-9]{4,}/g)||[]).filter(t=>!ignored.has(t)))].slice(0,30);
+  let best=0, score=0;
+  for(let offset=0;offset<content.length;offset+=900){const chunk=content.slice(offset,offset+1800).toLowerCase();const value=terms.reduce((sum,term)=>sum+(chunk.includes(term)?(term.includes('.')?8:1):0),0);if(value>score){score=value;best=offset}}
+  if(best<400)return content.slice(0,2400);
+  return (content.slice(0,400)+'\n[Selected passage; intervening text omitted]\n'+content.slice(best,best+1800)).slice(0,2400);
+}
+export async function readPublicPage(rawUrl, { transport = createResearchTransport(), signal, query = '' } = {}) {
   const url = publicHttpsUrl(rawUrl);
   const response = await transport(url, { signal });
   // No redirect following, cookies, browser scripts, authenticated pages or binary downloads.
   if (response.status !== 200 || !['text/html', 'text/plain', 'application/xhtml+xml'].includes(response.contentType)) throw new ResearchError('research_page_unreadable', 502);
-  const content = response.contentType === 'text/plain' ? text(response.body, 2400).trim() : extractPageText(response.body);
+  const extracted = response.contentType === 'text/plain' ? text(response.body, 524288).trim() : extractPageText(response.body, 524288);
+  const content = selectPageExcerpt(extracted, query);
   if (content.length < 80) throw new ResearchError('research_page_unreadable', 502);
   return { url: url.href, text: content };
 }
 // Publisher hints only: these do not certify truth, relevance, or official status.
 export function prefersPrimarySources(query) {
-  return /\b(authoritative|official|primary sources?|first[- ]hand)\b/i.test(query);
+  return /\b(authoritative|official|primary(?: sources?)?|first[- ]hand)\b/i.test(query);
 }
 export function selectResearchCandidates(results, preferPrimary = false) {
   const recognized = ['iana.org', 'ietf.org', 'rfc-editor.org', 'w3.org', 'who.int', 'un.org'];
@@ -73,6 +83,34 @@ export function selectResearchCandidates(results, preferPrimary = false) {
   }
   if (preferPrimary) candidates.sort((a,b) => Number(b.preferredPublisher) - Number(a.preferredPublisher));
   return candidates.slice(0, 3);
+}
+export function requestedResearchPublishers(query) {
+  // Explicitly named publishers only; never infer that the subject's domain is a source restriction.
+  const publishers = [
+    [/\bIANA\b|\biana\.org\b/i, 'iana.org'],
+    [/\bRFC\s*\d+\b|\bRFC[- ]Editor\b|\brfc-editor\.org\b/i, 'rfc-editor.org'],
+    [/\bIETF\b|\bietf\.org\b/i, 'ietf.org'],
+    [/\bW3C\b|\bw3\.org\b/i, 'w3.org'],
+  ];
+  if (!prefersPrimarySources(query)) return [];
+  return publishers.filter(([pattern]) => pattern.test(query)).map(([, domain]) => domain);
+}
+export function researchReferenceCandidates(query) {
+  if (!prefersPrimarySources(query)) return [];
+  return [...new Set([...query.matchAll(/\bRFC\s*(\d{1,5})\b/gi)].map(m=>Number(m[1])).filter(n=>n>0))]
+    .slice(0, 2).map(number=>({url:`https://www.rfc-editor.org/rfc/rfc${number}.txt`,title:`RFC ${number} — RFC Editor`,content:''}));
+}
+export function stripResearchBibliography(answer) {
+  const lines=String(answer || '').replace(/\r\n?/g,'\n').split('\n');
+  let inBibliography=false, inFence=false; const kept=[];
+  for(const line of lines) {
+    if (/^\s*(`{3,}|~{3,})/.test(line)) inFence=!inFence;
+    const isBibliography=!inFence && /^\s*(?:#{1,6}\s*)?(?:\*\*|__)?(?:sources|references|bibliography)(?:\*\*|__)?\s*:?\s*$/i.test(line);
+    if(isBibliography){inBibliography=true;continue;}
+    if(inBibliography && /^\s*#{1,6}\s+\S/.test(line))inBibliography=false;
+    if(!inBibliography)kept.push(line);
+  }
+  return kept.join('\n').trim();
 }
 export function createWebResearch({ enabled = false, apiKey = '', transport = createResearchTransport(), now = Date.now } = {}) {
   const windows = new Map(); let active = 0;
@@ -95,10 +133,12 @@ export function createWebResearch({ enabled = false, apiKey = '', transport = cr
       try {
         if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout', 504);
         const preferPrimary = prefersPrimarySources(query);
+        const requestedPublishers = requestedResearchPublishers(query);
+        const references = researchReferenceCandidates(query);
         await onStage('searching');
         const response = await transport(new URL('https://api.tavily.com/search'), {
           method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: Buffer.from(JSON.stringify({ query: query.trim() + (preferPrimary ? ' Official documentation or primary sources preferred.' : ''), search_depth: 'basic', max_results: 6, topic: 'general', auto_parameters: false, include_answer: false, include_raw_content: false, include_images: false })), signal: controller.signal,
+          body: Buffer.from(JSON.stringify({ query: query.trim() + (preferPrimary ? ' Official documentation or primary sources preferred.' : ''), ...(requestedPublishers.length ? {include_domains:requestedPublishers} : {}), search_depth: 'basic', max_results: 6, topic: 'general', auto_parameters: false, include_answer: false, include_raw_content: false, include_images: false })), signal: controller.signal,
         });
         if ([429, 432, 433, 434].includes(response.status)) throw new ResearchError('research_provider_limit', 429);
         if ([401, 403].includes(response.status)) throw new ResearchError('research_credentials_rejected', 503);
@@ -107,19 +147,21 @@ export function createWebResearch({ enabled = false, apiKey = '', transport = cr
         if (!Array.isArray(data.results)) throw new ResearchError('research_invalid_response', 502);
         await onStage('reading');
         const sources = [], seen = new Set();
-        for (const result of selectResearchCandidates(data.results, preferPrimary)) {
+        const requestedHost = raw => { try { const host=publicHttpsUrl(raw).hostname; return requestedPublishers.some(domain=>host===domain||host.endsWith('.'+domain)); } catch { return false; } };
+        const searchCandidates=requestedPublishers.length ? data.results.filter(result=>result && requestedHost(result.url)) : data.results;
+        for (const result of selectResearchCandidates([...references, ...searchCandidates], preferPrimary)) {
           if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout', 504);
           let url; try { url = publicHttpsUrl(result.url).href; } catch { continue; }
           if (seen.has(url)) continue; seen.add(url);
           let excerpt = text(result.content, 2400).trim(), pageRead = false;
-          try { const page = await readPublicPage(url, { transport, signal: controller.signal }); excerpt = page.text; pageRead = true; }
+          try { const page = await readPublicPage(url, { transport, signal: controller.signal, query }); excerpt = page.text; pageRead = true; }
           catch (error) { if (error.code === 'research_destination_blocked') continue; if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout', 504); }
           if (!excerpt) continue;
           sources.push({ id: sources.length + 1, title: text(result.title, 160) || new URL(url).hostname, url, excerpt, pageRead, preferredPublisher: result.preferredPublisher });
         }
         if (!sources.length) throw new ResearchError('research_no_sources', 502);
         await onStage('writing');
-        return { sources, retrievedAt: new Date(now()).toISOString(), ...(preferPrimary ? { sourceSelectionNotice: sources.some(s => s.preferredPublisher) ? 'Publisher-domain hints were used to prioritize sources; primary-source status, relevance and accuracy still require checking.' : 'No recognized primary-source publisher was found in the selected results. These sources have not been verified as authoritative.' } : {}) };
+        return { sources, retrievedAt: new Date(now()).toISOString(), ...(requestedPublishers.length ? {requestedPublishers} : {}), ...(preferPrimary ? { sourceSelectionNotice: sources.some(s => s.preferredPublisher) ? 'Publisher-domain hints were used to prioritize sources; primary-source status, relevance and accuracy still require checking.' : 'No recognized primary-source publisher was found in the selected results. These sources have not been verified as authoritative.' } : {}) };
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); active--; }
     },
   };
