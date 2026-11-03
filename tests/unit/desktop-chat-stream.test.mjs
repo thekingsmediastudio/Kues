@@ -1264,3 +1264,19 @@ test('phone navigation uses a modal drawer and restores the original sidebar on 
   assert.match(desktopHtml, /media.addEventListener\('change', sync\)/);
   assert.match(desktopHtml, /height:100dvh/);
 });
+
+test('agent selection is account/workspace scoped, validated against available agents and stored without drafts',()=>{
+ assert.match(desktopHtml,/keus-agent-selection:\$\{encodeURIComponent\(user\)\}:\$\{encodeURIComponent\(workspace\)\}/);
+ assert.match(desktopHtml,/sessionStorage.setItem\(key, selectedAgentId\)/);
+ assert.match(desktopHtml,/selectedAgentScope !== selectionKey/);
+ assert.match(desktopHtml,/availableAgents = agents.filter\(entry => entry.status !== 'archived'\)/);
+ assert.match(desktopHtml,/was added\$\{created\?\.status === 'active'/);
+ assert.doesNotMatch(desktopHtml,/This preview has no agent runtime, live approval, or payment flow/);
+});
+
+test('dashboard no longer claims shopping is disconnected or no tokens are consumed',()=>{
+ const dashboard=fs.readFileSync(path.resolve(testDir,'../../apps/web/public/dashboard.html'),'utf8');
+ assert.doesNotMatch(dashboard,/Agent execution is not|Runtime not connected|no tokens are being consumed|Agent activity is not connected/);
+ assert.match(dashboard,/separate PayPal sandbox buyer approval/);
+ assert.match(dashboard,/Usage totals are not displayed here/);
+});

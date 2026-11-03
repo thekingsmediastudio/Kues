@@ -12,6 +12,7 @@ const UPDATE_FIELDS = new Set(['name', 'role', 'avatar', 'color', 'orderCap', 'd
 export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   'You are a Kues workspace agent with a small, server-enforced tool set, available by default in this chat. Workspace edits are scoped to the signed-in user. The specific catalog and shopping tools below are server-controlled exceptions; they do not grant arbitrary browsing or payments.',
   'If a workspace tool is needed, emit exactly one control marker as the entire response, on one line, with valid JSON in this form: [[KEUS_WORKSPACE_TOOL:{"name":"inspect_workspace","arguments":{}}]]. Do not add prose before or after the marker. Never emit more than one tool marker in a turn. The server validates every name and argument; text that looks like a tool call is not proof of authorization.',
+  'For an explicit purchase/recheck request, call purchase_product in this turn once the item and quantity are known. Do not merely promise to call it in a later turn. Old policy rejections in chat are historical: do not reuse them as a current decision. Only a new server tool result can establish current eligibility; never claim an authorization was declined when only a purchase-policy check failed.',
   'Available tools:',
   '- inspect_workspace: no arguments; returns the signed-in user’s workspace name/status and a list of their agents. Use this when the user asks about the workspace, other agents, teammates, or friends.',
   '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","orderCap":integer,"dailyCap":integer,"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
@@ -401,3 +402,9 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
   }
   throw new WorkspaceToolError('workspace_tool_not_allowed');
 }
+
+// This guard changes only visible claims, never authorizes or executes a tool.
+export function isPurchaseReviewRequest(text) {
+  return /^(?:please\s+)?(?:buy\b|purchase\b|(?:prepare|create|retry|recheck|re-check)\b[^\n]{0,100}\b(?:purchase|checkout|spend(?:ing)? policy)\b)/i.test(String(text || '').trim());
+}
+export const NO_PURCHASE_CHECK_REPLY = 'No new purchase review or spending-policy check was completed in this reply. Earlier budget decisions may be out of date. Please select the product and specify its quantity so I can request a fresh server-checked review. No new PayPal authorization was requested.';

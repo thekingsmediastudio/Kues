@@ -234,3 +234,11 @@ test('agent proposals remove app and approval preferences while preserving legac
 });
 
 test('purchase tools preserve requested quantities and reject fractions, strings and duplicate offers',()=>{const source=bootstrap();for(const quantity of [1,3,20]){const tool=prepareWorkspaceToolCall({name:'purchase_product',arguments:{offerId:'offer-1',quantity}},source);assert.equal(tool.quantity,quantity);}for(const quantity of [0,21,1.5,'2',null])assert.throws(()=>prepareWorkspaceToolCall({name:'purchase_product',arguments:{offerId:'offer-1',quantity}},source),/arguments_invalid/);const bundle=prepareWorkspaceToolCall({name:'purchase_bundle',arguments:{items:[{offerId:'one',quantity:2},{offerId:'two',quantity:3}]}},source);assert.deepEqual(bundle.items.map(i=>i.quantity),[2,3]);assert.throws(()=>prepareWorkspaceToolCall({name:'purchase_bundle',arguments:{items:[{offerId:'same',quantity:2},{offerId:'same',quantity:3}]}},source),/arguments_invalid/);});
+
+test('purchase claim guard recognizes direct review requests but not comparison, negation or attachments',async()=>{
+  const {isPurchaseReviewRequest,NO_PURCHASE_CHECK_REPLY}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
+  for(const text of ['Buy 3 notebooks','Please purchase this item','Prepare a fresh purchase review for 3 notebooks','Please re-check the spending policy'])assert.equal(isPurchaseReviewRequest(text),true,text);
+  for(const text of ['Do not buy anything','Compare these notebooks','Explain yesterday’s purchase','/research buy notebooks','The document says buy three'])assert.equal(isPurchaseReviewRequest(text),false,text);
+  assert.match(NO_PURCHASE_CHECK_REPLY,/No new purchase review/);
+  assert.match(NO_PURCHASE_CHECK_REPLY,/Earlier budget decisions may be out of date/);
+});

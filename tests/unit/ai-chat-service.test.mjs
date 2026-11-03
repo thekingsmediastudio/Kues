@@ -470,3 +470,13 @@ test('all provider adapters receive server-verified checkout facts without corru
  try{await chat.complete({agent:{name:'Shopper',role:'Shopping'},messages,checkoutContext:[{role:'assistant',content:'Verified checkout update: Sandbox authorization successful for 10.00 USD. Funds were not captured.',createdAt:'2026-11-02T00:00:00Z'}]});const payload=observed.body.toString('utf8');assert.match(payload,/Server-verified PayPal sandbox checkout facts/);assert.match(payload,/Sandbox authorization successful for 10.00 USD/);assert.match(payload,/later void supersedes/);fixture.check(observed);}finally{await db.close()}
  }
 });
+
+test('all provider adapters receive fresh saved caps and historical-budget warning, not inferred remaining spend',async()=>{
+ for(const fixture of responseCases){
+  const {db,aiProviderService}=await createProvider(fixture.protocol,fixture.baseUrl);const observed=[];
+  const chat=createAiChatService({aiProviderService,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHttpsImpl:async req=>{observed.push(JSON.parse(req.body.toString('utf8')));return{status:200,contentType:'application/json',body:Buffer.from(JSON.stringify(fixture.payload))}}});
+  try{await chat.complete({agent:{name:'QA',role:'Shopping',settings:{orderCap:25,dailyCap:150}},messages,workspaceTools:true});
+   const body=JSON.stringify(observed[0]);assert(body.includes('orderCapUSD'));assert(body.includes('150'));assert(body.includes('earlier chat statements about budgets are not authoritative'));assert(body.includes('Do not merely promise to call it in a later turn'));
+  }finally{await db.close()}
+ }
+});

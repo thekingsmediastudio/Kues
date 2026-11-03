@@ -3553,7 +3553,7 @@
             </div>
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Approval and execution</h3><span class="app-settings-status">Not connected</span></div>
-              <p>Desktop transaction-bound WebAuthn approval is planned. This preview has no agent runtime, live approval, or payment flow; displayed spend limits are stored preferences and are not enforced by a running agent.</p>
+              <p>Purchases require a reviewed mandate and separate PayPal sandbox buyer approval. The server enforces spending limits; other workspace or merchant restrictions may be stricter. No capture, seller order or shipment is performed.</p>
             </div>
           </section>
           <section class="app-settings-pane" id="settingsPanePayments" role="tabpanel" aria-labelledby="settingsTabPayments" hidden>
@@ -3857,6 +3857,16 @@
   let lastFocusedElement = null;
   let openOverlayId = null;
   let selectedAgentId = null;
+  let selectedAgentScope = '';
+  function agentSelectionKey(data = currentBootstrap) {
+    const user = data?.user?.id, workspace = data?.workspace?.id;
+    return user && workspace ? `keus-agent-selection:${encodeURIComponent(user)}:${encodeURIComponent(workspace)}` : '';
+  }
+  function rememberAgentSelection() {
+    const key = agentSelectionKey();
+    try { if (key && selectedAgentId) sessionStorage.setItem(key, selectedAgentId); } catch {}
+  }
+
   let currentBootstrap = null;
   let currentSettingsAgentId = null;
   let currentSettingsAgentAvatar = 'bulb';
@@ -6535,6 +6545,7 @@
       renderedChatAgentId = nextId;
     }
     selectedAgentId = nextId;
+    rememberAgentSelection();
     setSelectedAgentComposerAccent(agent);
     renderSavedAgentRows(agentsFromBootstrap(), agent);
     const avatar = document.getElementById('hdrAvatar');
@@ -7463,9 +7474,17 @@
     const agents = Array.isArray(data.agents)
       ? data.agents.filter((entry) => entry && entry.id)
       : (onboarding.agent?.id ? [onboarding.agent] : []);
-    let agent = selectedAgentId ? agents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
-    if (!agent) agent = agents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || agents[0] || onboarding.agent || profileAgent;
+    const selectionKey = agentSelectionKey(data);
+    if (selectedAgentScope !== selectionKey) {
+      selectedAgentScope = selectionKey;
+      selectedAgentId = null;
+      try { if (selectionKey) selectedAgentId = sessionStorage.getItem(selectionKey); } catch {}
+    }
+    const availableAgents = agents.filter(entry => entry.status !== 'archived');
+    let agent = selectedAgentId ? availableAgents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
+    if (!agent) agent = availableAgents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || availableAgents[0] || (agents.length ? null : (onboarding.agent || profileAgent));
     selectedAgentId = agent?.id ? String(agent.id) : null;
+    rememberAgentSelection();
     setSelectedAgentComposerAccent(agent);
     const chatAgentChanged = selectedAgentId !== renderedChatAgentId;
     if (chatAgentChanged) {
@@ -7610,7 +7629,8 @@
       form.reset();
       textById('newAgentFormStatus', 'Your preferences save with this agent. Purchases still require explicit approval.');
       closeNewAgentModal();
-      showToast(`${name} was added as a paused agent.`);
+      const created = data.agents?.find(agent => String(agent.id) === String(data.createdAgentId));
+      showToast(`${name} was added${created?.status === 'active' ? ' and is Active for chat' : created?.status === 'paused' ? ' as a paused agent' : ''}. Purchases still require approval.`);
     } catch {
       textById('newAgentFormStatus', 'The agent could not be saved. Check your connection and try again.');
     } finally {

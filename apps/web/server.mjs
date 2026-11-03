@@ -1,3 +1,4 @@
+import { isPurchaseReviewRequest, NO_PURCHASE_CHECK_REPLY } from './lib/ai-agent/workspace-tools.mjs';
 import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
 import { createWalletLinkService, WalletLinkError, WALLET_RETURN_HTML } from './lib/paypal/wallet-link.mjs';
 import { reviewShoppingBasket } from './lib/ai-agent/shopping-basket.mjs';
@@ -1555,6 +1556,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     }
     if (context[0]?.role === 'assistant') context.shift();
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
+    const guardPurchaseClaims = !wantsResearch && !fileContext && isPurchaseReviewRequest(newUserMessage.content);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
@@ -1595,7 +1597,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           streamAvatarEmotionCount += 1;
           await writeSseEvent(res, 'avatar_cue', { avatar: 'emotion', cue: requestedMoodCue }, streamController.signal);
         }
-        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => writeSseEvent(res, 'delta', { text }, streamController.signal));
+        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => guardPurchaseClaims ? Promise.resolve() : writeSseEvent(res, 'delta', { text }, streamController.signal));
         const completion = await aiChatService.stream({
           checkoutContext,
           agent,
@@ -1627,8 +1629,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
         const toolCall = parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
           ? { kind: 'invalid' }
           : parsedToolCall;
-        const safePrefix = streamWorkspaceGate.visibleText();
-        let visibleReply = typeof completion.text === 'string' ? completion.text : '';
+        const safePrefix = guardPurchaseClaims ? '' : streamWorkspaceGate.visibleText();
+        let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
         if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
           visibleReply = 'The analysis response could not be safely presented. No action was taken.';
@@ -1698,7 +1700,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         } else {
           if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
           streamCompletion = { ...completion, text: visibleReply };
-          const alreadySent = streamWorkspaceGate.visibleText();
+          const alreadySent = guardPurchaseClaims ? '' : streamWorkspaceGate.visibleText();
           if (visibleReply.startsWith(alreadySent)) {
             const remainder = visibleReply.slice(alreadySent.length);
             if (remainder) await writeSseEvent(res, 'delta', { text: remainder }, streamController.signal);
@@ -1768,7 +1770,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     }
 
     const toolCall = parseWorkspaceToolCall(completion.text);
-    let visibleReply = typeof completion.text === 'string' ? completion.text : '';
+    let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
     let preparedWorkspaceProposal = null;
     if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
       visibleReply = 'The analysis response could not be safely presented. No action was taken.';
