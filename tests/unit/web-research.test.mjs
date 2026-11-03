@@ -37,3 +37,16 @@ test('search count cap and pre-cancellation prevent more requests',async()=>{
  const controller=new AbortController();controller.abort();await assert.rejects(service.run({agent,query:'question',userId:'other',signal:controller.signal}),e=>e.code==='research_canceled_or_timeout');assert.equal(calls,10);
  assert.equal(extractPageText('x'.repeat(10000)).length,2400);
 });
+
+test('primary-source requests use one basic search with six candidates and at most three reads',async()=>{
+ const urls=['https://blog.example.com/a','https://other.example.com/b','https://third.example.com/c','https://www.iana.org/domains/reserved','https://www.rfc-editor.org/rfc/rfc2606'];let searches=0,reads=0;
+ const service=createWebResearch({enabled:true,apiKey:'test',transport:async(url,options)=>{if(url.hostname==='api.tavily.com'){searches++;const body=JSON.parse(options.body);assert.equal(body.max_results,6);assert.equal(body.search_depth,'basic');assert.match(body.query,/primary sources preferred/);return{status:200,body:JSON.stringify({results:urls.map(url=>({url,title:'Source',content}))})}}reads++;return{status:200,contentType:'text/plain',body:content}}});
+ const r=await service.run({agent,query:'What is example.com? Use authoritative sources.',userId:'u'});assert.equal(searches,1);assert.equal(reads,3);assert.equal(r.sources[0].url,urls[3]);assert.equal(r.sources[1].url,urls[4]);assert.match(r.sourceSelectionNotice,/still require checking/);
+});
+test('source selection rejects spoofed authority suffixes and discloses no verified authority',async()=>{
+ const {selectResearchCandidates}=await import('../../apps/web/lib/ai-agent/web-research.mjs');
+ const candidates=selectResearchCandidates([{url:'https://iana.org.evil.example.com/'},{url:'https://eviliana.org/'},{url:'https://www.iana.org/'},{url:'https://www.iana.org/#duplicate'},null],true);
+ assert.equal(candidates.length,3);assert.equal(candidates[0].url,'https://www.iana.org/');assert.equal(candidates[1].preferredPublisher,false);assert.equal(candidates[2].preferredPublisher,false);
+ const service=createWebResearch({enabled:true,apiKey:'test',transport:async url=>url.hostname==='api.tavily.com'?{status:200,body:JSON.stringify(result)}:{status:200,contentType:'text/plain',body:content}});
+ const r=await service.run({agent,query:'Find official documentation',userId:'u'});assert.match(researchSourcesMarkdown(r),/not been verified as authoritative/);
+});

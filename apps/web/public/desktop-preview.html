@@ -5100,13 +5100,15 @@
       appendChatMarkdownText(parent, source);
       return;
     }
-    const tokenPattern = /(!?\[[^\]\n]*\]\([^\n)]*\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/g;
+    const tokenPattern = /(\\[\\`*_{}\[\]()#+.!|>~-]|!?\[(?:\\.|[^\]\n])*\]\([^\n)]*\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~|\*[^*\n]+\*|_[^_\n]+_)/g;
     let cursor = 0;
     let match;
     while ((match = tokenPattern.exec(source))) {
       appendChatMarkdownText(parent, source.slice(cursor, match.index));
       const token = match[0];
-      if (token.startsWith('![')) {
+      if (token.startsWith('\\')) {
+        appendChatMarkdownText(parent, token.slice(1));
+      } else if (token.startsWith('![')) {
         const imgParts = token.match(/^!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\)$/);
         const src = imgParts ? safeChatMarkdownHref(imgParts[2]) : '';
         if (!imgParts || !src) {
@@ -5127,7 +5129,7 @@
         code.textContent = token.slice(1, -1);
         parent.append(code);
       } else if (token.startsWith('[')) {
-        const linkParts = token.match(/^\[([^\]\n]+)\]\(([^)\s]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\)$/);
+        const linkParts = token.match(/^\[((?:\\.|[^\]\n])+)\]\(([^)\s]+)(?:\s+(?:"([^"]*)"|'([^']*)'))?\)$/);
         const href = linkParts ? safeChatMarkdownHref(linkParts[2]) : '';
         if (!linkParts || !href) {
           appendChatMarkdownText(parent, token);
