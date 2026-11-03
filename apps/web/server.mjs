@@ -8,7 +8,7 @@ import { createExecutionJobs } from './lib/ai-agent/execution-jobs.mjs';
 import { createExecutionRoutes } from './lib/ai-agent/execution-routes.mjs';
 import { workspaceLibraryFromEnv } from './lib/ai-agent/workspace-storage.mjs';
 import { createWorkspaceFileRoutes } from './lib/ai-agent/workspace-file-routes.mjs';
-import { createFileTools, createFileRoutes, FileToolError, FILE_CONSENT } from './lib/ai-agent/file-tools.mjs';
+import { createFileTools, createFileRoutes, FileToolError, FILE_CONSENT, IMAGE_CONSENT } from './lib/ai-agent/file-tools.mjs';
 import { createWebResearch, researchSourcesMarkdown, stripResearchBibliography, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
 import http from 'node:http';
 import { createAudioRoutes, createGroqTranscription } from './lib/audio/groq-transcription.mjs';
@@ -1504,6 +1504,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
 
     ({ workspace, agent } = await loadOwnedAgent(agentId));
     if (input.fileIds) fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent, query: newUserMessage.content });
+    if(fileContext?.images){if(req.headers['x-image-consent']!==IMAGE_CONSENT)throw new FileToolError('file_image_consent_required');if(!requestProviderKey||!requestModelId)throw new AiProviderError('ai_image_provider_required',400);}
     const requireResearchPermissions = async () => {
       const current = await loadOwnedAgent(agentId);
       if (current.workspace.id !== workspace.id || current.agent.settings?.toolPermissions?.web_search !== true || current.agent.settings?.toolPermissions?.read_webpage !== true) throw new ResearchError('research_permission_required', 403);
@@ -1560,7 +1561,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const guardPurchaseClaims = !wantsResearch && !fileContext && isPurchaseReviewRequest(newUserMessage.content);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
-    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
+    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
     const estimatedTokens = Math.ceil((messageCharacters + profileCharacters + 1_000) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
     idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
@@ -1969,7 +1970,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         } else if (streamFailure instanceof RequestError || streamFailure instanceof ResearchError || streamFailure instanceof FileToolError) publicError = streamFailure.code;
         else if (streamFailure instanceof AiChatHistoryError) publicError = 'ai_chat_history_unavailable';
         else if (streamFailure instanceof WorkspaceError) publicError = 'ai_chat_agent_unavailable';
-        else if (streamFailure instanceof AiProviderError && streamFailure.code === 'ai_chat_messages_invalid') {
+        else if (streamFailure instanceof AiProviderError && ['ai_chat_messages_invalid','ai_image_provider_required','ai_image_protocol_unsupported','ai_image_provider_rejected','ai_image_input_invalid'].includes(streamFailure.code)) {
           publicError = streamFailure.code;
         }
         try {
@@ -1992,7 +1993,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     } else if (error instanceof AiChatHistoryError) {
       sendJson(res, error.status, addAdminDiagnostics({ error: 'ai_chat_history_unavailable', requestId }));
     } else if (error instanceof AiProviderError) {
-      if (error.code === 'ai_chat_messages_invalid') {
+      if (['ai_chat_messages_invalid','ai_image_provider_required','ai_image_protocol_unsupported','ai_image_provider_rejected','ai_image_input_invalid'].includes(error.code)) {
         sendJson(res, error.status, addAdminDiagnostics({ error: error.code, requestId }));
       } else {
         sendJson(res, 502, addAdminDiagnostics({ error: 'ai_chat_unavailable', requestId }));

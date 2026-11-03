@@ -3422,7 +3422,7 @@
     </div>
     <footer class="composer-area" id="chatComposer" aria-label="Message composer">
       <div class="composer-inner">
-        <div id="chatAttachments" class="chat-attachments" aria-label="Attached files" hidden></div><input id="chatFilePicker" type="file" accept=".pdf,.docx,.txt,.md,.csv,.xlsx" multiple hidden>
+        <div id="chatAttachments" class="chat-attachments" aria-label="Attached files" hidden></div><input id="chatFilePicker" type="file" accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.png,.jpg,.jpeg" multiple hidden>
         <div class="composer-pill">
           <svg class="composer-border-trace" aria-hidden="true"><path data-edge="top" pathLength="100"/><path data-edge="bottom" pathLength="100"/></svg>
           <!-- Popover for '+' button -->
@@ -3542,7 +3542,7 @@
 <label for="settingsAgentInstructions">Instructions<textarea class="form-input settings-textarea" id="settingsAgentInstructions" rows="5" maxlength="4000" placeholder="Describe this agent’s purpose, preferred tone, and how it should approach tasks."></textarea></label><p class="settings-form-hint">Applies to this agent’s replies. Instructions cannot grant tool access or bypass approval. Maximum 4,000 characters.</p>                <fieldset class="settings-choice-fieldset"><legend>Avatar</legend><div class="settings-agent-avatar-options" id="settingsAgentAvatarOptions" role="group" aria-label="Choose agent avatar"></div></fieldset>
                 <label for="settingsAgentMemory">Memory preferences, optional<textarea class="form-input settings-textarea" id="settingsAgentMemory" rows="3" maxlength="1600" placeholder="One preference per line"></textarea></label>
                 <fieldset class="settings-choice-fieldset settings-color-fieldset"><legend>Avatar color</legend><div class="new-agent-color-options settings-agent-color-options" id="settingsAgentColorOptions" role="group" aria-label="Choose avatar color"></div></fieldset>
-</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Choose what this agent may use. Web research requires both web permissions. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Read shopping lists, supplier quotes and product specifications.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Download comparisons, budgets and shopping checklists.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><label class="agent-tool-row" hidden style="display:none" aria-hidden="true"><span><strong>Run Python code</strong><small>Execute explicitly reviewed code in a cloud sandbox. No automatic execution.</small><em>Server setup required · approval on every run</em></span><input type="checkbox" data-agent-tool="run_code" disabled aria-label="Allow reviewed Python code execution"></label><p class="agent-settings-disclosure">Web research needs both web permissions and server setup. Use + → Research products & sellers, or type /research followed by your question. File analysis uses temporary extracted text, sent to your AI only with the message. Downloads export an agent reply. Saving permission alone does not run a tool.</p></section><section class="agent-settings-panel" id="agentPanelLimits" role="tabpanel" aria-labelledby="agentTabLimits" hidden>                
+</section><section class="agent-settings-panel" id="agentPanelTools" role="tabpanel" aria-labelledby="agentTabTools" hidden><p class="settings-form-hint">Choose what this agent may use. Web research requires both web permissions. These permissions do not change existing workspace or shopping tools.</p><label class="agent-tool-row"><span><strong>Web search</strong><small>Find current information with linked sources.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="web_search" aria-label="Allow web search when installed"></label><label class="agent-tool-row"><span><strong>Read webpages</strong><small>Read and compare public pages you request.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_webpage" aria-label="Allow read webpages when installed"></label><label class="agent-tool-row"><span><strong>Read uploaded files</strong><small>Read shopping lists, supplier quotes and product specifications.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="read_files" aria-label="Allow read uploaded files when installed"></label><label class="agent-tool-row"><span><strong>Create downloads</strong><small>Download comparisons, budgets and shopping checklists.</small><em>Not installed · permission only</em></span><input type="checkbox" data-agent-tool="create_files" aria-label="Allow create downloads when installed"></label><label class="agent-tool-row" hidden style="display:none" aria-hidden="true"><span><strong>Run Python code</strong><small>Execute explicitly reviewed code in a cloud sandbox. No automatic execution.</small><em>Server setup required · approval on every run</em></span><input type="checkbox" data-agent-tool="run_code" disabled aria-label="Allow reviewed Python code execution"></label><p class="agent-settings-disclosure">Web research needs both web permissions and server setup. Use + → Research products & sellers, or type /research followed by your question. File analysis uses temporary extracted text or prepared images, sent to your AI only after confirmation with the message. Image requests require an explicitly selected compatible provider and model. Downloads export an agent reply. Saving permission alone does not run a tool.</p></section><section class="agent-settings-panel" id="agentPanelLimits" role="tabpanel" aria-labelledby="agentTabLimits" hidden>                
                 <div class="new-agent-fields-grid">
                   <label for="settingsAgentOrderCap">Maximum per order (USD)<input class="form-input" id="settingsAgentOrderCap" type="number" min="20" max="500" step="1" required></label>
                   <label for="settingsAgentDailyCap">Daily spend cap (USD)<input class="form-input" id="settingsAgentDailyCap" type="number" min="100" max="2000" step="25" required></label>
@@ -6633,6 +6633,11 @@
       file_permission_required: 'Enable Read uploaded files in this agent’s Tools settings.',
       file_unavailable: 'An attachment expired or is unavailable for this agent. Remove it and attach it again.',
       file_consent_required: 'File analysis requires agreement to send extracted text to your AI provider.',
+      ai_image_provider_required: 'Explicitly select an image-capable provider and model in the AI menu. No default was changed.',
+      ai_image_protocol_unsupported: 'This image integration requires an OpenAI-compatible chat provider. Choose a compatible image model.',
+      ai_image_provider_rejected: 'The selected provider rejected the image request. Check image support for this model; no fallback was attempted.',
+      file_image_consent_required: 'Image analysis requires agreement to send the prepared image.',
+      file_image_combination_unsupported: 'Analyze images and documents in separate messages.',
       file_selection_invalid: 'Choose up to three valid attachments.',
       file_research_combination_unsupported: 'Use file analysis and web research in separate messages for this trial.',
       research_not_configured: 'Web research needs server setup. Your draft is unchanged.',
@@ -7276,6 +7281,8 @@
     if (!content || !chatAvailable || !chatHistoryReady || chatHistoryLoading || !agent || chatPending || dictationSession) return;
     const fileIds = window.keusFiles ? window.keusFiles.prepareSend(content) : [];
     if (fileIds === false) return;
+    const hasImages = fileIds.length && window.keusFiles?.hasImages?.();
+    if(hasImages && !chatAdminAppliedChoice){chatNotice='Select an image-capable provider and model in the AI menu for this request, then send again. Your default provider is unchanged.';syncChatComposer();return;}
     const wantsResearch = /^\/research(?:\s|$)/i.test(content);
     if (wantsResearch && !window.confirm('Web research sends your question to Tavily and public-page excerpts to your selected AI provider. The question and answer are saved in chat history. Continue?')) return;
     const requestAgentId = String(agent.id);
@@ -7306,12 +7313,13 @@
     if (providerKey && selectedProvider) requestBody.providerKey = providerKey;
     const modelId = appliedChoice?.modelId || '';
     if (modelId && selectedProvider && modelId !== appliedChoice.configuredModelId) requestBody.modelId = modelId;
+    if(hasImages){requestBody.providerKey=providerKey||selectedProvider?.providerKey;requestBody.modelId=modelId||selectedProvider?.configuredModelId;}
     resetAdminChatOverrides();
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(wantsResearch ? { 'X-Research-Consent': 'web-research-v1' } : {}), ...(fileIds.length ? { 'X-File-Consent': 'file-analysis-v2' } : {}) },
+        headers: { Accept: 'text/event-stream', 'Content-Type': 'application/json', ...(wantsResearch ? { 'X-Research-Consent': 'web-research-v1' } : {}), ...(fileIds.length ? { 'X-File-Consent': 'file-analysis-v2' } : {}), ...(hasImages ? {'X-Image-Consent':'image-analysis-v1'} : {}) },
         body: JSON.stringify(requestBody),
         signal: abortSignal,
       });

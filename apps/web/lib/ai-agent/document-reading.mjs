@@ -321,6 +321,7 @@ export async function reviewDocumentContext({
 
 export function documentCoverageMarkdown(context) {
   if (!context) return "";
+  if(context.mode==='images')return "\n\n---\n**Image coverage**\n"+context.files.map(f=>"- "+String(f.name).replace(/[\[\]_*`<>\\\r\n]/g,"")+": Re-encoded image supplied, longest side at most 1024 pixels; fine details or small text may be missed.").join("\n")+"\nImage analysis can be mistaken; verify important details.";
   return (
     "\n\n---\n**Document coverage**\n" +
     context.files

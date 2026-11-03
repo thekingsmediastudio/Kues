@@ -2,7 +2,7 @@ import { Unzip, UnzipInflate, zipSync, strToU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 export const FILE_BYTES = 2 * 1024 * 1024;
 export const FILE_TEXT = 240000;
-export const FILE_EXTENSIONS = ['txt','md','csv','pdf','docx','xlsx'];
+export const FILE_EXTENSIONS = ['txt','md','csv','pdf','docx','xlsx','png','jpg','jpeg'];
 export function fileExtension(name) {
   if (typeof name !== 'string' || !name.trim() || name.length > 160 || /[\u0000-\u001f\u007f/\\]/.test(name)) throw new Error('file_name_invalid');
   const ext = name.toLowerCase().split('.').at(-1);
@@ -52,6 +52,7 @@ export function parseCsv(source, maxRows=500, maxCols=50) {
 }
 export async function parseDocument(bytes, name) {
   const ext=fileExtension(name);if(!bytes.length||bytes.length>FILE_BYTES)throw new Error('file_size_invalid');
+  if(['png','jpg','jpeg'].includes(ext)){const {parseImage}=await import('./image-input.mjs');return parseImage(bytes,name)}
   let text='',notes=[],units=[],totalPages=null,missingPages=[],limited=false;
   if(['txt','md','csv'].includes(ext)){
     text=new TextDecoder('utf-8',{fatal:true}).decode(bytes).replace(/^\uFEFF/,'');

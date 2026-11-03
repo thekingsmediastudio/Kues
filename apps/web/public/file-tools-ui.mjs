@@ -1,8 +1,9 @@
 const MAX_BYTES=2*1024*1024;
-const supported=/\.(txt|md|csv|pdf|docx|xlsx)$/i;
+const supported=/\.(txt|md|csv|pdf|docx|xlsx|png|jpg|jpeg)$/i;
 export function fileErrorCopy(code){return ({
+ file_image_invalid:'Choose a valid, non-animated PNG or JPEG up to 2 MB and 8 million pixels.',file_image_combination_unsupported:'Analyze images and documents in separate messages.',file_image_consent_required:'Agree to send the prepared images before analysis.',
  file_permission_required:'Enable the relevant file permission in this agent’s Tools settings.',
- file_size_invalid:'Choose a non-empty file no larger than 2 MB.',file_type_unsupported:'Supported files: PDF, DOCX, TXT, Markdown, CSV and XLSX.',
+ file_size_invalid:'Choose a non-empty file no larger than 2 MB.',file_type_unsupported:'Supported files: PDF, DOCX, TXT, Markdown, CSV, XLSX, PNG and JPEG.',
  file_name_invalid:'Rename the file without slashes or control characters, then try again.',file_unavailable:'An attachment expired or is unavailable for this agent. Remove it and attach the file again.',
  file_pdf_no_text:'This PDF has no extractable text. Scanned PDFs need OCR, which is not supported yet.',file_pdf_unreadable:'This PDF could not be read. Encrypted, damaged or unsupported PDFs are not accepted.',
  file_rate_limited:'File processing is busy or the request limit was reached. Try again shortly.',file_storage_limit:'Remove an unused attachment or wait for temporary files to expire.',
@@ -23,9 +24,9 @@ export function createFileToolsUI(adapter){
  function render(){
   host.replaceChildren();host.hidden=!files.length&&!upload&&!notice;
   if(notice){const note=document.createElement('p');note.className='file-attachment-note';note.role='status';note.textContent=notice;host.append(note)}
-  if(upload){const status=document.createElement('p');status.role='status';status.textContent='Extracting file text…';host.append(status)}
-  for(const file of files){const row=document.createElement('div');row.className='file-attachment';const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent=file.name;const notes=document.createElement('p');notes.textContent=`${file.characters.toLocaleString()} characters indexed in ${file.sectionCount||1} sections. `+(file.notes||[]).join(' ');details.append(summary,notes);const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.ariaLabel=`Remove ${file.name}`;remove.onclick=()=>{files=files.filter(item=>item.id!==file.id);void removeRemote(file,file.agentId);render()};row.append(details,remove);host.append(row)}
-  if(files.length){const note=document.createElement('p');note.className='file-attachment-note';note.textContent='Temporary text expires after 15 minutes. It goes to the AI only when you send. Open a filename to review extraction limits.';host.append(note)}
+  if(upload){const status=document.createElement('p');status.role='status';status.textContent='Preparing attachment…';host.append(status)}
+  for(const file of files){const row=document.createElement('div');row.className='file-attachment';const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent=file.name;const notes=document.createElement('p');notes.textContent=(file.format==='image'?'Image ready for analysis. ':`${file.characters.toLocaleString()} characters indexed in ${file.sectionCount||1} sections. `)+(file.notes||[]).join(' ');details.append(summary,notes);const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.ariaLabel=`Remove ${file.name}`;remove.onclick=()=>{files=files.filter(item=>item.id!==file.id);void removeRemote(file,file.agentId);render()};row.append(details,remove);host.append(row)}
+  if(files.length){const note=document.createElement('p');note.className='file-attachment-note';note.textContent='Temporary attachments expire after 15 minutes. Prepared images or extracted text go to the AI only when you send. Open a filename to review extraction limits.';host.append(note)}
  }
  function sync(){const next=key();if(next!==contextKey){upload?.abort();upload=null;const previous=files;files=[];notice='';contextKey=next;previous.forEach(file=>void removeRemote(file,file.agentId));render()}}
  document.getElementById('attachFilesButton').onclick=()=>{
@@ -54,7 +55,7 @@ export function createFileToolsUI(adapter){
       files.push({...data,agentId:c.agentId});render();
     }finally{clearTimeout(timer)}
    }
-   if(startingKey===key())report('File text is ready. Ask your question, review the answer, then choose a download format if needed.');
+   if(startingKey===key())report('Attachment is ready. For images, explicitly select an image-capable provider/model in the AI menu before sending.');
   }catch(error){if(startingKey===key())report(controller.signal.aborted?'File upload canceled or timed out. Your draft is unchanged.':fileErrorCopy(error.message))}
   finally{if(upload===controller)upload=null;render()}
  };
@@ -63,6 +64,7 @@ export function createFileToolsUI(adapter){
   if(!files.length)return [];
   if(files.some(file=>Date.parse(file.expiresAt)<=Date.now())){report(fileErrorCopy('file_unavailable'));return false}
   if(/^\/research(?:\s|$)/i.test(message)){report(fileErrorCopy('file_research_combination_unsupported'));return false}
+  if(files.some(f=>f.format==='image')){if(files.some(f=>f.format!=='image')){report(fileErrorCopy('file_image_combination_unsupported'));return false}if(!window.confirm('Send these prepared images to the provider and model you explicitly select? Images are re-encoded without metadata and resized to at most 1024 pixels. Provider charges and retention policies may apply. No automatic fallback is used. Temporary images expire after 15 minutes; questions and answers remain in chat history. Image analysis can be mistaken. Continue?'))return false;return files.map(f=>f.id)}
   if(!window.confirm('Send document text to your selected AI provider and any approved fallback? Targeted questions use relevant passages. Whole-document summaries/reviews may use up to 20 section calls plus the final answer, consuming additional tokens and potentially provider charges. Only extracted text is sent here. Originals explicitly saved in Workspace files remain in cloud storage until deleted. Temporary extracted text expires after 15 minutes. Your question, filenames and the AI answer are saved in chat history. Continue?'))return false;
   return files.map(file=>file.id);
  }
@@ -81,5 +83,5 @@ export function createFileToolsUI(adapter){
  window.addEventListener('pagehide',()=>upload?.abort());sync();
  function addSaved(file,agentId,version){sync();if(upload||files.length>=3||String(agentId)!==String(adapter.context().agentId)||version!==adapter.context().version){void removeRemote(file,agentId);report('Attachment not added: the agent changed, an upload is running, or three files are already attached.');return false}files.push({...file,agentId});render();report('Saved file attached for this message. Extracted text goes to the AI only after Send and confirmation.');return true}
  function detachForShopping(){sync();if(upload){report('Wait for file extraction to finish before preparing a catalog search.');return false}if(!files.length)return true;if(!window.confirm('Detach the temporary file text for this shopping search? Review your extracted items first. Saved originals will not be deleted. Nothing is sent until you press Send.'))return false;for(const file of files)void removeRemote(file,file.agentId);files=[];notice='';render();return true}
- return {sync,prepareSend,addDownloads,addSaved,detachForShopping};
+ return {sync,prepareSend,addDownloads,addSaved,detachForShopping,hasImages:()=>files.some(f=>f.format==='image')};
 }

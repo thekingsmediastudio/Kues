@@ -3,6 +3,7 @@ import { planDocumentContext } from './document-reading.mjs';
 import { Worker } from 'node:worker_threads';
 import { FILE_BYTES, fileExtension, exportReport } from './file-formats.mjs';
 export const FILE_CONSENT='file-analysis-v2';
+export const IMAGE_CONSENT='image-analysis-v1';
 export class FileToolError extends Error { constructor(code,status=400){super(code);this.code=code;this.status=status} }
 export function parseInWorker(bytes,name,signal){
  return new Promise((resolve,reject)=>{
@@ -40,7 +41,9 @@ export function createFileTools({parse=parseInWorker,now=Date.now}={}){
   context({ids,userId,workspaceId,agent,query='',hint=''}){
    allowed(agent,'read_files');cleanup();
    if(!Array.isArray(ids)||ids.length<1||ids.length>3||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^file_[0-9a-f]{32}$/.test(id)))throw new FileToolError('file_selection_invalid');
-   const selected=ids.map(id=>{const f=files.get(id);if(!f||f.userId!==userId||f.workspaceId!==workspaceId||f.agentId!==agent.id)throw new FileToolError('file_unavailable',404);return {name:f.name,format:f.format,text:f.text,sections:f.sections,totalPages:f.totalPages,missingPages:f.missingPages,notes:f.notes,truncated:f.truncated}});
+   const selected=ids.map(id=>{const f=files.get(id);if(!f||f.userId!==userId||f.workspaceId!==workspaceId||f.agentId!==agent.id)throw new FileToolError('file_unavailable',404);return {name:f.name,format:f.format,text:f.text,sections:f.sections,totalPages:f.totalPages,missingPages:f.missingPages,notes:f.notes,truncated:f.truncated,image:f.image}});
+   const images=selected.filter(f=>f.format==='image');
+   if(images.length){if(images.length!==selected.length)throw new FileToolError('file_image_combination_unsupported');return {mode:'images',files:images.map(f=>({name:f.name,format:'image',notes:f.notes,coverage:{mode:'image'}})),images:images.map(f=>({name:f.name,...f.image}))}}
    try{return planDocumentContext(selected,query,hint)}catch(error){if(error.code==='file_review_limit')throw new FileToolError(error.code,413);throw error}
   },
   remove({id,userId,workspaceId,agentId}){const f=files.get(id);if(f&&f.userId===userId&&f.workspaceId===workspaceId&&f.agentId===agentId)files.delete(id)},

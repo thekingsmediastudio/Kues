@@ -13,7 +13,7 @@ export function createWorkspaceFileRoutes({library,files,getScope,sameOrigin,exe
    const action=url.pathname.split('/').at(-1);if(!['status','list','upload','download','remove','attach'].includes(action))throw new LibraryError('library_route_not_found',404);
    const agentId=url.searchParams.get('agentId');if(!agentId||agentId.length>255)throw new LibraryError('file_agent_required');
    const scope=await getScope(req,agentId);if(active>=4)throw new LibraryError('library_busy',429);active++;counted=true;
-   if(action==='status'){json(res,200,{configured:library.configured,executionAvailable:executionReady()===true,visionAvailable:false,maxFileBytes:LIBRARY_FILE_BYTES,maxFilesPerAgent:50});return}
+   if(action==='status'){json(res,200,{configured:library.configured,executionAvailable:executionReady()===true,visionAvailable:false,visionInputAvailable:true,visionRequiresExplicitCompatibleModel:true,maxFileBytes:LIBRARY_FILE_BYTES,maxFilesPerAgent:50});return}
    if(action==='list'){json(res,200,{files:await library.list(scope)});return}
    if(action==='upload'){
     if(scope.agent.settings?.toolPermissions?.create_files!==true)throw new LibraryError('file_permission_required',403);

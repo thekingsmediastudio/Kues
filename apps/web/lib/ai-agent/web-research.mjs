@@ -100,6 +100,13 @@ export function researchReferenceCandidates(query) {
   return [...new Set([...query.matchAll(/\bRFC\s*(\d{1,5})\b/gi)].map(m=>Number(m[1])).filter(n=>n>0))]
     .slice(0, 2).map(number=>({url:`https://www.rfc-editor.org/rfc/rfc${number}.txt`,title:`RFC ${number} — RFC Editor`,content:''}));
 }
+export function normalizeResearchCoverage(answer) {
+  return String(answer||'').split(/\n\s*\n/).map(paragraph=>{
+    if(/\b(?:read|reviewed|analysed|analyzed)\b[^\n.!?]{0,100}\b(?:in full|entirely|completely)\b|\b(?:fully|completely)\s+(?:read|reviewed|analysed|analyzed)\b/i.test(paragraph))return 'Reading coverage: only bounded page or search excerpts were supplied; no full-page review was performed.';
+    if(/guaranteed[^.!?]{0,60}never[^.!?]{0,100}(?:resolve|commercial)|never[^.!?]{0,60}resolve[^.!?]{0,100}commercial/i.test(paragraph))return 'The supplied evidence does not establish a guarantee about future site content or domain resolution.';
+    return paragraph;
+  }).join('\n\n');
+}
 export function stripResearchBibliography(answer) {
   const lines=String(answer || '').replace(/\r\n?/g,'\n').split('\n');
   let inBibliography=false, inFence=false; const kept=[];
@@ -110,7 +117,7 @@ export function stripResearchBibliography(answer) {
     if(inBibliography && /^\s*#{1,6}\s+\S/.test(line))inBibliography=false;
     if(!inBibliography)kept.push(line);
   }
-  return kept.join('\n').trim();
+  return normalizeResearchCoverage(kept.join('\n').trim());
 }
 export function createWebResearch({ enabled = false, apiKey = '', transport = createResearchTransport(), now = Date.now } = {}) {
   const windows = new Map(); let active = 0;
@@ -170,5 +177,6 @@ export function researchSourcesMarkdown(research) {
   const escape = value => value.replace(/[\\`*_{}\[\]()#+.!|>~-]/g, '\\$&');
   return '\n\n### Sources\n' + research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}) — ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n')
     + (research.sourceSelectionNotice ? `\n\n${research.sourceSelectionNotice}` : '')
+    + '\n\nReading coverage: bounded page/search excerpts only, not a full-page review.'
     + `\n\nRetrieved ${research.retrievedAt.slice(0, 10)}. Sources can be incomplete or out of date; review important claims.`;
 }
