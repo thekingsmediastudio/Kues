@@ -3858,6 +3858,65 @@
   let openOverlayId = null;
   let selectedAgentId = null;
   let selectedAgentScope = '';
+  // BEGIN agent-scoped composer drafts (memory only; never browser/server storage).
+  const composerDrafts = new Map();
+  let composerDraftScope = null;
+  let composerDraftAgent = null;
+  function draftScope(data) {
+    return data?.user?.id && data?.workspace?.id
+      ? JSON.stringify([String(data.user.id), String(data.workspace.id)]) : null;
+  }
+  function saveComposerDraft() {
+    const input = document.getElementById('chatInput');
+    if (!input || !composerDraftScope || !composerDraftAgent) return;
+    const previous = composerDrafts.get(composerDraftAgent);
+    const text = String(input.value || '');
+    if (!previous || previous.text !== text) {
+      composerDrafts.set(composerDraftAgent, { text, revision: (previous?.revision || 0) + 1 });
+    }
+  }
+  function resetComposerDrafts() {
+    composerDrafts.clear(); composerDraftScope = null; composerDraftAgent = null;
+    const input = document.getElementById('chatInput');
+    if (input) input.value = '';
+  }
+  function suspendComposerDraft() {
+    saveComposerDraft(); composerDraftAgent = null;
+    const input = document.getElementById('chatInput');
+    if (input) input.value = '';
+  }
+  function activateComposerDraft(data, agentId) {
+    const scope = draftScope(data);
+    if (scope !== composerDraftScope) { resetComposerDrafts(); composerDraftScope = scope; }
+    else saveComposerDraft();
+    const available = new Set(agentsFromBootstrap(data).filter(a => a.status !== 'archived').map(a => String(a.id)));
+    for (const id of composerDrafts.keys()) if (!available.has(id)) composerDrafts.delete(id);
+    const next = scope && available.has(String(agentId)) ? String(agentId) : null;
+    if (next === composerDraftAgent) return;
+    composerDraftAgent = next;
+    const input = document.getElementById('chatInput');
+    if (input) input.value = next ? (composerDrafts.get(next)?.text || '') : '';
+    saveComposerDraft();
+  }
+  function captureComposerDraft() {
+    saveComposerDraft();
+    return { scope: composerDraftScope, agentId: composerDraftAgent,
+      revision: composerDrafts.get(composerDraftAgent)?.revision };
+  }
+  function restoreFailedComposerDraft(token, text) {
+    if (!token?.scope || token.scope !== composerDraftScope) return;
+    saveComposerDraft();
+    const entry = composerDrafts.get(token.agentId);
+    // A newer draft, including one deliberately typed and erased, wins over an old request.
+    if (!entry || entry.text || entry.revision !== token.revision) return;
+    composerDrafts.set(token.agentId, { text, revision: entry.revision + 1 });
+    if (composerDraftAgent === token.agentId) {
+      const input = document.getElementById('chatInput');
+      if (input) input.value = text;
+    }
+  }
+  // END agent-scoped composer drafts.
+
   function agentSelectionKey(data = currentBootstrap) {
     const user = data?.user?.id, workspace = data?.workspace?.id;
     return user && workspace ? `keus-agent-selection:${encodeURIComponent(user)}:${encodeURIComponent(workspace)}` : '';
@@ -6532,8 +6591,9 @@
 
   function selectDesktopAgent(agentId) {
     const agent = agentsFromBootstrap().find((entry) => String(entry.id) === String(agentId));
-    if (!agent) return;
+    if (!agent || agent.status === 'archived') return;
     const nextId = String(agent.id);
+    activateComposerDraft(currentBootstrap, nextId);
     const agentChanged = nextId !== renderedChatAgentId;
     if (agentChanged) {
       setAdminChatDiagnostics(null);
@@ -7224,6 +7284,7 @@
     while (chatMessages.length > 100) chatMessages.shift();
     const userRow = appendUserChatMessage(content);
     if (input) input.value = '';
+    const requestDraftToken = captureComposerDraft();
     chatPending = true;
     activeChatAbortController = new AbortController();
     const abortSignal = activeChatAbortController.signal;
@@ -7341,6 +7402,7 @@
       while (chatMessages.length > 100) chatMessages.shift();
     } catch (error) {
       const wasAborted = Boolean(abortSignal?.aborted || error?.name === 'AbortError');
+      if (!replyText.trim()) restoreFailedComposerDraft(requestDraftToken, content);
       assistantRow?.classList.remove('chat-streaming');
       if (requestAgentId === String(selectedAgentId || '') && requestViewVersion === chatHistoryLoadVersion) {
         if (!wasAborted) setAdminChatDiagnostics(error.adminDiagnostics);
@@ -7363,7 +7425,7 @@
           userRow?.remove();
           if (chatMessages.at(-1)?.role === 'user' && chatMessages.at(-1)?.content === content) chatMessages.pop();
           chatNotice = wasAborted ? 'Generation stopped.' : chatErrorCopy(error.code, error.requestId);
-          if (input && !input.value) input.value = content;
+
         }
       }
     } finally {
@@ -7421,6 +7483,7 @@
   }
 
   function setWorkspaceUnavailable() {
+    suspendComposerDraft();
     document.getElementById('workspaceApp')?.removeAttribute('aria-busy');
     clearAdminChatControls();
     setAdminChatDiagnostics(null);
@@ -7458,6 +7521,7 @@
     const workspace = data?.workspace || {};
     const onboarding = data?.onboarding || {};
     if (!user.id) {
+      resetComposerDrafts();
       location.replace('/login?auth_error=session');
       return;
     }
@@ -7484,6 +7548,7 @@
     let agent = selectedAgentId ? availableAgents.find((entry) => String(entry.id) === String(selectedAgentId)) : null;
     if (!agent) agent = availableAgents.find((entry) => String(entry.id) === String(onboarding.agent?.id)) || availableAgents[0] || (agents.length ? null : (onboarding.agent || profileAgent));
     selectedAgentId = agent?.id ? String(agent.id) : null;
+    activateComposerDraft(data, selectedAgentId);
     rememberAgentSelection();
     setSelectedAgentComposerAccent(agent);
     const chatAgentChanged = selectedAgentId !== renderedChatAgentId;
@@ -7947,7 +8012,7 @@
       document.getElementById('adminModelChip')?.focus();
     }
   });
-  chatInput?.addEventListener('input', syncChatComposer);
+  chatInput?.addEventListener('input', () => { saveComposerDraft(); syncChatComposer(); });
   chatInput?.addEventListener('keyup', syncChatComposer);
   chatInput?.addEventListener('change', syncChatComposer);
   chatInput?.addEventListener('keydown', (event) => {
