@@ -135,6 +135,20 @@ function appendPath(baseUrl, relativePath) {
   return target;
 }
 
+// Temporary compatibility marker, not a secret. Anonymous mode is deliberately
+// limited to the exact OVH endpoint and a dedicated non-default provider.
+function usesOvhAnonymousAuth(provider) {
+  if (provider.apiKey !== 'OVH_ANONYMOUS') return false;
+  let base;
+  try { base = new URL(provider.baseUrl); } catch { throw new AiProviderError('ai_provider_endpoint_invalid', 503); }
+  if (provider.providerKey !== 'ovhcloud-anonymous' || provider.apiProtocol !== 'openai_chat'
+      || base.origin !== 'https://oai.endpoints.kepler.ai.cloud.ovh.net'
+      || !['/v1', '/v1/'].includes(base.pathname) || base.username || base.password || base.search || base.hash) {
+    throw new AiProviderError('ai_provider_endpoint_invalid', 503);
+  }
+  return true;
+}
+
 function googleModelPath(modelId) {
   const model = String(modelId || '').replace(/^models\//, '');
   const segments = model.split('/');
@@ -156,7 +170,7 @@ function buildProviderRequest(provider, messages, system, { stream = false, imag
 
   if (provider.apiProtocol === 'openai_chat') {
     url = appendPath(provider.baseUrl, 'chat/completions');
-    headers.authorization = `Bearer ${provider.apiKey}`;
+    if (!usesOvhAnonymousAuth(provider)) headers.authorization = `Bearer ${provider.apiKey}`;
     payload = {
       model: provider.modelId,
       messages: [{ role: 'system', content: system }, ...messages.map((message,index)=>images.length && index===messages.length-1 ? {...message,content:[{type:'text',text:message.content},...images.flatMap(image=>[{type:'text',text:'Attached image: '+image.name},{type:'image_url',image_url:{url:image.dataUrl,detail:'low'}}])]} : message)],
@@ -227,7 +241,7 @@ function buildModelCatalogRequest(provider, cursor) {
     'user-agent': 'Keus-Desktop-Test/1.0',
   };
   if (provider.apiProtocol === 'openai_chat' || provider.apiProtocol === 'openai_responses') {
-    headers.authorization = `Bearer ${provider.apiKey}`;
+    if (!usesOvhAnonymousAuth(provider)) headers.authorization = `Bearer ${provider.apiKey}`;
   } else if (provider.apiProtocol === 'anthropic_messages') {
     headers['x-api-key'] = provider.apiKey;
     headers['anthropic-version'] = '2023-06-01';
