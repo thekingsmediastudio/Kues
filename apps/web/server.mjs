@@ -1,3 +1,4 @@
+import { readPurchaseItems } from './lib/commerce/purchase-items.mjs';
 import { explicitOfferComparison, compareSavedOffers } from './lib/ai-agent/saved-offer-comparison.mjs';
 import { isPurchaseReviewRequest, NO_PURCHASE_CHECK_REPLY } from './lib/ai-agent/workspace-tools.mjs';
 import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
@@ -30,7 +31,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
-import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, explicitUsdProductSearch, explicitSavedOfferReview, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, explicitUsdProductSearch, explicitSavedOfferReview, explicitBundleQuantityChange, isPendingPurchaseChangeRequest, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import {
@@ -212,6 +213,33 @@ function pendingWorkspaceToolApprovalViews(pendingApprovals, { userId, workspace
   return views.slice(-20);
 }
 
+// Reconstruct only from one scoped pending action and its hash-verified database snapshot.
+async function preparePendingBundleChange({ pendingApprovals, db, workspaceId, userId, agentId, change, bootstrap }) {
+  pruneWorkspaceToolApprovals(pendingApprovals);
+  const matches = [...pendingApprovals.values()].filter(a => a.status === 'pending' && a.type === 'purchase_product'
+    && a.userId === String(userId) && a.workspaceId === String(workspaceId) && a.chatAgentId === String(agentId)
+    && a.payload?.isBundle === true);
+  if (!db || matches.length !== 1) throw new WorkspaceToolError('workspace_tool_change_ambiguous');
+  const action=matches[0];
+  let items;
+  try {
+    items=await withReadTransaction(db,async tx=>{
+      const r=await tx.execute({sql:`SELECT m.* FROM mandates m JOIN mandate_approvals ma ON ma.mandate_id=m.id AND ma.workspace_id=m.workspace_id JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id WHERE m.id=? AND m.workspace_id=? AND r.user_id=? AND r.agent_id=? AND m.status='awaiting_approval' AND ma.status='pending'`,args:[action.payload.mandateId,workspaceId,userId,agentId]});
+      const row=r.rows[0];
+      if (!row || !Number.isFinite(Date.parse(row.expires_at)) || Date.parse(row.expires_at)<=Date.now()) return null;
+      return readPurchaseItems(tx,workspaceId,row);
+    });
+  } catch { throw new WorkspaceToolError('workspace_tool_change_ambiguous'); }
+  if (!Array.isArray(items) || items.length !== 2 || items.some(i=>!/^off_[a-f0-9]{32}$/.test(i.offerId || ''))
+      || (change.firstKind === 'notebook' && !/\bnotebook\b/i.test(items[0].title))
+      || (change.secondKind === 'notebook' && !/\bnotebook\b/i.test(items[1].title))) throw new WorkspaceToolError('workspace_tool_change_ambiguous');
+  // No stored snapshot is mutated: this enters the normal fresh-review and policy path.
+  return prepareWorkspaceToolCall({kind:'tool',name:'purchase_product',arguments:{items:[
+    {offerId:items[0].offerId,quantity:change.firstQuantity},
+    {offerId:items[1].offerId,quantity:change.secondQuantity},
+  ]}},bootstrap);
+}
+
 function workspaceToolFailureMessage(error) {
   const code = error instanceof WorkspaceToolError ? error.code : '';
   const messages = {
@@ -231,6 +259,7 @@ function workspaceToolFailureMessage(error) {
     invalid_workspace_name: 'The proposed workspace name is invalid. Nothing was changed.',
     invalid_query: 'The search query is invalid. Please specify a product query.',
     workspace_tool_price_conflict: 'The requested price range could not be safely interpreted. Please restate the minimum and maximum prices in USD.',
+    workspace_tool_change_ambiguous: 'I could not safely identify one current pending two-item review to change. Please specify the saved offers and quantities for a new review. No new review or payment was created.',
   };
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
 }
@@ -1560,11 +1589,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
     }
     if (context[0]?.role === 'assistant') context.shift();
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
-    const guardPurchaseClaims = !wantsResearch && !fileContext && isPurchaseReviewRequest(newUserMessage.content);
+    const pendingPurchases = pendingWorkspaceToolApprovalViews(pendingToolApprovals,{userId:user.id,workspaceId:workspace.id,chatAgentId:agentId}).some(a=>a.action?.title?.toLowerCase().includes('purchase'));
+    const recentPurchaseReview = storedMessages.some(entry => entry.role === 'assistant' && /\bprepared a purchase review\b/i.test(String(entry.content || '')));
+    const guardPurchaseClaims = !wantsResearch && !fileContext && (isPurchaseReviewRequest(newUserMessage.content) || isPendingPurchaseChangeRequest(newUserMessage.content,pendingPurchases || recentPurchaseReview));
+    const directChange = !wantsResearch && !fileContext ? explicitBundleQuantityChange(newUserMessage.content) : null;
     const directPurchase = !wantsResearch && !fileContext ? explicitSavedOfferReview(newUserMessage.content) : null;
     const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
     const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
-    const forcedRead = Boolean(comparisonIds || directSearch || directPurchase);
+    const forcedRead = Boolean(comparisonIds || directSearch || directPurchase || directChange);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
@@ -1634,7 +1666,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         });
         await streamWorkspaceGate.flush();
         const parsedToolCall = parseWorkspaceToolCall(completion.text);
-        const toolCall = directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
+        const toolCall = directChange ? {kind:'direct_bundle_change'} : directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
           ? { kind: 'invalid' }
           : parsedToolCall);
         const safePrefix = (guardPurchaseClaims || wantsResearch || forcedRead) ? '' : streamWorkspaceGate.visibleText();
@@ -1649,7 +1681,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
             : 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
           streamCompletion = { ...completion, text: visibleReply };
           if (!safePrefix.trim()) await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
-        } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search') {
+        } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search' || toolCall.kind === 'direct_bundle_change') {
           visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
           streamCompletion = { ...completion, text: visibleReply };
           const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
@@ -1657,7 +1689,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
             visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
           } else {
-            try { prepared = toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
+            try { prepared = toolCall.kind === 'direct_bundle_change' ? await preparePendingBundleChange({pendingApprovals:pendingToolApprovals,db,workspaceId:workspace.id,userId:user.id,agentId,change:directChange,bootstrap}) : toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
             catch (error) {
               if (!(error instanceof WorkspaceToolError)) throw error;
               visibleReply = workspaceToolFailureMessage(error);
@@ -1780,21 +1812,21 @@ async function handleDesktopAiChatRequest(req, res, url, {
       throw error;
     }
 
-    const toolCall = directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parseWorkspaceToolCall(completion.text));
+    const toolCall = directChange ? {kind:'direct_bundle_change'} : directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parseWorkspaceToolCall(completion.text));
     let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
     let preparedWorkspaceProposal = null;
     if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
       visibleReply = 'The analysis response could not be safely presented. No action was taken.';
     } else if (toolCall.kind === 'invalid') {
       visibleReply = 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
-    } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search') {
+    } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search' || toolCall.kind === 'direct_bundle_change') {
       visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
       const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
       if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
         visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
       } else {
         let prepared;
-        try { prepared = toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
+        try { prepared = toolCall.kind === 'direct_bundle_change' ? await preparePendingBundleChange({pendingApprovals:pendingToolApprovals,db,workspaceId:workspace.id,userId:user.id,agentId,change:directChange,bootstrap}) : toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
         catch (error) {
           if (!(error instanceof WorkspaceToolError)) throw error;
           visibleReply = workspaceToolFailureMessage(error);

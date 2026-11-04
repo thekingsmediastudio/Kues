@@ -454,3 +454,18 @@ export function explicitSavedOfferReview(message) {
   if (rest && !/^(?:use the saved offers and the specified quantities\.\s*)?do not approve the review, open paypal, authorize, capture, or pay\.$/i.test(rest)) return null;
   return {kind:'tool',name:'purchase_product',arguments:{items:[{offerId:match[2].toLowerCase(),quantity:Number(match[1])},{offerId:match[4].toLowerCase(),quantity:Number(match[3])}]}};
 }
+
+// Deliberately narrow: resolve the exact two-line follow-up only against a
+// unique, still-pending, server-verified review. Never infer approval.
+export function explicitBundleQuantityChange(message) {
+  const text=String(message || '').normalize('NFKC').trim();
+  const match=/^actually\s+make\s+the\s+second\s+(notebook|item)\s+quantity\s+(\d+)\s+and\s+keep\s+the\s+first\s+(notebook|item)\s+quantity\s+(\d+)\.\s*prepare\s+a\s+new\s+review\s+only\.(?:\s*do\s+not\s+approve\s+either\s+review,\s*open\s+paypal,\s*authorize,\s*capture,\s*or\s*pay\.)?$/i.exec(text);
+  if (!match) return null;
+  return { secondKind:match[1].toLowerCase(),secondQuantity:Number(match[2]),firstKind:match[3].toLowerCase(),firstQuantity:Number(match[4]) };
+}
+
+export function isPendingPurchaseChangeRequest(message, hasPendingPurchase) {
+  const text=String(message || '').trim();
+  return !!hasPendingPurchase && /\b(?:actually|change|update|adjust|instead|make)\b/i.test(text)
+    && /\b(?:quantity|quantities|units?|review|\d+)\b/i.test(text);
+}

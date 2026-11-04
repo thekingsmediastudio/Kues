@@ -254,3 +254,13 @@ test('explicit saved-offer review requires precise consent and refuses ambiguous
  assert.throws(()=>prepareWorkspaceToolCall(explicitSavedOfferReview(`Prepare a purchase review for 21 units of saved offer ${a} and 3 units of saved offer ${b}.`),bootstrap()),/arguments_invalid/);
  assert.throws(()=>prepareWorkspaceToolCall(explicitSavedOfferReview(`Prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${a}.`),bootstrap()),/arguments_invalid/);
 });
+
+test('quantity-change interpretation requires a clear review request and suppresses unverified follow-up claims',async()=>{
+ const {explicitBundleQuantityChange,isPendingPurchaseChangeRequest}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
+ const message='Actually make the second notebook quantity 4 and keep the first notebook quantity 2. Prepare a new review only. Do not approve either review, open PayPal, authorize, capture, or pay.';
+ assert.deepEqual(explicitBundleQuantityChange(message),{secondKind:'notebook',secondQuantity:4,firstKind:'notebook',firstQuantity:2});
+ assert.equal(explicitBundleQuantityChange('Actually make the second notebook quantity 4 and keep the first notebook quantity 2. Do not prepare a new review.'),null);
+ assert.equal(explicitBundleQuantityChange(message+' Actually make it 8.'),null);
+ assert.equal(isPendingPurchaseChangeRequest('Actually make it 5, and prepare a new review.',true),true);
+ assert.equal(isPendingPurchaseChangeRequest('Actually make it 5, and prepare a new review.',false),false);
+});
