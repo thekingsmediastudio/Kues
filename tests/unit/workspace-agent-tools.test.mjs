@@ -242,3 +242,15 @@ test('purchase claim guard recognizes direct review requests but not comparison,
   assert.match(NO_PURCHASE_CHECK_REPLY,/No new purchase review/);
   assert.match(NO_PURCHASE_CHECK_REPLY,/Earlier budget decisions may be out of date/);
 });
+
+test('explicit saved-offer review requires precise consent and refuses ambiguous trailing instructions',async()=>{
+ const {explicitSavedOfferReview,prepareWorkspaceToolCall}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
+ const a='off_'+'a'.repeat(32),b='off_'+'b'.repeat(32);const message=`Prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${b}. Use the saved offers and the specified quantities. Do not approve the review, open PayPal, authorize, capture, or pay.`;
+ const tool=explicitSavedOfferReview(message);assert.deepEqual(tool.arguments.items,[{offerId:a,quantity:2},{offerId:b,quantity:3}]);
+ assert.deepEqual(prepareWorkspaceToolCall(tool,bootstrap()).items,tool.arguments.items);
+ assert.equal(explicitSavedOfferReview(`Do not prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${b}.`),null);
+ assert.equal(explicitSavedOfferReview(`Prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${b}. Actually make the first 4.`),null);
+ assert.equal(explicitSavedOfferReview(`Prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${b}. Do not prepare the review.`),null);
+ assert.throws(()=>prepareWorkspaceToolCall(explicitSavedOfferReview(`Prepare a purchase review for 21 units of saved offer ${a} and 3 units of saved offer ${b}.`),bootstrap()),/arguments_invalid/);
+ assert.throws(()=>prepareWorkspaceToolCall(explicitSavedOfferReview(`Prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${a}.`),bootstrap()),/arguments_invalid/);
+});

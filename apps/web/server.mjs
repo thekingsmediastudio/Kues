@@ -30,7 +30,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
-import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, explicitUsdProductSearch, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, explicitUsdProductSearch, explicitSavedOfferReview, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import {
@@ -1561,9 +1561,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
     if (context[0]?.role === 'assistant') context.shift();
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
     const guardPurchaseClaims = !wantsResearch && !fileContext && isPurchaseReviewRequest(newUserMessage.content);
+    const directPurchase = !wantsResearch && !fileContext ? explicitSavedOfferReview(newUserMessage.content) : null;
     const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
     const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
-    const forcedRead = Boolean(comparisonIds || directSearch);
+    const forcedRead = Boolean(comparisonIds || directSearch || directPurchase);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
@@ -1633,9 +1634,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
         });
         await streamWorkspaceGate.flush();
         const parsedToolCall = parseWorkspaceToolCall(completion.text);
-        const toolCall = comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
+        const toolCall = directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
           ? { kind: 'invalid' }
-          : parsedToolCall;
+          : parsedToolCall);
         const safePrefix = (guardPurchaseClaims || wantsResearch || forcedRead) ? '' : streamWorkspaceGate.visibleText();
         let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
@@ -1779,7 +1780,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       throw error;
     }
 
-    const toolCall = comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parseWorkspaceToolCall(completion.text);
+    const toolCall = directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parseWorkspaceToolCall(completion.text));
     let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
     let preparedWorkspaceProposal = null;
     if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {

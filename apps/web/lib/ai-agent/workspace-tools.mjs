@@ -443,3 +443,14 @@ export function explicitUsdProductSearch(message) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 || !Number.isFinite(max) || max <= 0 || max > 1_000_000) return null;
   return {kind:'search_products',query:m[2].trim(),limit,filters:{max_price:max,price_max_exclusive:/^(?:under|below|less than)$/i.test(m[3]),enforce_usd_price:true}};
 }
+
+// Strictly recognize an explicit request to prepare a review of two saved IDs.
+// All other wording uses the normal model/tool path; no approval is inferred.
+export function explicitSavedOfferReview(message) {
+  const text=String(message || '').normalize('NFKC').trim();
+  const match=/^(?:please\s+)?prepare\s+a\s+purchase\s+review\s+for\s+(\d+)\s+units?\s+of\s+saved\s+offer\s+(off_[a-f0-9]{32})\s+and\s+(\d+)\s+units?\s+of\s+saved\s+offer\s+(off_[a-f0-9]{32})\s*\.(.*)$/i.exec(text);
+  if (!match) return null;
+  const rest=match[5].trim();
+  if (rest && !/^(?:use the saved offers and the specified quantities\.\s*)?do not approve the review, open paypal, authorize, capture, or pay\.$/i.test(rest)) return null;
+  return {kind:'tool',name:'purchase_product',arguments:{items:[{offerId:match[2].toLowerCase(),quantity:Number(match[1])},{offerId:match[4].toLowerCase(),quantity:Number(match[3])}]}};
+}
