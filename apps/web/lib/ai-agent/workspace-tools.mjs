@@ -298,6 +298,11 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
     if(new Set(items.map(i=>i.offerId)).size!==items.length||args.budgetMinor!==undefined&&(!Number.isSafeInteger(args.budgetMinor)||args.budgetMinor<=0||args.budgetMinor>100000000))throw new WorkspaceToolError('workspace_tool_arguments_invalid');
     return {kind:'review_basket',items,...(args.budgetMinor!==undefined?{budgetMinor:args.budgetMinor}:{})};
   }
+  if (call.name === 'compare_saved_offers') {
+    assertOnlyKeys(args, ['ids']);
+    if (!Array.isArray(args.ids)) throw new WorkspaceToolError('workspace_tool_arguments_invalid');
+    return {kind:'compare_saved_offers',ids:args.ids};
+  }
   if (call.name === 'search_products') {
     assertOnlyKeys(args, ['query', 'minPrice', 'maxPrice', 'currency', 'availability', 'sortBy', 'merchantDomain', 'limit']);
     if(args.currency!==undefined&&args.currency!=='USD')throw new WorkspaceToolError('workspace_tool_arguments_invalid');
@@ -426,4 +431,15 @@ export function applyExplicitUsdItemCeiling(preparedSearch, userMessage) {
     throw new WorkspaceToolError('workspace_tool_price_conflict');
   }
   return { ...preparedSearch, filters };
+}
+
+// Narrow deterministic fallback for a directly stated, per-item USD search.
+// Other phrasings remain with the normal model/tool validation path.
+export function explicitUsdProductSearch(message) {
+  const text = String(message || '').normalize('NFKC').trim();
+  const m = /^(?:please\s+)?find\s+up to\s+(\d{1,2})\s+(?:real\s+)?([a-z0-9][a-z0-9 -]{1,80}?)\s+priced\s+(under|below|less than|at most|no more than|up to)\s+(\d+(?:\.\d{1,2})?)\s+USD\s+each(?:[.!?]|$)/i.exec(text);
+  if (!m || /\b(?:then|and)\s+(?:buy|purchase|order|checkout)\b/i.test(text)) return null;
+  const limit=Number(m[1]), max=Number(m[4]);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 || !Number.isFinite(max) || max <= 0 || max > 1_000_000) return null;
+  return {kind:'search_products',query:m[2].trim(),limit,filters:{max_price:max,price_max_exclusive:/^(?:under|below|less than)$/i.test(m[3]),enforce_usd_price:true}};
 }

@@ -1,3 +1,4 @@
+import { explicitOfferComparison, compareSavedOffers } from './lib/ai-agent/saved-offer-comparison.mjs';
 import { isPurchaseReviewRequest, NO_PURCHASE_CHECK_REPLY } from './lib/ai-agent/workspace-tools.mjs';
 import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
 import { createWalletLinkService, WalletLinkError, WALLET_RETURN_HTML } from './lib/paypal/wallet-link.mjs';
@@ -29,7 +30,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
-import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, explicitUsdProductSearch, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import {
@@ -1560,6 +1561,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
     if (context[0]?.role === 'assistant') context.shift();
     const messages = normalizeAiChatMessages([...context, newUserMessage]);
     const guardPurchaseClaims = !wantsResearch && !fileContext && isPurchaseReviewRequest(newUserMessage.content);
+    const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
+    const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
+    const forcedRead = Boolean(comparisonIds || directSearch);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
@@ -1600,7 +1604,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           streamAvatarEmotionCount += 1;
           await writeSseEvent(res, 'avatar_cue', { avatar: 'emotion', cue: requestedMoodCue }, streamController.signal);
         }
-        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => (guardPurchaseClaims || wantsResearch) ? Promise.resolve() : writeSseEvent(res, 'delta', { text }, streamController.signal));
+        streamWorkspaceGate = createWorkspaceToolStreamGate((text) => (guardPurchaseClaims || wantsResearch || forcedRead) ? Promise.resolve() : writeSseEvent(res, 'delta', { text }, streamController.signal));
         const completion = await aiChatService.stream({
           checkoutContext,
           agent,
@@ -1629,10 +1633,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
         });
         await streamWorkspaceGate.flush();
         const parsedToolCall = parseWorkspaceToolCall(completion.text);
-        const toolCall = parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
+        const toolCall = comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parsedToolCall.kind === 'none' && streamWorkspaceGate.hasMarkerCandidate()
           ? { kind: 'invalid' }
           : parsedToolCall;
-        const safePrefix = (guardPurchaseClaims || wantsResearch) ? '' : streamWorkspaceGate.visibleText();
+        const safePrefix = (guardPurchaseClaims || wantsResearch || forcedRead) ? '' : streamWorkspaceGate.visibleText();
         let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
         if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
@@ -1644,7 +1648,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
             : 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
           streamCompletion = { ...completion, text: visibleReply };
           if (!safePrefix.trim()) await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
-        } else if (toolCall.kind === 'tool') {
+        } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search') {
           visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
           streamCompletion = { ...completion, text: visibleReply };
           const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
@@ -1652,7 +1656,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
             visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
           } else {
-            try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
+            try { prepared = toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
             catch (error) {
               if (!(error instanceof WorkspaceToolError)) throw error;
               visibleReply = workspaceToolFailureMessage(error);
@@ -1668,6 +1672,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
               userId: user.id,
               agentId,
             });
+          } else if (prepared?.kind === 'compare_saved_offers') {
+            visibleReply = await compareSavedOffers({db,workspaceId:workspace.id,userId:user.id,agentId,ids:prepared.ids});
           } else if (prepared?.kind === 'review_basket') {
             visibleReply = await reviewShoppingBasket({db,workspaceId:workspace.id,userId:user.id,agentId,items:prepared.items,budgetMinor:prepared.budgetMinor});
           } else if (prepared?.kind === 'purchase_product') {
@@ -1704,7 +1710,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
           streamCompletion = { ...completion, text: visibleReply };
           if (researchContext) visibleReply = researchAnswerForDisplay(visibleReply, newUserMessage.content);
-          const alreadySent = (guardPurchaseClaims || wantsResearch) ? '' : streamWorkspaceGate.visibleText();
+          const alreadySent = (guardPurchaseClaims || wantsResearch || forcedRead) ? '' : streamWorkspaceGate.visibleText();
           if (visibleReply.startsWith(alreadySent)) {
             const remainder = visibleReply.slice(alreadySent.length);
             if (remainder) await writeSseEvent(res, 'delta', { text: remainder }, streamController.signal);
@@ -1773,21 +1779,21 @@ async function handleDesktopAiChatRequest(req, res, url, {
       throw error;
     }
 
-    const toolCall = parseWorkspaceToolCall(completion.text);
+    const toolCall = comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parseWorkspaceToolCall(completion.text);
     let visibleReply = guardPurchaseClaims && toolCall.kind === 'none' ? NO_PURCHASE_CHECK_REPLY : (typeof completion.text === 'string' ? completion.text : '');
     let preparedWorkspaceProposal = null;
     if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
       visibleReply = 'The analysis response could not be safely presented. No action was taken.';
     } else if (toolCall.kind === 'invalid') {
       visibleReply = 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
-    } else if (toolCall.kind === 'tool') {
+    } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search') {
       visibleReply = 'I could not safely complete that workspace request. Nothing was changed.';
       const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
       if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
         visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
       } else {
         let prepared;
-        try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
+        try { prepared = toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
         catch (error) {
           if (!(error instanceof WorkspaceToolError)) throw error;
           visibleReply = workspaceToolFailureMessage(error);
@@ -1802,6 +1808,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
             userId: user.id,
             agentId,
           });
+        } else if (prepared?.kind === 'compare_saved_offers') {
+          visibleReply = await compareSavedOffers({db,workspaceId:workspace.id,userId:user.id,agentId,ids:prepared.ids});
         } else if (prepared?.kind === 'review_basket') {
             visibleReply = await reviewShoppingBasket({db,workspaceId:workspace.id,userId:user.id,agentId,items:prepared.items,budgetMinor:prepared.budgetMinor});
           } else if (prepared?.kind === 'purchase_product') {

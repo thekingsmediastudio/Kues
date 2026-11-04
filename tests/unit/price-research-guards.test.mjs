@@ -31,3 +31,21 @@ test('research guard preserves complete answers and exposes incomplete ones with
  assert.match(researchAnswerForDisplay('RFC 2606 mentions .test and .example.',q),/appears incomplete/);
  assert.equal(researchAnswerForDisplay('HTTP 404 does not imply permanence [1].','/research RFC 9110 404'),'HTTP 404 does not imply permanence [1].');
 });
+
+test('deterministic product fallback only handles narrow per-item USD search grammar', async()=>{
+ const {explicitUsdProductSearch}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
+ assert.deepEqual(explicitUsdProductSearch('Find up to 3 real ruled notebooks priced under 5 USD each. Show prices.'),{kind:'search_products',query:'ruled notebooks',limit:3,filters:{max_price:5,price_max_exclusive:true,enforce_usd_price:true}});
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks priced under 5 CAD each.'),null);
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks priced under 5 USD each and buy them.'),null);
+ assert.equal(explicitUsdProductSearch('Find up to 0 notebooks priced under 5 USD each.'),null);
+});
+
+test('saved-offer comparison fails closed for missing, cross-agent, and unknown-price records',async()=>{
+ const {explicitOfferComparison,compareSavedOffers}=await import('../../apps/web/lib/ai-agent/saved-offer-comparison.mjs');
+ const ids=['off_'+'a'.repeat(32),'off_'+'b'.repeat(32)];
+ assert.deepEqual(explicitOfferComparison(`Compare ${ids.join(' and ')}. Do not buy or prepare a purchase.`),ids);
+ assert.equal(explicitOfferComparison(`Compare ${ids.join(' and ')} and buy one.`),null);
+ const db={transaction:async()=>({execute:async q=>({rows:q.args[0]===ids[0]?[{id:ids[0],title:'A',merchant_name:'Seller',merchant_domain:'seller.example',amount_minor:0,currency:'USD',mode:'live_search'}]:[]}),commit:async()=>{},rollback:async()=>{}})};
+ assert.match(await compareSavedOffers({db,workspaceId:'w',userId:'u',agentId:'a',ids}),/could not be verified/);
+ assert.match(await compareSavedOffers({db,workspaceId:'w',userId:'u',agentId:'a',ids:[ids[0],ids[0]]}),/distinct valid/);
+});
