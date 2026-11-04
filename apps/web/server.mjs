@@ -9,7 +9,7 @@ import { createExecutionRoutes } from './lib/ai-agent/execution-routes.mjs';
 import { workspaceLibraryFromEnv } from './lib/ai-agent/workspace-storage.mjs';
 import { createWorkspaceFileRoutes } from './lib/ai-agent/workspace-file-routes.mjs';
 import { createFileTools, createFileRoutes, FileToolError, FILE_CONSENT, IMAGE_CONSENT } from './lib/ai-agent/file-tools.mjs';
-import { createWebResearch, researchSourcesMarkdown, stripResearchBibliography, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
+import { createWebResearch, researchSourcesMarkdown, researchAnswerForDisplay, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
 import http from 'node:http';
 import { createAudioRoutes, createGroqTranscription } from './lib/audio/groq-transcription.mjs';
 import crypto from 'node:crypto';
@@ -29,7 +29,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
-import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import {
@@ -229,6 +229,7 @@ function workspaceToolFailureMessage(error) {
     invalid_memory_pills: 'The proposed memory preferences are invalid. Nothing was changed.',
     invalid_workspace_name: 'The proposed workspace name is invalid. Nothing was changed.',
     invalid_query: 'The search query is invalid. Please specify a product query.',
+    workspace_tool_price_conflict: 'The requested price range could not be safely interpreted. Please restate the minimum and maximum prices in USD.',
   };
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
 }
@@ -261,7 +262,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
     } else if (Number.isFinite(filters.min_price)) {
       filterBadges.push(`From $${filters.min_price} USD`);
     } else if (Number.isFinite(filters.max_price)) {
-      filterBadges.push(`Under $${filters.max_price} USD`);
+      filterBadges.push(`${filters.price_max_exclusive === false ? 'Up to' : 'Under'} $${filters.max_price} USD`);
     }
     if (filters.availability === 'in_stock') filterBadges.push('In Stock Only');
     if (filters.sort_by === 'price_asc') filterBadges.push('Price: Low to High');
@@ -1651,7 +1652,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
             visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
           } else {
-            try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); }
+            try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
             catch (error) {
               if (!(error instanceof WorkspaceToolError)) throw error;
               visibleReply = workspaceToolFailureMessage(error);
@@ -1702,7 +1703,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         } else {
           if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
           streamCompletion = { ...completion, text: visibleReply };
-          if (researchContext) visibleReply = stripResearchBibliography(visibleReply) || 'The sources were retrieved, but no usable answer was produced.';
+          if (researchContext) visibleReply = researchAnswerForDisplay(visibleReply, newUserMessage.content);
           const alreadySent = (guardPurchaseClaims || wantsResearch) ? '' : streamWorkspaceGate.visibleText();
           if (visibleReply.startsWith(alreadySent)) {
             const remainder = visibleReply.slice(alreadySent.length);
@@ -1786,7 +1787,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
       } else {
         let prepared;
-        try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); }
+        try { prepared = prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
         catch (error) {
           if (!(error instanceof WorkspaceToolError)) throw error;
           visibleReply = workspaceToolFailureMessage(error);
@@ -1823,7 +1824,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       }
     }
     if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
-    if (researchContext) visibleReply = (stripResearchBibliography(visibleReply) || 'The sources were retrieved, but no usable answer was produced.') + researchSourcesMarkdown(researchContext);
+    if (researchContext) visibleReply = (researchAnswerForDisplay(visibleReply, newUserMessage.content)) + researchSourcesMarkdown(researchContext);
     if (fileContext) visibleReply += documentCoverageMarkdown(fileContext);
     completion = { ...completion, text: visibleReply };
 
@@ -1913,7 +1914,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           text: safePrefix.trim() ? safePrefix : 'I could not safely interpret that workspace operation, so nothing was changed. Please try again.',
         };
       }
-      if (wantsResearch && completionToSave) completionToSave = { ...completionToSave, text: (stripResearchBibliography(completionToSave.text) || 'Research was interrupted before a usable answer was produced.') + (researchContext ? researchSourcesMarkdown(researchContext) : '') };
+      if (wantsResearch && completionToSave) completionToSave = { ...completionToSave, text: (researchAnswerForDisplay(completionToSave.text, newUserMessage.content)) + (researchContext ? researchSourcesMarkdown(researchContext) : '') };
       let streamFailure = error;
 
       if (tokenReservationHeld && completionToSave) {

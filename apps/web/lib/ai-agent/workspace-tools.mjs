@@ -18,7 +18,7 @@ export const WORKSPACE_AGENT_TOOL_INSTRUCTIONS = [
   '- create_agent: arguments {"name":string,"role":string,"avatar":"bulb"|"laptop"|"shield"|"cart"|"car"|"parcel"|"magnifier"|"tag"|"wallet"|"van","color":"#32d583"|"#f5b942"|"#4c8dff"|"#b57cff"|"#ff7777","orderCap":integer,"dailyCap":integer,"memoryPills":string[]}. Optional settings may be omitted and will use conservative defaults. A created agent starts Active for chat and remains preview-only; integrations are not enabled.',
   '- update_agent: arguments {"agentName":string,"changes":object}; identify an existing agent by its exact name. Changes may include only name, role, avatar, color, orderCap, dailyCap, or memoryPills. Include only fields the user asked to change.',
   '- rename_workspace: arguments {"name":string}; changes only the workspace display name.',
-  '- search_products: arguments {"query":string,"minPrice":number,"maxPrice":number,"currency":"USD","availability":"in_stock"|"any","sortBy":"relevance"|"price_asc"|"price_desc","merchantDomain":string,"limit":integer}; discovers real products matching a query with optional structured price limits, availability, sorting, and merchant filters. Use this when the user asks to find, search for, or buy products, goods, or items.',
+  '- search_products: arguments {"query":string,"minPrice":number,"maxPrice":number,"currency":"USD","availability":"in_stock"|"any","sortBy":"relevance"|"price_asc"|"price_desc","merchantDomain":string,"limit":integer}; discovers real products matching a query with optional structured price limits, availability, sorting, and merchant filters. Price limits are USD dollars, not cents: under 5 USD uses maxPrice 5, never 500. Use this when the user asks to find, search for, or buy products, goods, or items.',
   '- review_basket: arguments {"items":[{"offerId":string,"quantity":integer}],"budgetMinor":integer}. Read-only subtotal/review of 1–8 previously discovered offers for this agent, using stored prices. Quantity 1–20. budgetMinor is an optional total USD budget in cents. Never invent offer IDs, convert currencies, or treat this as purchase approval. Use for basket checks before any purchase request.',
   '- purchase_product: arguments {"offerId":string,"quantity":integer} or {"productTitle":string,"merchantDomain":string,"amountMinor":integer,"quantity":integer,"currency":"USD","evidenceHash":string} or {"items":[{"offerId":string,"quantity":integer}, ...]}; quantity is a whole number 1–20 per item (omit only for one). amountMinor always means UNIT price in cents, never a multiplied total. Preserve requested quantities from chat or basket review; use each offer once and never silently reduce a requested quantity. Prefer saved offerId so the server retrieves the unit price. Never change a quantity on an already-reviewed mandate: prepare a fresh review. Checks spend policies against the full multiplied subtotal and prepares a purchase review. The user must then approve that specific checkout on PayPal sandbox. This creates an authorization hold only, not a capture, merchant order, or shipment. No saved wallet is needed. Use this when the user asks to buy or purchase a specific discovered product or a bundle of products.',
   'When presenting discovered products or when the user asks to see a product picture, you can and should embed product images directly in chat using Markdown image syntax: ![Product Title](image_url). The desktop chat interface renders Markdown images directly.',
@@ -408,3 +408,22 @@ export function isPurchaseReviewRequest(text) {
   return /^(?:please\s+)?(?:buy\b|purchase\b|(?:prepare|create|retry|recheck|re-check)\b[^\n]{0,100}\b(?:purchase|checkout|spend(?:ing)? policy)\b)/i.test(String(text || '').trim());
 }
 export const NO_PURCHASE_CHECK_REPLY = 'No new purchase review or spending-policy check was completed in this reply. Earlier budget decisions may be out of date. Please select the product and specify its quantity so I can request a fresh server-checked review. No new PayPal authorization was requested.';
+
+// A narrow, server-side check on a clearly stated per-item USD cap. It does not
+// attempt to infer currencies, budgets for a bundle, or ambiguous constraints.
+export function applyExplicitUsdItemCeiling(preparedSearch, userMessage) {
+  const message = String(userMessage || '').normalize('NFKC');
+  const expression = /\b(under|below|less than|at most|no more than|up to)\s+(?:\$\s*(\d+(?:\.\d{1,2})?)\b|(\d+(?:\.\d{1,2})?)\s*(?:USD|US dollars?|dollars?)\b)/gi;
+  const matches = [...message.matchAll(expression)];
+  if (matches.length === 0) return preparedSearch;
+  if (matches.length !== 1 || /\b(?:total|combined|altogether|bundle|budget for|not under|not below|not less than|not cheaper than|CAD|AUD|NZD|EUR|GBP|NGN|euros?|pounds?|naira|canadian|australian)\b|[€£₦]/i.test(message) || !/\b(?:USD|US dollars?)\b/i.test(message)) throw new WorkspaceToolError('workspace_tool_price_conflict');
+  const match = matches[0];
+  const dollars = Number(match[2] || match[3]);
+  if (!Number.isFinite(dollars) || dollars <= 0 || dollars > 1_000_000) return preparedSearch;
+  const exclusive = /^(?:under|below|less than)$/i.test(match[1]);
+  const filters = { ...(preparedSearch.filters || {}), max_price: dollars, price_max_exclusive: exclusive, enforce_usd_price: true };
+  if (Number.isFinite(filters.min_price) && (exclusive ? filters.min_price >= dollars : filters.min_price > dollars)) {
+    throw new WorkspaceToolError('workspace_tool_price_conflict');
+  }
+  return { ...preparedSearch, filters };
+}

@@ -183,17 +183,18 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
     else if (typeof raw.amount_minor === 'number' && raw.amount_minor > 0) amountMinor = Math.round(raw.amount_minor);
   }
 
-  const rawCurrency = safeString(
+  const currencyInput = (
     primaryOffer.currency
     || primaryOffer.priceCurrency
     || primaryOffer.price?.currency
     || primaryOffer.price?.priceCurrency
     || raw.currency
     || raw.priceCurrency
-    || 'USD',
-    3
-  ).toUpperCase();
-  const currency = /^[A-Z]{3}$/.test(rawCurrency) ? rawCurrency : 'USD';
+    || ''
+  );
+  const rawCurrency = safeString(currencyInput, 20).toUpperCase();
+  const currencyVerified = /^[A-Z]{3}$/.test(rawCurrency);
+  const currency = currencyVerified ? rawCurrency : 'USD';
 
   let availability = 'unknown';
   const rawAvail = safeString(primaryOffer.availability || raw.availability || '').toLowerCase();
@@ -230,6 +231,7 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
     amountMinor,
     priceFormatted: amountMinor > 0 ? `$${(amountMinor / 100).toFixed(2)} ${currency}` : 'Price on request',
     currency,
+    currencyVerified,
     availability,
     source,
     isLive: Boolean(isLive),

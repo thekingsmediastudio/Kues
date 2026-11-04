@@ -216,6 +216,16 @@ export async function discoverProducts({
     throw new Channel3Error('channel3_not_configured', 503, 'Channel3 API key is not configured');
   }
 
+  // Enforce explicit user USD caps locally before offers are persisted or shown;
+  // upstream search may ignore its filter. Missing/unknown or non-USD prices fail closed.
+  if (filters.enforce_usd_price === true && Number.isFinite(filters.max_price)) {
+    const maxMinor = Math.round(filters.max_price * 100);
+    const products = searchResult.products.filter(product => product.currency === 'USD' && product.currencyVerified === true
+      && Number.isSafeInteger(product.amountMinor) && product.amountMinor > 0
+      && (filters.price_max_exclusive === true ? product.amountMinor < maxMinor : product.amountMinor <= maxMinor));
+    searchResult = { ...searchResult, products, count: products.length };
+  }
+
   let effectiveRunId = runId;
   let offersPersisted = false;
 

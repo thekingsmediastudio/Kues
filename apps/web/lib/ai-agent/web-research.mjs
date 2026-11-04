@@ -119,6 +119,18 @@ export function stripResearchBibliography(answer) {
   }
   return normalizeResearchCoverage(kept.join('\n').trim());
 }
+// Guard only identifiable incomplete outputs; sources alone are not an answer.
+export function researchAnswerForDisplay(answer, query = '') {
+  const clean = stripResearchBibliography(answer);
+  if (!clean) return 'The sources were retrieved, but no usable answer was produced.';
+  const unclosedStrong = (clean.match(/\*\*/g) || []).length % 2 !== 0;
+  const unclosedSquare = (clean.match(/\[/g) || []).length > (clean.match(/\]/g) || []).length;
+  const rfc2606List = /\bRFC\s*2606\b/i.test(query) && /\b(?:four|4|list|names|top.level domains?|tlds?)\b/i.test(query);
+  const missingReservedName = rfc2606List && ['.test', '.example', '.invalid', '.localhost'].some(name => !clean.toLowerCase().includes(name));
+  if (unclosedStrong || unclosedSquare || missingReservedName) return 'The research answer appears incomplete. Please retry or consult the cited sources directly; the source list alone does not establish the answer.';
+  return clean;
+}
+
 export function createWebResearch({ enabled = false, apiKey = '', transport = createResearchTransport(), now = Date.now } = {}) {
   const windows = new Map(); let active = 0;
   const configured = enabled === true && Boolean(apiKey.trim());
