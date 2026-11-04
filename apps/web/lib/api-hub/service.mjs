@@ -285,7 +285,8 @@ export function createPinnedLookup(preferred) {
   };
 }
 
-export function requestHttps({ url, method, headers, body, addresses, maxResponseBytes = MAX_RESPONSE_BYTES }) {
+export function requestHttps({ url, method, headers, body, addresses, maxResponseBytes = MAX_RESPONSE_BYTES, timeoutMs = 12_000 }) {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 60_000) throw new TypeError('connector_timeout_invalid');
   return new Promise((resolve, reject) => {
     const preferred = addresses.find((item) => item.family === 4) || addresses[0];
     const request = https.request(url, {
@@ -294,7 +295,7 @@ export function requestHttps({ url, method, headers, body, addresses, maxRespons
       agent: false,
       servername: url.hostname,
       lookup: createPinnedLookup(preferred),
-      timeout: 12_000,
+      timeout: timeoutMs,
     }, (response) => {
       const chunks = [];
       let size = 0;

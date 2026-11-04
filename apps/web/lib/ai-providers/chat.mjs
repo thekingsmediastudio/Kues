@@ -636,6 +636,7 @@ export function createAiChatService({
         body: request.body,
         addresses,
         maxResponseBytes: MAX_RESPONSE_BYTES,
+        ...(images.length && usesOvhAnonymousAuth(provider) ? { timeoutMs: 45_000 } : {}),
       });
     } catch (error) {
       if (error?.code === 'connector_destination_blocked') {
