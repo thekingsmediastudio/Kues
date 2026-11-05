@@ -6633,6 +6633,7 @@
       file_permission_required: 'Enable Read uploaded files in this agent’s Tools settings.',
       file_unavailable: 'An attachment expired or is unavailable for this agent. Remove it and attach it again.',
       file_consent_required: 'File analysis requires agreement to send extracted text to your AI provider.',
+      ai_vision_busy: 'The free model is busy. Please wait a moment and try again.',
       ai_image_provider_required: 'Explicitly select an image-capable provider and model in the AI menu. No default was changed.',
       ai_image_protocol_unsupported: 'This image integration requires an OpenAI-compatible chat provider. Choose a compatible image model.',
       ai_image_provider_rejected: 'The selected provider rejected the image request. Check image support for this model; no fallback was attempted.',
@@ -7227,7 +7228,7 @@
       const data = dataLines.join('\n');
       eventName = 'message';
       dataLines = [];
-      if (!['delta', 'avatar_cue', 'tool_approval_required', 'research_status', 'document_status', 'done', 'error'].includes(name)) return;
+      if (!['delta', 'avatar_cue', 'tool_approval_required', 'research_status', 'document_status', 'provider_queue', 'done', 'error'].includes(name)) return;
       let payload;
       try { payload = JSON.parse(data); }
       catch { throw Object.assign(new Error('ai_chat_stream_invalid'), { code: 'ai_chat_stream_invalid' }); }
@@ -7343,6 +7344,7 @@
       }
 
       await readChatEventStream(response, async (eventName, payload) => {
+        if(eventName==='provider_queue'){const note=document.getElementById('chatPreviewNote');if(note)note.textContent='Waiting for the free model. This can take a few minutes…';return;}
         if(eventName==='document_status'){const completed=Number(payload.completed)||0,total=Number(payload.total)||0;const note=document.getElementById('chatPreviewNote');if(note)note.textContent=completed<total?`Reading document sections: ${completed}/${total}…`:'Writing document summary…';return;}
         if (eventName === 'research_status') {
           const copy = { searching: 'Searching the web…', reading: 'Reading public pages…', writing: 'Writing an answer with sources…' }[payload?.stage];

@@ -1660,6 +1660,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
           ...(requestProviderKey ? { providerKey: requestProviderKey } : {}),
           ...(requestModelId ? { modelId: requestModelId } : {}),
           signal: streamController.signal,
+          onQueued: () => writeSseEvent(res, 'provider_queue', { status: 'waiting' }, streamController.signal),
+          beforeProviderCall: async () => { if (input.fileIds) await refreshFileContext(); if (wantsResearch) await requireResearchPermissions(); },
           onDelta: (text) => streamWorkspaceGate.push(text),
           onAvatarCue: (cue) => {
             const isScoutCue = String(agent?.avatar || '').trim().toLowerCase() === 'magnifier'
@@ -1803,6 +1805,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
     }
 
     let completion;
+    const nonStreamController = new AbortController();
+    const abortNonStream = () => { if (!res.writableEnded) nonStreamController.abort(); };
+    req.once('aborted', abortNonStream); res.once('close', abortNonStream);
+    if (req.aborted || res.destroyed) nonStreamController.abort();
     try {
       await refreshFileContext();
       await readDocumentBeforeReply();
@@ -1816,6 +1822,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
           ...(fileContext ? { fileContext } : {}),
         ...(requestProviderKey ? { providerKey: requestProviderKey } : {}),
         ...(requestModelId ? { modelId: requestModelId } : {}),
+        beforeProviderCall: async () => { if (input.fileIds) await refreshFileContext(); if (wantsResearch) await requireResearchPermissions(); },
+        signal: nonStreamController.signal,
       });
     } catch (error) {
       try {
@@ -1823,6 +1831,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
         tokenReservationHeld = false;
       } catch {}
       throw error;
+    } finally {
+      req.removeListener('aborted', abortNonStream); res.removeListener('close', abortNonStream);
     }
 
     const toolCall = directChange ? {kind:'direct_bundle_change'} : directPurchase || (comparisonIds ? {kind:'tool',name:'compare_saved_offers',arguments:{ids:comparisonIds}} : directSearch ? {kind:'direct_search'} : parseWorkspaceToolCall(completion.text));
@@ -2033,7 +2043,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         } else if (streamFailure instanceof RequestError || streamFailure instanceof ResearchError || streamFailure instanceof FileToolError) publicError = streamFailure.code;
         else if (streamFailure instanceof AiChatHistoryError) publicError = 'ai_chat_history_unavailable';
         else if (streamFailure instanceof WorkspaceError) publicError = 'ai_chat_agent_unavailable';
-        else if (streamFailure instanceof AiProviderError && ['ai_chat_messages_invalid','ai_image_provider_required','ai_image_protocol_unsupported','ai_image_provider_rejected','ai_image_input_invalid'].includes(streamFailure.code)) {
+        else if (streamFailure instanceof AiProviderError && ['ai_chat_messages_invalid','ai_image_provider_required','ai_image_protocol_unsupported','ai_image_provider_rejected','ai_image_input_invalid','ai_vision_busy'].includes(streamFailure.code)) {
           publicError = streamFailure.code;
         }
         try {
@@ -2056,7 +2066,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     } else if (error instanceof AiChatHistoryError) {
       sendJson(res, error.status, addAdminDiagnostics({ error: 'ai_chat_history_unavailable', requestId }));
     } else if (error instanceof AiProviderError) {
-      if (['ai_chat_messages_invalid','ai_image_provider_required','ai_image_protocol_unsupported','ai_image_provider_rejected','ai_image_input_invalid'].includes(error.code)) {
+      if (['ai_chat_messages_invalid','ai_image_provider_required','ai_image_protocol_unsupported','ai_image_provider_rejected','ai_image_input_invalid','ai_vision_busy'].includes(error.code)) {
         sendJson(res, error.status, addAdminDiagnostics({ error: error.code, requestId }));
       } else {
         sendJson(res, 502, addAdminDiagnostics({ error: 'ai_chat_unavailable', requestId }));

@@ -1,3 +1,4 @@
+import { createAnonymousQueue } from './anonymous-queue.mjs';
 import dns from 'node:dns/promises';
 import { StringDecoder } from 'node:string_decoder';
 import { requestHttps, requestHttpsStream, resolvePublicAddresses } from '../api-hub/service.mjs';
@@ -610,9 +611,24 @@ export function createAiChatService({
   resolveHost = (hostname) => dns.lookup(hostname, { all: true, verbatim: true }),
   requestHttpsImpl = requestHttps,
   requestHttpsStreamImpl = requestHttpsStream,
+  anonymousQueue = createAnonymousQueue(),
 } = {}) {
   if (!aiProviderService) throw new TypeError('ai_provider_service_required');
   const modelCatalogCache = new Map();
+
+  async function waitForAnonymous(provider, signal, onQueued, beforeProviderCall) {
+    if (!usesOvhAnonymousAuth(provider)) return;
+    try { await anonymousQueue.enter({signal,onQueued}); }
+    catch (error) {
+      const cancelled = error.code === 'anonymous_queue_cancelled';
+      const result = new AiProviderError(cancelled ? 'ai_provider_stream_cancelled' : 'ai_vision_busy', cancelled ? 499 : 429);
+      if (cancelled) result.cancelled = true;
+      throw result;
+    }
+    // Revalidate ownership and file permissions immediately before sending after a wait.
+    if (beforeProviderCall) await beforeProviderCall();
+    if (signal?.aborted) { const error = new AiProviderError('ai_provider_stream_cancelled', 499); error.cancelled = true; throw error; }
+  }
 
   async function isReady() {
     try {
@@ -651,6 +667,7 @@ export function createAiChatService({
     }
 
     if (upstream.status < 200 || upstream.status >= 300) {
+      if (upstream.status === 429 && usesOvhAnonymousAuth(provider)) throw new AiProviderError('ai_vision_busy', 429);
       const error = new AiProviderError('ai_provider_upstream_failed', 502);
       error.upstreamStatus = Number(upstream.status || 0);
       throw error;
@@ -707,6 +724,7 @@ export function createAiChatService({
 
     if (upstream.status < 200 || upstream.status >= 300) {
       try { upstream.cancel?.(); upstream.body?.destroy?.(); await upstream.body?.return?.(); } catch {}
+      if (upstream.status === 429 && usesOvhAnonymousAuth(provider)) throw new AiProviderError('ai_vision_busy', 429);
       const error = new AiProviderError('ai_provider_upstream_failed', 502);
       error.upstreamStatus = Number(upstream.status || 0);
       throw error;
@@ -874,7 +892,7 @@ export function createAiChatService({
     if(!Array.isArray(images)||images.length>3||images.some(image=>typeof image.name!=='string'||image.name.length>160||image.mimeType!=='image/jpeg'||typeof image.dataUrl!=='string'||image.dataUrl.length>2800000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.dataUrl)))throw new AiProviderError('ai_image_input_invalid',400);
     return images;
   }
-  async function complete({ agent, messages: rawMessages, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [] }) {
+  async function complete({ agent, messages: rawMessages, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [], signal, beforeProviderCall }) {
     const messages = normalizeAiChatMessages(rawMessages);
     const system = buildSystemPrompt(agent, { workspaceTools: workspaceTools === true && !researchContext && !fileContext, researchContext, fileContext, checkoutContext });
     const primary = await resolveRequestProvider({ providerKey, modelId });
@@ -882,6 +900,7 @@ export function createAiChatService({
     const attempts = [];
 
     try {
+      await waitForAnonymous(primary, signal, undefined, beforeProviderCall);
       return { ...(await completeWithProvider(primary, messages, system, images)), fallbackUsed: false, fallbackAttempts: 0 };
     } catch (primaryError) {
       attempts.push(providerAttemptSummary(primary, primaryError));
@@ -911,6 +930,7 @@ export function createAiChatService({
       let lastError = primaryError;
       for (let index = 0; index < fallbacks.length; index += 1) {
         try {
+          await waitForAnonymous(fallbacks[index], signal, undefined, beforeProviderCall);
           return {
             ...(await completeWithProvider(fallbacks[index], messages, system)),
             fallbackUsed: true,
@@ -928,7 +948,7 @@ export function createAiChatService({
     }
   }
 
-  async function stream({ agent, messages: rawMessages, onDelta, onAvatarCue, signal, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [] }) {
+  async function stream({ agent, messages: rawMessages, onDelta, onAvatarCue, signal, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [], onQueued, beforeProviderCall }) {
     if (typeof onDelta !== 'function') throw new TypeError('ai_chat_stream_callback_required');
     const messages = normalizeAiChatMessages(rawMessages);
     const system = buildSystemPrompt(agent, { workspaceTools: workspaceTools === true && !researchContext && !fileContext, researchContext, fileContext, checkoutContext });
@@ -938,6 +958,7 @@ export function createAiChatService({
     const attempts = [];
 
     try {
+      await waitForAnonymous(primary, signal, onQueued, beforeProviderCall);
       return { ...(await streamWithProvider(primary, messages, system, onDelta, cueCallback, signal, images)), fallbackUsed: false, fallbackAttempts: 0 };
     } catch (primaryError) {
       attempts.push(providerAttemptSummary(primary, primaryError));
@@ -972,6 +993,7 @@ export function createAiChatService({
       let lastError = primaryError;
       for (let index = 0; index < fallbacks.length; index += 1) {
         try {
+          await waitForAnonymous(fallbacks[index], signal, onQueued, beforeProviderCall);
           return {
             ...(await streamWithProvider(fallbacks[index], messages, system, onDelta, cueCallback, signal)),
             fallbackUsed: true,

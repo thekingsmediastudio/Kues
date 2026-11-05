@@ -1256,3 +1256,10 @@ test('mixed file requests require both consents and explicit image provider, ret
  });
  }
 });
+
+test('free model busy is public and truthful in JSON and stream',async()=>{
+ for(const streaming of [false,true]){
+  const busy=async()=>{throw new AiProviderError('ai_vision_busy',429)};const {dependencies}=testDependencies({complete:busy,stream:busy});
+  await withServer(dependencies,async base=>{const r=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message:'Please describe the situation.'})});const text=await r.text();assert.equal(r.status,streaming?200:429);assert.match(text,/ai_vision_busy/);assert.doesNotMatch(text,/tool_approval_required/)});
+ }
+});
