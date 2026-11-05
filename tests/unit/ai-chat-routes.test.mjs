@@ -1208,3 +1208,17 @@ test('explicit two-offer review survives malformed model output, uses stored qua
   })}finally{db.close()}
  }
 });
+
+test('exact code search drops unrelated results before saving offers, in JSON and streaming',async()=>{
+ const {createClient}=await import('@libsql/client');const {applyMigrations}=await import('../../apps/web/lib/db/migrate.mjs');
+ for(const streaming of [false,true]){
+  const db=createClient({url:':memory:'});await applyMigrations(db);const workspaceId='workspace-'+admin.id;
+  await db.execute({sql:'INSERT INTO users (id,email_normalized,status) VALUES (?,?,?)',args:[admin.id,admin.email,'active']});
+  await db.execute({sql:'INSERT INTO workspaces (id,owner_user_id,name,status) VALUES (?,?,?,?)',args:[workspaceId,admin.id,'Test','active']});
+  await db.execute({sql:'INSERT INTO agents (workspace_id,id,name,role,avatar,status,settings_json) VALUES (?,?,?,?,?,?,?)',args:[workspaceId,'agent-1','Test','test','cart','active','{}']});
+  const broken='[[KEUS_WORKSPACE_TOOL:{bad-json}]]';const {dependencies,historyCalls}=testDependencies({stream:streamWorkspaceToolMarker(broken),complete:async()=>({text:broken,inputTokens:10,outputTokens:10})});dependencies.db=db;
+  const product=(title,amountMinor)=>({title,amountMinor,currency:'USD',currencyVerified:true,priceFormatted:`$${(amountMinor/100).toFixed(2)} USD`,merchantName:'Seller',merchantDomain:'example.com',url:'https://example.com/a',availability:'in_stock',evidenceHash:'sha256:abc'});
+  let passedFilters;dependencies.channel3Client={isConfigured:()=>true,searchProducts:async args=>{passedFilters=args.filters;return{query:args.query,products:[product('Coded jacket',498),product('Index cards',369),product('Color coded spoodle',420)],count:3,isLive:true,source:'channel3'}}};
+  try{await withServer(dependencies,async base=>{const message='Find up to 3 real qzxv7m2k9p4b63z91q coded products priced under 5 USD each. This is a deliberately nonsensical exact product name for an empty-search test; do not buy, prepare a purchase, or initiate any payment.';const r=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message})});const raw=await r.text();assert.equal(r.status,200);assert.equal(passedFilters.exact_identifier,'QZXV7M2K9P4B63Z91Q');assert.match(raw,/No verified products/);assert.match(raw,/does not prove the product is unavailable/);assert.doesNotMatch(raw,/Coded jacket|Index cards|spoodle|products-grid|tool_approval_required|pendingAction/);const count=await db.execute('SELECT COUNT(*) AS n FROM product_offers');assert.equal(Number(count.rows[0].n),0);assert.match(historyCalls.append.at(-1).assistantMessage,/No verified products/);});}finally{db.close()}
+ }
+});

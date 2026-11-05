@@ -224,6 +224,7 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
     title,
     description,
     brand,
+    sku: safeString(primaryOffer.sku || raw.sku || '', 100),
     imageUrl,
     merchantName,
     merchantDomain,

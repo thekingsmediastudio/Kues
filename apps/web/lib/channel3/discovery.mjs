@@ -226,6 +226,16 @@ export async function discoverProducts({
     searchResult = { ...searchResult, products, count: products.length };
   }
 
+  // Verify exact identifiers against the returned title or explicit SKU before
+  // persisting offers. Do not infer a match from broad upstream relevance.
+  if (typeof filters.exact_identifier === 'string' && /^[A-Z0-9-]{3,40}$/.test(filters.exact_identifier)) {
+    const code=filters.exact_identifier;
+    const titlePattern=new RegExp(`(?<![A-Za-z0-9-])${code}(?![A-Za-z0-9-])`,'i');
+    const products=searchResult.products.filter(p=>titlePattern.test(String(p.title || '').normalize('NFKC'))
+      || String(p.sku || '').normalize('NFKC').trim().toUpperCase() === code);
+    searchResult={...searchResult,products,count:products.length};
+  }
+
   let effectiveRunId = runId;
   let offersPersisted = false;
 

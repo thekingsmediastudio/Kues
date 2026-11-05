@@ -31,7 +31,7 @@ import { AiChatHistoryError, createAiChatHistoryService } from './lib/ai-provide
 import { AI_CHAT_AVATAR_CUES, AI_CHAT_AVATAR_EMOTION_CUES, AI_CHAT_MAX_AVATAR_CUES_PER_REPLY, AI_CHAT_MAX_OUTPUT_TOKENS, createAiChatService, normalizeAiChatAvatarEmotionCue, normalizeAiChatMessages } from './lib/ai-providers/chat.mjs';
 import { UsageLimitError, UsageReservationError, reserveTokens, releaseTokenReservation, settleTokenReservation } from './lib/db/usage.mjs';
 import { WorkspaceError, createWorkspaceService } from './lib/workspaces/service.mjs';
-import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, explicitUsdProductSearch, explicitSavedOfferReview, explicitBundleQuantityChange, isPendingPurchaseChangeRequest, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
+import { WorkspaceToolError, escapeMarkdown, parseWorkspaceToolCall, prepareWorkspaceToolCall, applyExplicitUsdItemCeiling, applyExplicitProductIdentifier, explicitUsdProductSearch, explicitSavedOfferReview, explicitBundleQuantityChange, isPendingPurchaseChangeRequest, workspaceAgentFingerprint, workspaceNameFingerprint } from './lib/ai-agent/workspace-tools.mjs';
 import { Channel3Error, createChannel3Client } from './lib/channel3/client.mjs';
 import { discoverProducts, getProductOffersForRun } from './lib/channel3/discovery.mjs';
 import {
@@ -259,6 +259,7 @@ function workspaceToolFailureMessage(error) {
     invalid_workspace_name: 'The proposed workspace name is invalid. Nothing was changed.',
     invalid_query: 'The search query is invalid. Please specify a product query.',
     workspace_tool_price_conflict: 'The requested price range could not be safely interpreted. Please restate the minimum and maximum prices in USD.',
+    workspace_tool_exact_identifier_ambiguous: 'I found more than one possible exact product identifier. Please specify one code to search for.',
     workspace_tool_change_ambiguous: 'I could not safely identify one current pending two-item review to change. Please specify the saved offers and quantities for a new review. No new review or payment was created.',
   };
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
@@ -284,7 +285,12 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
 
     const lines = [];
     const sourceLabel = discovery.isLive ? 'Channel3 (Live Search)' : 'Channel3 (Sample Fixtures)';
-    lines.push(`Discovered ${discovery.products.length} product${discovery.products.length === 1 ? '' : 's'} matching "${escapeMarkdown(query)}":`);
+    if (!discovery.products.length) {
+      const scope = discovery.isLive ? 'returned live search results' : 'available sample results';
+      const exact = filters.exact_identifier ? ` for exact identifier \`${filters.exact_identifier}\`` : '';
+      return `No verified products${exact} were found in the ${scope}. This does not prove the product is unavailable; check the query or broaden the search.\n\n*Source:* ${sourceLabel}${discovery.runId ? ` · *Run ID:* \`${discovery.runId}\`` : ''}`;
+    }
+    lines.push(`Search returned ${discovery.products.length} product${discovery.products.length === 1 ? '' : 's'} for "${escapeMarkdown(query)}". Relevance may vary; verify each listing:`);
 
     const filterBadges = [];
     if (Number.isFinite(filters.min_price) && Number.isFinite(filters.max_price)) {
@@ -294,6 +300,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
     } else if (Number.isFinite(filters.max_price)) {
       filterBadges.push(`${filters.price_max_exclusive === false ? 'Up to' : 'Under'} $${filters.max_price} USD`);
     }
+    if (filters.exact_identifier) filterBadges.push(`Exact identifier: ${filters.exact_identifier}`);
     if (filters.availability === 'in_stock') filterBadges.push('In Stock Only');
     if (filters.sort_by === 'price_asc') filterBadges.push('Price: Low to High');
     else if (filters.sort_by === 'price_desc') filterBadges.push('Price: High to Low');
@@ -320,6 +327,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
       lines.push(`   - **Price:** ${p.priceFormatted}`);
       lines.push(`   - **Seller:** ${escapeMarkdown(p.merchantName)}${sellerDomain}`);
       lines.push(`   - **Status:** ${stock}`);
+      if (p.sku) lines.push(`   - **SKU:** ${escapeMarkdown(p.sku)}`);
       if (p.offerId) lines.push(`   - **Offer ID:** \`${p.offerId}\``);
       if (p.url) lines.push(`   - **Link:** [View product](${p.url})`);
       lines.push(`   - **Evidence:** \`${p.evidenceHash.slice(0, 19)}...\``);
@@ -1689,7 +1697,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           if (String(bootstrap?.workspace?.id || '') !== String(workspace.id)) {
             visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
           } else {
-            try { prepared = toolCall.kind === 'direct_bundle_change' ? await preparePendingBundleChange({pendingApprovals:pendingToolApprovals,db,workspaceId:workspace.id,userId:user.id,agentId,change:directChange,bootstrap}) : toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
+            try { prepared = toolCall.kind === 'direct_bundle_change' ? await preparePendingBundleChange({pendingApprovals:pendingToolApprovals,db,workspaceId:workspace.id,userId:user.id,agentId,change:directChange,bootstrap}) : toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') { prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); prepared = applyExplicitProductIdentifier(prepared, newUserMessage.content); } }
             catch (error) {
               if (!(error instanceof WorkspaceToolError)) throw error;
               visibleReply = workspaceToolFailureMessage(error);
@@ -1826,7 +1834,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         visibleReply = 'Your active workspace changed during this request, so nothing was changed. Please try again.';
       } else {
         let prepared;
-        try { prepared = toolCall.kind === 'direct_bundle_change' ? await preparePendingBundleChange({pendingApprovals:pendingToolApprovals,db,workspaceId:workspace.id,userId:user.id,agentId,change:directChange,bootstrap}) : toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); }
+        try { prepared = toolCall.kind === 'direct_bundle_change' ? await preparePendingBundleChange({pendingApprovals:pendingToolApprovals,db,workspaceId:workspace.id,userId:user.id,agentId,change:directChange,bootstrap}) : toolCall.kind === 'direct_search' ? directSearch : prepareWorkspaceToolCall(toolCall, bootstrap); if (prepared?.kind === 'search_products') { prepared = applyExplicitUsdItemCeiling(prepared, newUserMessage.content); prepared = applyExplicitProductIdentifier(prepared, newUserMessage.content); } }
         catch (error) {
           if (!(error instanceof WorkspaceToolError)) throw error;
           visibleReply = workspaceToolFailureMessage(error);

@@ -469,3 +469,17 @@ export function isPendingPurchaseChangeRequest(message, hasPendingPurchase) {
   return !!hasPendingPurchase && /\b(?:actually|change|update|adjust|instead|make)\b/i.test(text)
     && /\b(?:quantity|quantities|units?|review|\d+)\b/i.test(text);
 }
+
+// Enforce a clearly stated exact alphanumeric product identifier server-side.
+// Broad semantic searches and ambiguous multi-code requests are not guessed.
+export function applyExplicitProductIdentifier(preparedSearch, userMessage) {
+  const message=String(userMessage || '').normalize('NFKC');
+  if (!/\b(?:exact|exactly|literal|literally)\b/i.test(message)
+      || /\b(?:not|never|without|don't|do not)\s+(?:necessarily\s+)?(?:exact|exactly|literal|literally)\b/i.test(message)) return preparedSearch;
+  const candidates=[...message.matchAll(/\b[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\b/g)]
+    .map(m=>m[0]).filter(v=>v.length>=3&&v.length<=40&&/[A-Za-z]/.test(v)&&/\d/.test(v)&&!/^\d+(?:st|nd|rd|th)$/i.test(v));
+  const unique=[...new Set(candidates.map(v=>v.toUpperCase()))];
+  if (!unique.length) return preparedSearch;
+  if (unique.length !== 1) throw new WorkspaceToolError('workspace_tool_exact_identifier_ambiguous');
+  return {...preparedSearch,filters:{...(preparedSearch.filters||{}),exact_identifier:unique[0]}};
+}
