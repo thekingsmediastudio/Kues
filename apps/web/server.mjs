@@ -301,7 +301,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
       filterBadges.push(`${filters.price_max_exclusive === false ? 'Up to' : 'Under'} $${filters.max_price} USD`);
     }
     if (filters.exact_identifier) filterBadges.push(`Exact identifier: ${filters.exact_identifier}`);
-    if (filters.availability === 'in_stock') filterBadges.push('In Stock Only');
+    if (filters.availability === 'in_stock') filterBadges.push('Provider-reported In Stock Only');
     if (filters.sort_by === 'price_asc') filterBadges.push('Price: Low to High');
     else if (filters.sort_by === 'price_desc') filterBadges.push('Price: High to Low');
     if (filters.merchant_domain) filterBadges.push(`Merchant: ${filters.merchant_domain}`);
@@ -318,7 +318,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
     }
     for (let i = 0; i < discovery.products.length; i++) {
       const p = discovery.products[i];
-      const stock = p.availability === 'in_stock' ? 'In Stock' : (p.availability === 'out_of_stock' ? 'Out of Stock' : p.availability);
+      const stock = p.availability === 'in_stock' ? 'Provider reports in stock; verify location, variant and delivery with seller' : (p.availability === 'out_of_stock' ? 'Provider reports out of stock; verify with seller' : 'Availability unverified; check with seller');
       lines.push(`${i + 1}. **${escapeMarkdown(p.title)}**${p.brand ? ` by ${escapeMarkdown(p.brand)}` : ''}`);
       if (p.imageUrl) {
         lines.push(`   ![${escapeMarkdown(p.title)}](${p.imageUrl})`);
@@ -1325,6 +1325,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     && Boolean(aiChatService)
     && Boolean(aiChatHistoryService)
     && aiProviderAdminAllowed(config, user);
+  const enabledForUser = enabledForAdmin || (config.aiProviderChatTestEnabled === true && config.aiProviderChatUsersEnabled === true && Boolean(aiChatService) && Boolean(aiChatHistoryService));
   if (modelCatalogRoute) {
     if (!enabledForAdmin || typeof aiChatService.listModels !== 'function') {
       sendJson(res, 503, { error: 'ai_chat_unavailable' });
@@ -1379,11 +1380,11 @@ async function handleDesktopAiChatRequest(req, res, url, {
   }
   if (statusRoute) {
     let available = false;
-    if (enabledForAdmin) {
-      try { available = await aiChatService.isReady(); } catch { available = false; }
+    if (enabledForUser) {
+      try { available = enabledForAdmin ? await aiChatService.isReady() : await aiChatService.isAnonymousReady?.() === true; } catch { available = false; }
     }
     const statusPayload = { available: available === true, ...(enabledForAdmin ? { researchConfigured: researchService?.configured === true, fileToolsAvailable: filesService?.ready === true } : {}) };
-    if (available && typeof aiProviderService?.listProviders === 'function') {
+    if (enabledForAdmin && available && typeof aiProviderService?.listProviders === 'function') {
       try {
         const configured = await aiProviderService.listProviders();
         statusPayload.providers = (Array.isArray(configured) ? configured : [])
@@ -1409,7 +1410,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     return true;
   }
 
-  if (!enabledForAdmin || !workspaceService || !aiChatHistoryService
+  if (!enabledForUser || !workspaceService || !aiChatHistoryService
       || !(pendingToolApprovals instanceof Map)
       || typeof aiChatService.complete !== 'function'
       || (streamingRequest && typeof aiChatService.stream !== 'function')) {
@@ -1512,6 +1513,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       throw new RequestError('ai_chat_request_invalid', 400);
     }
     // Older clients may still send agentMode; the workspace agent is always enabled regardless of its value.
+    if (!enabledForAdmin && (input.providerKey !== undefined || input.modelId !== undefined)) throw new RequestError('ai_provider_selection_forbidden', 403);
     if (input.providerKey !== undefined) {
       if (typeof input.providerKey !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(input.providerKey.trim())) {
         throw new AiProviderError('ai_provider_key_invalid');
@@ -1525,6 +1527,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
       }
       requestModelId = input.modelId.trim();
     }
+    // Non-admin staging chat is restricted to the reviewed free anonymous endpoint.
+    if (!enabledForAdmin) { requestProviderKey = 'ovhcloud-anonymous'; requestModelId = 'Qwen2.5-VL-72B-Instruct'; }
     agentId = String(input.agentId || '').trim();
     if (!agentId || agentId.length > 255 || /[\r\n\0]/.test(agentId)) {
       throw new RequestError('ai_chat_request_invalid', 400);
@@ -1536,11 +1540,12 @@ async function handleDesktopAiChatRequest(req, res, url, {
     if (input.fileIds && req.headers['x-file-consent'] !== FILE_CONSENT) throw new FileToolError('file_consent_required');
     if (input.fileIds && wantsResearch) throw new FileToolError('file_research_combination_unsupported');
     if (wantsResearch) {
+      if (!enabledForAdmin) throw new ResearchError('research_not_configured', 503);
       if (req.headers['x-research-consent'] !== RESEARCH_CONSENT) throw new ResearchError('research_consent_required', 400);
       if (!researchService?.configured) throw new ResearchError('research_not_configured', 503);
       if (!researchQuery || researchQuery.length > 1000) throw new ResearchError('research_query_invalid', 400);
     }
-    if (!await aiChatService.isReady()) throw new AiProviderError('ai_provider_primary_unavailable', 503);
+    if (!(enabledForAdmin ? await aiChatService.isReady() : await aiChatService.isAnonymousReady?.() === true)) throw new AiProviderError('ai_provider_primary_unavailable', 503);
 
     ({ workspace, agent } = await loadOwnedAgent(agentId));
     if (input.fileIds) fileContext = filesService.context({ ids: input.fileIds, userId: user.id, workspaceId: workspace.id, agent, query: newUserMessage.content });
@@ -1563,7 +1568,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       signal?.addEventListener('abort',abort,{once:true});res.once('close',abort);
       try{fileContext=await reviewDocumentContext({context:fileContext,agent,providerKey:requestProviderKey,modelId:requestModelId,signal:controller.signal,onStage,
         authorize:refreshFileContext,
-        call:options=>aiChatService.stream(options),
+        call:options=>aiChatService.stream({...options, allowFallback:enabledForAdmin, requireAnonymousProvider:!enabledForAdmin}),
         reserve:(key,estimatedTokens)=>usageService.reserveTokens({workspaceId:workspace.id,userId:user.id,idempotencyKey:key,estimatedTokens}),
         settle:(key,result)=>usageService.settleTokenReservation({workspaceId:workspace.id,idempotencyKey:key,provider:result.provider,model:result.model,inputTokens:result.inputTokens,outputTokens:result.outputTokens}),
         release:key=>usageService.releaseTokenReservation({workspaceId:workspace.id,idempotencyKey:key})
@@ -1654,6 +1659,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
           checkoutContext,
           agent,
           messages,
+          allowFallback: enabledForAdmin,
+          requireAnonymousProvider: !enabledForAdmin,
           workspaceTools: !wantsResearch && !fileContext,
           ...(researchContext ? { researchContext } : {}),
           ...(fileContext ? { fileContext } : {}),
@@ -1817,6 +1824,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
         checkoutContext,
         agent,
         messages,
+        allowFallback: enabledForAdmin,
+        requireAnonymousProvider: !enabledForAdmin,
         workspaceTools: !wantsResearch && !fileContext,
         ...(researchContext ? { researchContext } : {}),
           ...(fileContext ? { fileContext } : {}),

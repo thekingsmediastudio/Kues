@@ -30,3 +30,12 @@ test('queued request revalidates permission immediately before provider call',as
  const params={agent:{name:'Test'},messages:[{role:'user',content:'Hello'}],providerKey:p.providerKey,modelId:p.modelId,beforeProviderCall:async()=>{if(!allowed)throw Object.assign(new Error('revoked'),{code:'file_permission_required'})}};
  await service.complete(params);const pending=service.complete(params);await delay(15);allowed=false;await assert.rejects(pending,e=>e.code==='file_permission_required');assert.equal(calls,1);
 });
+
+test('non-admin free-only calls reject a paid or misconfigured endpoint and never fall back',async()=>{
+ const {createAiChatService}=await import('../../apps/web/lib/ai-providers/chat.mjs');let requests=0,fallbacks=0;const p={providerKey:'ovhcloud-anonymous',modelId:'Qwen2.5-VL-72B-Instruct',apiProtocol:'openai_chat',baseUrl:'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1',apiKey:'PAID-OR-WRONG-KEY',enabled:true};const aiProviderService={getProviderForRuntime:async()=>p,getFallbackProvidersForRuntime:async()=>{fallbacks++;return[]}};
+ const service=createAiChatService({aiProviderService,requestHttpsImpl:async()=>{requests++;return{status:200}}});await assert.rejects(service.complete({agent:{name:'Test'},messages:[{role:'user',content:'Hello'}],providerKey:p.providerKey,modelId:p.modelId,allowFallback:false,requireAnonymousProvider:true}),e=>e.code==='ai_free_model_unavailable');assert.equal(requests,0);assert.equal(fallbacks,0);
+});
+
+test('free-only OVH failure never tries paid fallback',async()=>{
+ const {createAiChatService}=await import('../../apps/web/lib/ai-providers/chat.mjs');const p={providerKey:'ovhcloud-anonymous',modelId:'Qwen2.5-VL-72B-Instruct',apiProtocol:'openai_chat',baseUrl:'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1',apiKey:'OVH_ANONYMOUS',enabled:true};let fallbackLookups=0,calls=0;const aiProviderService={getProviderForRuntime:async()=>p,getFallbackProvidersForRuntime:async()=>{fallbackLookups++;return [{...p,providerKey:'paid',apiKey:'secret'}]}};const service=createAiChatService({aiProviderService,resolveHost:async()=>[{address:'93.184.216.34',family:4}],requestHttpsImpl:async()=>{calls++;return{status:503,body:'{}'}}});assert.equal(await service.isAnonymousReady(),true);await assert.rejects(service.complete({agent:{name:'Test'},messages:[{role:'user',content:'Hello'}],providerKey:p.providerKey,modelId:p.modelId,allowFallback:false,requireAnonymousProvider:true}));assert.equal(calls,1);assert.equal(fallbackLookups,0);
+});

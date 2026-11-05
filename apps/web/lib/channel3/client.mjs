@@ -198,12 +198,12 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
 
   let availability = 'unknown';
   const rawAvail = safeString(primaryOffer.availability || raw.availability || '').toLowerCase();
-  if (rawAvail.includes('instock') || rawAvail.includes('in_stock') || rawAvail.includes('available')) {
-    availability = 'in_stock';
-  } else if (rawAvail.includes('out') || rawAvail.includes('unavailable')) {
+  if (rawAvail.includes('out') || rawAvail.includes('unavailable') || rawAvail.includes('sold') || /\bnot[ _-]+(?:available|in[ _-]+stock)\b|\bno[ _-]+stock\b/.test(rawAvail)) {
     availability = 'out_of_stock';
-  } else if (rawAvail.includes('limited') || rawAvail.includes('preorder')) {
+  } else if (rawAvail.includes('limited') || rawAvail.includes('preorder') || rawAvail.includes('pre-order')) {
     availability = 'limited';
+  } else if (rawAvail.includes('instock') || rawAvail.includes('in_stock') || rawAvail.includes('in stock') || rawAvail.includes('available')) {
+    availability = 'in_stock';
   }
 
   const sourceListingId = safeString(String(raw.id || raw.listing_id || raw.sku || ''), 100);

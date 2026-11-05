@@ -23,3 +23,9 @@ test('exact code is checked against title token or full SKU, never a partial tok
 test('normalization preserves a product SKU for bounded exact-code checks',()=>{
  const p=normalizeProduct({id:'live-id',title:'Keyboard',sku:'XYZ-123',price:4,currency:'USD'},{source:'channel3',isLive:true});assert.equal(p.sku,'XYZ-123');
 });
+
+test('unavailable and out of stock statuses cannot be misclassified as available',()=>{
+ for(const status of ['unavailable','not_available','not in stock','out_of_stock','sold out']){const p=normalizeProduct({id:'a',title:'Item',availability:status,price:4,currency:'USD'},{source:'channel3',isLive:true});assert.equal(p.availability,'out_of_stock',status)}
+ for(const status of ['limited availability','available for preorder']){const p=normalizeProduct({id:'c',title:'Item',availability:status,price:4,currency:'USD'},{source:'channel3',isLive:true});assert.equal(p.availability,'limited',status)}
+ for(const status of ['available','in_stock','In Stock']){const p=normalizeProduct({id:'b',title:'Item',availability:status,price:4,currency:'USD'},{source:'channel3',isLive:true});assert.equal(p.availability,'in_stock',status)}
+});

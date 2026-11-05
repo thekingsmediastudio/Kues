@@ -1263,3 +1263,22 @@ test('free model busy is public and truthful in JSON and stream',async()=>{
   await withServer(dependencies,async base=>{const r=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message:'Please describe the situation.'})});const text=await r.text();assert.equal(r.status,streaming?200:429);assert.match(text,/ai_vision_busy/);assert.doesNotMatch(text,/tool_approval_required/)});
  }
 });
+
+test('opt-in signed-in users can use scoped chat through the free model without provider administration or fallback',async()=>{
+ const {dependencies,aiCalls}=testDependencies();dependencies.config={...dependencies.config,aiProviderChatUsersEnabled:true};dependencies.aiChatService.isAnonymousReady=async()=>true;
+ await withServer(dependencies,async base=>{const memberHeaders={Cookie:'kues_session=member-session',Origin:base,'Content-Type':'application/json'};
+  let r=await fetch(base+'/api/chat/status',{headers:{Cookie:'kues_session=member-session'}});let status=await r.json();assert.equal(status.available,true);assert(!status.providers);assert(!status.adminControls);assert(!status.fileToolsAvailable);
+  r=await fetch(base+'/api/chat/models',{headers:{Cookie:'kues_session=member-session'}});assert.equal(r.status,503);
+  r=await fetch(base+'/api/chat',{method:'POST',headers:memberHeaders,body:JSON.stringify({...messagePayload,message:'Hello'})});assert.equal(r.status,200);assert.equal(aiCalls.length,1);assert.equal(aiCalls[0].providerKey,'ovhcloud-anonymous');assert.equal(aiCalls[0].modelId,'Qwen2.5-VL-72B-Instruct');assert.equal(aiCalls[0].allowFallback,false);assert.equal(aiCalls[0].requireAnonymousProvider,true);assert(!('attribution' in await r.json()));
+  r=await fetch(base+'/api/chat',{method:'POST',headers:memberHeaders,body:JSON.stringify({...messagePayload,providerKey:'manual-target'})});assert.equal(r.status,403);assert.equal((await r.json()).error,'ai_provider_selection_forbidden');assert.equal(aiCalls.length,1);
+  r=await fetch(base+'/api/chat',{method:'POST',headers:memberHeaders,body:JSON.stringify({...messagePayload,message:'/research external question'})});assert.equal(r.status,503);assert.equal(aiCalls.length,1);
+  r=await fetch(base+'/api/files/upload?agentId=agent-1&name=doc.txt',{method:'POST',headers:{...memberHeaders,'Content-Type':'application/octet-stream'},body:'hello'});assert.equal(r.status,403);
+  r=await fetch(base+'/api/chat',{method:'POST',headers:{...memberHeaders,Origin:'https://evil.example'},body:JSON.stringify(messagePayload)});assert.equal(r.status,403);
+ });
+});
+
+test('opt-in user and admin can search simultaneously in separate workspace scopes without AI',async()=>{
+ const {dependencies,aiCalls}=testDependencies();dependencies.config={...dependencies.config,aiProviderChatUsersEnabled:true};dependencies.aiChatService.isAnonymousReady=async()=>true;let searches=0;
+ dependencies.channel3Client={isConfigured:()=>true,searchProducts:async input=>{searches++;return{query:input.query,products:[{title:'Notebook',amountMinor:325,currency:'USD',currencyVerified:true,priceFormatted:'$3.25 USD',merchantName:'Seller',merchantDomain:'example.com',url:'https://example.com/item',availability:'in_stock',evidenceHash:'sha256:abc'}],count:1,isLive:true,source:'channel3'}}};
+ await withServer(dependencies,async base=>{const send=cookie=>fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({...messagePayload,message:'Find up to 3 real ruled notebooks priced under 5 USD each. Comparison only, do not buy.'})});const responses=await Promise.all([send('kues_session=admin-session'),send('kues_session=member-session')]);for(const r of responses){assert.equal(r.status,200);const d=await r.json();assert.match(d.reply,/Provider reports in stock; verify location, variant and delivery/);assert(!d.pendingAction)}assert.equal(searches,2);assert.equal(aiCalls.length,0)});
+});

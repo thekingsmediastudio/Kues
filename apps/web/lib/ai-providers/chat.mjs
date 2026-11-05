@@ -639,6 +639,13 @@ export function createAiChatService({
     }
   }
 
+  async function isAnonymousReady() {
+    try {
+      const provider = await aiProviderService.getProviderForRuntime({providerKey:'ovhcloud-anonymous'});
+      return usesOvhAnonymousAuth(provider) && provider.modelId === 'Qwen2.5-VL-72B-Instruct';
+    } catch { return false; }
+  }
+
   async function completeWithProvider(provider, messages, system, images = []) {
     const request = buildProviderRequest(provider, messages, system, {images});
     let addresses;
@@ -892,10 +899,11 @@ export function createAiChatService({
     if(!Array.isArray(images)||images.length>3||images.some(image=>typeof image.name!=='string'||image.name.length>160||image.mimeType!=='image/jpeg'||typeof image.dataUrl!=='string'||image.dataUrl.length>2800000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(image.dataUrl)))throw new AiProviderError('ai_image_input_invalid',400);
     return images;
   }
-  async function complete({ agent, messages: rawMessages, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [], signal, beforeProviderCall }) {
+  async function complete({ agent, messages: rawMessages, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [], signal, beforeProviderCall, allowFallback = true, requireAnonymousProvider = false }) {
     const messages = normalizeAiChatMessages(rawMessages);
     const system = buildSystemPrompt(agent, { workspaceTools: workspaceTools === true && !researchContext && !fileContext, researchContext, fileContext, checkoutContext });
     const primary = await resolveRequestProvider({ providerKey, modelId });
+    if (requireAnonymousProvider && !usesOvhAnonymousAuth(primary)) throw new AiProviderError('ai_free_model_unavailable', 503);
     const images=requestImages(fileContext,providerKey,modelId,primary);
     const attempts = [];
 
@@ -906,7 +914,7 @@ export function createAiChatService({
       attempts.push(providerAttemptSummary(primary, primaryError));
       attachProviderFailure(primaryError, primary, attempts);
       if(images.length){if([400,415,422].includes(primaryError.upstreamStatus))primaryError.code='ai_image_provider_rejected';throw primaryError;} // Image bytes never silently move to a fallback provider.
-      if (!isTransientProviderFailure(primaryError)
+      if (!allowFallback || !isTransientProviderFailure(primaryError)
           || typeof aiProviderService.getFallbackProvidersForRuntime !== 'function') {
         throw primaryError;
       }
@@ -948,12 +956,13 @@ export function createAiChatService({
     }
   }
 
-  async function stream({ agent, messages: rawMessages, onDelta, onAvatarCue, signal, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [], onQueued, beforeProviderCall }) {
+  async function stream({ agent, messages: rawMessages, onDelta, onAvatarCue, signal, providerKey, modelId, workspaceTools = false, researchContext = null, fileContext = null, checkoutContext = [], onQueued, beforeProviderCall, allowFallback = true, requireAnonymousProvider = false }) {
     if (typeof onDelta !== 'function') throw new TypeError('ai_chat_stream_callback_required');
     const messages = normalizeAiChatMessages(rawMessages);
     const system = buildSystemPrompt(agent, { workspaceTools: workspaceTools === true && !researchContext && !fileContext, researchContext, fileContext, checkoutContext });
     const cueCallback = typeof onAvatarCue === 'function' ? onAvatarCue : undefined;
     const primary = await resolveRequestProvider({ providerKey, modelId });
+    if (requireAnonymousProvider && !usesOvhAnonymousAuth(primary)) throw new AiProviderError('ai_free_model_unavailable', 503);
     const images=requestImages(fileContext,providerKey,modelId,primary);
     const attempts = [];
 
@@ -968,7 +977,7 @@ export function createAiChatService({
         primaryError.fallbackAttempts = 0;
         throw primaryError;
       }
-      if (!isTransientProviderFailure(primaryError)
+      if (!allowFallback || !isTransientProviderFailure(primaryError)
           || typeof aiProviderService.getFallbackProvidersForRuntime !== 'function') {
         if (!Number.isSafeInteger(primaryError.fallbackAttempts)) primaryError.fallbackAttempts = 0;
         throw primaryError;
@@ -1012,5 +1021,5 @@ export function createAiChatService({
     }
   }
 
-  return Object.freeze({ isReady, complete, stream, listModels });
+  return Object.freeze({ isReady, isAnonymousReady, complete, stream, listModels });
 }

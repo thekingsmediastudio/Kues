@@ -575,3 +575,8 @@ test('database client keeps secrets server-side and requires a token for remote 
   assert.equal(local.marker, true);
   assert.equal('authToken' in captured, false);
 });
+
+test('staging user chat opt-in is disabled by default and requires admin chat flag',()=>{
+ const base={AI_PROVIDER_ADMIN_EMAILS:'owner@example.test',AI_PROVIDER_ENCRYPTION_KEY:Buffer.alloc(32,51).toString('base64'),AI_PROVIDER_CHAT_TEST_ENABLED:'1',AUTH_PROVIDER:'workos',WORKOS_API_KEY:'sk_test',WORKOS_CLIENT_ID:'client_1234',WORKOS_REDIRECT_URI:'http://localhost:3100/auth/callback',TURSO_DATABASE_URL:'file:./local.db'};
+ assert.equal(loadServerConfig(base).aiProviderChatUsersEnabled,false);assert.equal(loadServerConfig({...base,AI_PROVIDER_CHAT_USERS_ENABLED:'1'}).aiProviderChatUsersEnabled,true);assert.throws(()=>loadServerConfig({...base,AI_PROVIDER_CHAT_USERS_ENABLED:'invalid'}));assert.throws(()=>loadServerConfig({...base,AI_PROVIDER_CHAT_TEST_ENABLED:'0',AI_PROVIDER_CHAT_USERS_ENABLED:'1'}));
+});

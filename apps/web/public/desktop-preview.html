@@ -5367,6 +5367,9 @@
     count.textContent = `${items.length} result${items.length === 1 ? '' : 's'}`;
     heading.append(count);
     wrapper.append(heading);
+    const stockNote = document.createElement('p');
+    stockNote.textContent = 'Stock is provider-reported. Verify location, variant and delivery with the seller.';
+    wrapper.append(stockNote);
 
     // Toolbar (active filter badges + live sorting controls)
     const toolbar = document.createElement('div');
@@ -5429,7 +5432,8 @@
     const inStockBtn = document.createElement('button');
     inStockBtn.type = 'button';
     inStockBtn.className = 'products-filter-toggle-btn';
-    inStockBtn.textContent = 'In Stock Only';
+    inStockBtn.textContent = 'Reported in stock only';
+    inStockBtn.title = 'Based on provider data; verify location, variant and delivery with the seller.';
 
     sortControls.append(defaultSortBtn, ascSortBtn, descSortBtn, inStockBtn);
     toolbar.append(sortControls);
@@ -5539,7 +5543,8 @@
         const badge = document.createElement('span');
         const isAvailable = /in\s*stock/i.test(item.status);
         badge.className = `product-card-badge ${isAvailable ? 'badge-in-stock' : 'badge-status'}`;
-        badge.textContent = item.status;
+        badge.textContent = isAvailable ? 'Reported in stock · verify' : item.status;
+        badge.title = 'Provider-reported status; verify location, variant and delivery with the seller.';
         media.append(badge);
       }
 

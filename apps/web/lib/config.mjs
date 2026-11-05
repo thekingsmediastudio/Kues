@@ -123,6 +123,12 @@ export function loadServerConfig(env = process.env) {
     issues.push('AI_PROVIDER_CHAT_TEST_ENABLED requires AI_PROVIDER_ADMIN_EMAILS');
   }
 
+  // Explicitly opt in authenticated staging users; provider administration remains separate.
+  const userChatFlag = String(env.AI_PROVIDER_CHAT_USERS_ENABLED || '').trim();
+  if (userChatFlag && !['0','1'].includes(userChatFlag)) issues.push('AI_PROVIDER_CHAT_USERS_ENABLED must be 0 or 1');
+  const aiProviderChatUsersEnabled = userChatFlag === '1';
+  if (aiProviderChatUsersEnabled && !aiProviderChatTestEnabled) issues.push('AI_PROVIDER_CHAT_USERS_ENABLED requires AI_PROVIDER_CHAT_TEST_ENABLED');
+
   const databaseUrl = String(env.TURSO_DATABASE_URL || '').trim();
   const databaseToken = String(env.TURSO_AUTH_TOKEN || '').trim();
   const remoteDatabase = databaseUrl.startsWith('libsql://') || databaseUrl.startsWith('https://');
@@ -261,6 +267,7 @@ export function loadServerConfig(env = process.env) {
     aiProvidersEnabled: aiProviderAdminEmails.length > 0,
     aiProviderAdminEmails: Object.freeze(aiProviderAdminEmails),
     aiProviderChatTestEnabled,
+    aiProviderChatUsersEnabled,
     webResearchEnabled,
     groqTranscriptionEnabled,
     groqTranscriptionModel,
