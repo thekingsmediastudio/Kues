@@ -1222,3 +1222,25 @@ test('exact code search drops unrelated results before saving offers, in JSON an
   try{await withServer(dependencies,async base=>{const message='Find up to 3 real qzxv7m2k9p4b63z91q coded products priced under 5 USD each. This is a deliberately nonsensical exact product name for an empty-search test; do not buy, prepare a purchase, or initiate any payment.';const r=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message})});const raw=await r.text();assert.equal(r.status,200);assert.equal(passedFilters.exact_identifier,'QZXV7M2K9P4B63Z91Q');assert.match(raw,/No verified products/);assert.match(raw,/does not prove the product is unavailable/);assert.doesNotMatch(raw,/Coded jacket|Index cards|spoodle|products-grid|tool_approval_required|pendingAction/);const count=await db.execute('SELECT COUNT(*) AS n FROM product_offers');assert.equal(Number(count.rows[0].n),0);assert.match(historyCalls.append.at(-1).assistantMessage,/No verified products/);});}finally{db.close()}
  }
 });
+
+test('bounded direct search bypasses a failing AI provider and releases unused reservation in both modes', async () => {
+ for (const streaming of [false,true]) {
+  let aiCalls=0, searchCalls=0;
+  const fail=async()=>{aiCalls++;throw new Error('provider unavailable')};
+  const {dependencies,usageCalls,historyCalls}=testDependencies({complete:fail,stream:fail});
+  dependencies.channel3Client={isConfigured:()=>true,searchProducts:async input=>{searchCalls++;assert.equal(input.query,'MEA05512 notebooks');assert.equal(input.filters.max_price,5);return {query:input.query,products:[{title:'MEA05512 notebook',amountMinor:325,currency:'USD',currencyVerified:true,priceFormatted:'$3.25 USD',merchantName:'Seller',merchantDomain:'example.com',url:'https://example.com/item',availability:'in_stock',evidenceHash:'sha256:abc'},{title:'Expensive notebook',amountMinor:700,currency:'USD',currencyVerified:true}],count:2,isLive:true,source:'channel3'}}};
+  await withServer(dependencies,async base=>{
+   const response=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message:'Find up to 3 real MEA05512 notebooks priced under 5 USD each. Comparison only, do not buy.'})});
+   const text=await response.text();assert.equal(response.status,200);assert.match(text,/MEA05512 notebook/);assert.doesNotMatch(text,/Expensive notebook|tool_approval_required/);assert.equal(aiCalls,0);assert.equal(searchCalls,1);assert.equal(usageCalls.reserve.length,1);assert.equal(usageCalls.release.length,1);assert.equal(usageCalls.settle.length,0);assert.equal(historyCalls.append.length,1);
+  });
+ }
+});
+
+test('direct-search stream failure releases the reservation instead of settling fake AI usage',async()=>{
+ const {dependencies,usageCalls}=testDependencies();
+ dependencies.channel3Client={isConfigured:()=>true,searchProducts:async()=>{throw new Error('catalog offline')}};
+ await withServer(dependencies,async base=>{
+  const response=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',Accept:'text/event-stream'},body:JSON.stringify({...messagePayload,message:'Find up to 3 real MEA05512 notebooks priced under 5 USD each.'})});
+  await response.text();assert.equal(usageCalls.reserve.length,1);assert.equal(usageCalls.release.length,1);assert.equal(usageCalls.settle.length,0);
+ });
+});

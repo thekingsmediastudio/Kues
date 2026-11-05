@@ -1483,6 +1483,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
   let streamResponseStarted = false;
   let streamController = null;
   let tokenReservationHeld = false;
+  let bypassSearchModel = false;
   let streamCompletion = null;
   let streamAvatarCueCount = 0;
   let streamAvatarEmotionCount = 0;
@@ -1605,6 +1606,9 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
     const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
     const forcedRead = Boolean(comparisonIds || directSearch || directPurchase || directChange);
+    // Only the existing deterministic, read-only search path can skip the model.
+    // Purchase/review requests retain their existing higher-priority handling.
+    bypassSearchModel = Boolean(directSearch && !directChange && !directPurchase && !guardPurchaseClaims);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
@@ -1646,7 +1650,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           await writeSseEvent(res, 'avatar_cue', { avatar: 'emotion', cue: requestedMoodCue }, streamController.signal);
         }
         streamWorkspaceGate = createWorkspaceToolStreamGate((text) => (guardPurchaseClaims || wantsResearch || forcedRead) ? Promise.resolve() : writeSseEvent(res, 'delta', { text }, streamController.signal));
-        const completion = await aiChatService.stream({
+        const completion = bypassSearchModel ? { text: '', inputTokens: 0, outputTokens: 0 } : await aiChatService.stream({
           checkoutContext,
           agent,
           messages,
@@ -1766,7 +1770,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
           const fallbackAttempts = Number.isSafeInteger(streamCompletion.fallbackAttempts) ? streamCompletion.fallbackAttempts : 0;
           console.info('Desktop AI chat used an approved fallback:', JSON.stringify({ requestId, fallbackAttempts }));
         }
-        await usageService.settleTokenReservation({
+        if (bypassSearchModel) await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey });
+        else await usageService.settleTokenReservation({
           workspaceId: workspace.id,
           idempotencyKey,
           provider: streamCompletion.provider,
@@ -1802,7 +1807,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       await refreshFileContext();
       await readDocumentBeforeReply();
       if (wantsResearch) await researchBeforeReply();
-      completion = await aiChatService.complete({
+      completion = bypassSearchModel ? { text: '', inputTokens: 0, outputTokens: 0 } : await aiChatService.complete({
         checkoutContext,
         agent,
         messages,
@@ -1878,7 +1883,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
     completion = { ...completion, text: visibleReply };
 
     try {
-      await usageService.settleTokenReservation({
+      if (bypassSearchModel) await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey });
+      else await usageService.settleTokenReservation({
         workspaceId: workspace.id,
         idempotencyKey,
         provider: completion.provider,
@@ -1966,7 +1972,14 @@ async function handleDesktopAiChatRequest(req, res, url, {
       if (wantsResearch && completionToSave) completionToSave = { ...completionToSave, text: (researchAnswerForDisplay(completionToSave.text, newUserMessage.content)) + (researchContext ? researchSourcesMarkdown(researchContext) : '') };
       let streamFailure = error;
 
-      if (tokenReservationHeld && completionToSave) {
+      if (tokenReservationHeld && bypassSearchModel) {
+        try {
+          await usageService.releaseTokenReservation({ workspaceId: workspace.id, idempotencyKey });
+          tokenReservationHeld = false;
+        } catch (releaseError) {
+          console.error('AI chat usage reservation release failed:', JSON.stringify({ requestId, error: releaseError?.name || 'Error' }));
+        }
+      } else if (tokenReservationHeld && completionToSave) {
         try {
           await usageService.settleTokenReservation({
             workspaceId: workspace.id,
