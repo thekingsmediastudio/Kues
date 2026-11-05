@@ -43,8 +43,16 @@ export function createFileTools({parse=parseInWorker,now=Date.now}={}){
    if(!Array.isArray(ids)||ids.length<1||ids.length>3||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^file_[0-9a-f]{32}$/.test(id)))throw new FileToolError('file_selection_invalid');
    const selected=ids.map(id=>{const f=files.get(id);if(!f||f.userId!==userId||f.workspaceId!==workspaceId||f.agentId!==agent.id)throw new FileToolError('file_unavailable',404);return {name:f.name,format:f.format,text:f.text,sections:f.sections,totalPages:f.totalPages,missingPages:f.missingPages,notes:f.notes,truncated:f.truncated,image:f.image}});
    const images=selected.filter(f=>f.format==='image');
-   if(images.length){if(images.length!==selected.length)throw new FileToolError('file_image_combination_unsupported');return {mode:'images',files:images.map(f=>({name:f.name,format:'image',notes:f.notes,coverage:{mode:'image'}})),images:images.map(f=>({name:f.name,...f.image}))}}
-   try{return planDocumentContext(selected,query,hint)}catch(error){if(error.code==='file_review_limit')throw new FileToolError(error.code,413);throw error}
+   const imageFiles=images.map(f=>({name:f.name,format:'image',notes:f.notes,coverage:{mode:'image'}}));
+   const imagePayloads=images.map(f=>({name:f.name,...f.image}));
+   if(images.length===selected.length)return {mode:'images',files:imageFiles,images:imagePayloads};
+   try{
+    const documentContext=planDocumentContext(selected.filter(f=>f.format!=='image'),query,hint);
+    // Whole-document review uses multiple model calls and cannot safely carry image
+    // attachments through each intermediate pass. Fail closed rather than overclaim.
+    if(images.length&&documentContext.reviewBatches)throw new FileToolError('file_mixed_review_unsupported');
+    return images.length?{...documentContext,mode:'mixed',files:[...documentContext.files,...imageFiles],images:imagePayloads}:documentContext;
+   }catch(error){if(error.code==='file_review_limit')throw new FileToolError(error.code,413);throw error}
   },
   remove({id,userId,workspaceId,agentId}){const f=files.get(id);if(f&&f.userId===userId&&f.workspaceId===workspaceId&&f.agentId===agentId)files.delete(id)},
   export({agent,text,format}){allowed(agent,'create_files');try{return exportReport(text,format)}catch(error){throw new FileToolError(error.message)}}

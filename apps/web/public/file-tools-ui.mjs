@@ -1,7 +1,7 @@
 const MAX_BYTES=2*1024*1024;
 const supported=/\.(txt|md|csv|pdf|docx|xlsx|png|jpg|jpeg)$/i;
 export function fileErrorCopy(code){return ({
- file_image_invalid:'Choose a valid, non-animated PNG or JPEG up to 2 MB and 8 million pixels.',file_image_combination_unsupported:'Analyze images and documents in separate messages.',file_image_consent_required:'Agree to send the prepared images before analysis.',
+ file_image_invalid:'Choose a valid, non-animated PNG or JPEG up to 2 MB and 8 million pixels.',file_image_combination_unsupported:'Analyze images and documents in separate messages.',file_mixed_review_unsupported:'For a whole-document review, analyze documents and images in separate messages.',file_image_consent_required:'Agree to send the prepared images before analysis.',
  file_permission_required:'Enable the relevant file permission in this agent’s Tools settings.',
  file_size_invalid:'Choose a non-empty file no larger than 2 MB.',file_type_unsupported:'Supported files: PDF, DOCX, TXT, Markdown, CSV, XLSX, PNG and JPEG.',
  file_name_invalid:'Rename the file without slashes or control characters, then try again.',file_unavailable:'An attachment expired or is unavailable for this agent. Remove it and attach the file again.',
@@ -64,7 +64,7 @@ export function createFileToolsUI(adapter){
   if(!files.length)return [];
   if(files.some(file=>Date.parse(file.expiresAt)<=Date.now())){report(fileErrorCopy('file_unavailable'));return false}
   if(/^\/research(?:\s|$)/i.test(message)){report(fileErrorCopy('file_research_combination_unsupported'));return false}
-  if(files.some(f=>f.format==='image')){if(files.some(f=>f.format!=='image')){report(fileErrorCopy('file_image_combination_unsupported'));return false}if(!window.confirm('Send these prepared images to the provider and model you explicitly select? Images are re-encoded without metadata and resized to at most 1024 pixels. Provider charges and retention policies may apply. No automatic fallback is used. Temporary images expire after 15 minutes; questions and answers remain in chat history. Image analysis can be mistaken. Continue?'))return false;return files.map(f=>f.id)}
+  if(files.some(f=>f.format==='image')){if(!window.confirm('Send these prepared images and any attached extracted document text to the provider and model you explicitly select? Images are re-encoded without metadata and resized to at most 1024 pixels. Document text may be limited to relevant excerpts; whole-document reviews with images are not supported. Provider charges and retention policies may apply. No automatic fallback is used. Temporary files expire after 15 minutes; questions, filenames and answers remain in chat history. Image analysis can be mistaken. Continue?'))return false;return files.map(f=>f.id)}
   if(!window.confirm('Send document text to your selected AI provider and any approved fallback? Targeted questions use relevant passages. Whole-document summaries/reviews may use up to 20 section calls plus the final answer, consuming additional tokens and potentially provider charges. Only extracted text is sent here. Originals explicitly saved in Workspace files remain in cloud storage until deleted. Temporary extracted text expires after 15 minutes. Your question, filenames and the AI answer are saved in chat history. Continue?'))return false;
   return files.map(file=>file.id);
  }

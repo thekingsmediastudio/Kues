@@ -1244,3 +1244,15 @@ test('direct-search stream failure releases the reservation instead of settling 
   await response.text();assert.equal(usageCalls.reserve.length,1);assert.equal(usageCalls.release.length,1);assert.equal(usageCalls.settle.length,0);
  });
 });
+
+test('mixed file requests require both consents and explicit image provider, retain safe coverage in JSON and streaming',async()=>{
+ for(const streaming of [false,true]){
+ const image={name:'shape.png',format:'image',coverage:{mode:'image'}};const doc={name:'doc.txt',format:'txt',text:'amber lantern',coverage:{mode:'direct',selectedSections:1,totalSections:1}};const fileContext={mode:'mixed',files:[doc,image],images:[{name:'shape.png',mimeType:'image/jpeg',dataUrl:'data:image/jpeg;base64,/9j/'}]};
+ const check=input=>{assert.equal(input.workspaceTools,false);assert.equal(input.fileContext.mode,'mixed');assert.equal(input.fileContext.files[0].text,'amber lantern');return{text:'amber lantern and a red circle',provider:'mock',model:'mock',inputTokens:10,outputTokens:10}};
+ const {dependencies,aiCalls,streamCalls,historyCalls}=testDependencies({complete:async input=>check(input),stream:async input=>{const result=check(input);await input.onDelta(result.text);return result}});
+ const original=dependencies.workspaceService.getBootstrap;dependencies.workspaceService.getBootstrap=async args=>{const b=await original(args);b.agents[0].settings.toolPermissions={read_files:true};return b};dependencies.fileToolsService={ready:true,context(){return fileContext}};
+ await withServer(dependencies,async base=>{const send=(fileConsent,imageConsent,selection)=>fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{}),...(fileConsent?{'X-File-Consent':'file-analysis-v2'}:{}),...(imageConsent?{'X-Image-Consent':'image-analysis-v1'}:{})},body:JSON.stringify({...messagePayload,message:'What is in both files?',fileIds:['file_'+'1'.repeat(32),'file_'+'2'.repeat(32)],...(selection?{providerKey:'manual-target',modelId:'image-test'}:{})})});
+ let r=await send(false,true,true);assert.equal(r.status,400);assert.equal((await r.json()).error,'file_consent_required');r=await send(true,false,true);assert.equal(r.status,400);assert.equal((await r.json()).error,'file_image_consent_required');r=await send(true,true,false);assert.equal(r.status,400);assert.equal((await r.json()).error,'ai_image_provider_required');assert.equal(aiCalls.length+streamCalls.length,0);r=await send(true,true,true);assert.equal(r.status,200);const body=await r.text();assert.match(body,/Document coverage/);assert.match(body,/Image coverage/);assert.match(body,/amber lantern/);assert.doesNotMatch(body,/Images and scanned content were not interpreted/);assert.equal(aiCalls.length+streamCalls.length,1);assert(!JSON.stringify(historyCalls).includes('base64'));
+ });
+ }
+});

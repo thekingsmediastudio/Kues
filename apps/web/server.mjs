@@ -1611,7 +1611,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     bypassSearchModel = Boolean(directSearch && !directChange && !directPurchase && !guardPurchaseClaims);
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
-    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
+    const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length + JSON.stringify({...fileContext,images:undefined}).length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
     const estimatedTokens = Math.ceil((messageCharacters + profileCharacters + 1_000) / 2) + AI_CHAT_MAX_OUTPUT_TOKENS;
     idempotencyKey = `ai-chat:${crypto.randomUUID()}`;
     await usageService.reserveTokens({
