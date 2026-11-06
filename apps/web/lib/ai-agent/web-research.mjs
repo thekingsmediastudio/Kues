@@ -121,6 +121,10 @@ export function stripResearchBibliography(answer) {
 }
 // Guard only identifiable incomplete outputs; sources alone are not an answer.
 export function researchAnswerForDisplay(answer, query = '') {
+  // Marketplace prices and availability must not be inferred by a language model.
+  // Until structured offer validation is available, show only the source list.
+  const q = String(query || '').normalize('NFKC');
+  if (/\bjiji\.ng\b/i.test(q) || (/\b(?:laptop|laptops|product|products|seller|sellers|buy|shopping|listing|listings)\b/i.test(q) && /(?:₦|\b(?:NGN|naira)\b|\b(?:price|priced|budget|cost|under|below)\b)/i.test(q))) return 'Shopping results are shown as sources only. Prices, budget fit, seller details and availability have not been verified; check the individual listings before deciding.';
   const clean = stripResearchBibliography(answer);
   if (!clean) return 'The sources were retrieved, but no usable answer was produced.';
   const unclosedStrong = (clean.match(/\*\*/g) || []).length % 2 !== 0;

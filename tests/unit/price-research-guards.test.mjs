@@ -49,3 +49,13 @@ test('saved-offer comparison fails closed for missing, cross-agent, and unknown-
  assert.match(await compareSavedOffers({db,workspaceId:'w',userId:'u',agentId:'a',ids}),/could not be verified/);
  assert.match(await compareSavedOffers({db,workspaceId:'w',userId:'u',agentId:'a',ids:[ids[0],ids[0]]}),/distinct valid/);
 });
+
+
+test('shopping research never shows model-computed budget or invented listing claims',()=>{
+ const misleading='₦1,100,000 is inside the ₦1,000,000 budget. Seller: made up.';
+ for(const q of ['/research site:jiji.ng/ikeja HP Omen RTX 2070','/research Find laptops in Lagos under 1,000,000 NGN']){
+   const answer=researchAnswerForDisplay(misleading,q);
+   assert.match(answer,/sources only/);assert.doesNotMatch(answer,/1,100,000|made up/);
+ }
+ assert.equal(researchAnswerForDisplay('One million naira.','/research What is NGN?'),'One million naira.');
+});
