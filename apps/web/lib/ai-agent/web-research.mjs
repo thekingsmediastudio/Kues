@@ -252,6 +252,9 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
             fallbackNotice += ' The broader keyless search was unavailable or returned an invalid response.';
           }
         }
+        // For this bounded search, omit unrelated initial and fallback results.
+        // A missing mention is not proof that no matching listing exists.
+        if (fallbackQuery) data.results = data.results.slice(0,6).filter(result => isShoppingHintCandidate(result, query));
         await onStage('reading');
         const sources = [], seen = new Set();
         const requestedHost = raw => { try { const host=publicHttpsUrl(raw).hostname; return requestedPublishers.some(domain=>host===domain||host.endsWith('.'+domain)); } catch { return false; } };
@@ -266,7 +269,7 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
           if (!excerpt) continue;
           sources.push({ id: sources.length + 1, title: text(result.title, 160) || new URL(url).hostname, url, excerpt, pageRead, preferredPublisher: result.preferredPublisher });
         }
-        if (!sources.length) throw new ResearchError('research_no_sources', 502);
+        if (!sources.length && !(fallbackQuery && fallbackNotice)) throw new ResearchError('research_no_sources', 502);
         await onStage('writing');
         return { sources, retrievedAt: new Date(now()).toISOString(), ...(requestedPublishers.length ? {requestedPublishers} : {}), ...(preferPrimary ? { sourceSelectionNotice: sources.some(s => s.preferredPublisher) ? 'Publisher-domain hints were used to prioritize sources; primary-source status, relevance and accuracy still require checking.' : 'No recognized primary-source publisher was found in the selected results. These sources have not been verified as authoritative.' } : fallbackNotice ? {sourceSelectionNotice:fallbackNotice} : {}) };
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); active--; }
@@ -275,7 +278,7 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
 }
 export function researchSourcesMarkdown(research, query = '') {
   const escape = value => value.replace(/[\\`*_{}\[\]()#+.!|>~-]/g, '\\$&');
-  return '\n\n### Sources\n' + research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}) — ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n')
+  return '\n\n### Sources\n' + (research.sources.length ? research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}) — ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n') : 'No eligible sources could be included; other listings may exist.')
     + (research.sourceSelectionNotice ? `\n\n${research.sourceSelectionNotice}` : '')
     + (isShoppingResearch(query) ? '\n\nRelevance and requested specifications are not verified. Search results may not match the requested model or GPU; check each listing.' : '')
     + '\n\nReading coverage: bounded page/search excerpts only, not a full-page review.'

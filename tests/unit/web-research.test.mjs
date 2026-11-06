@@ -115,7 +115,7 @@ test('no fallback on first match, paid key mode, or non-targeted shopping; fallb
     return{status:403,contentType:'text/plain',body:''};
   }});
   const r=await svc.run({agent,query:scenario==='other'?'find laptops under ₦1,000,000':q,userId:'u'});
-  assert.equal(searches,scenario==='limit'?2:1);assert.equal(r.sources.length,1);if(scenario==='limit'){assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/i);assert.match(r.sourceSelectionNotice,/rate-limited/i);}
+  assert.equal(searches,scenario==='limit'?2:1);assert.equal(r.sources.length,scenario==='limit'?0:1);if(scenario==='limit'){assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/i);assert.match(r.sourceSelectionNotice,/rate-limited/i);}
  }
 });
 
@@ -146,4 +146,15 @@ test('generalized fallback preserves exact location and never claims unchecked r
    assert.equal(JSON.parse(options.body).query,'Dell Alienware RTX 3060 16GB price lekki Lagos Nigeria site:jiji.ng');return{status:200,body:JSON.stringify({results:[{title:'Dell Alienware',url:'https://jiji.ng/lekki/computers-and-laptops/alien.html',content:'RTX 3060. Price: ₦900,000'},{title:'Dell Alienware',url:'https://jiji.ng/ikeja/computers-and-laptops/alien.html',content:'RTX 3060'}]})};}
   return{status:403,contentType:'text/plain',body:''};
  }});const r=await service.run({agent,query:q,userId:'u'});assert.equal(search,2);assert.equal(r.sources.length,1);const output=researchSourcesMarkdown(r,q);assert.match(output,/₦900,000 — within stated item-price limit/);assert.match(output,/Requested GPU RTX 3060: mentioned in search excerpt/);assert.match(output,/Other specifications are not checked/);assert.match(output,/no matching offer is confirmed/i);
+});
+
+
+test('no hinted laptop results omits unrelated cars and doors and does not claim none exist',async()=>{
+ const query='site:jiji.ng/yaba Lenovo ThinkPad 16GB laptop Lagos Nigeria maximum budget ₦600,000';let count=0;const service=createWebResearch({enabled:true,keyless:true,transport:async(url)=>{if(url.hostname==='api.tavily.com'){count++;return{status:200,body:JSON.stringify({results:[{title:'Honda Accord',url:'https://jiji.ng/yaba/cars/accord.html',content:'Price: ₦1,850,000'},{title:'Door',url:'https://jiji.ng/yaba/doors/door.html',content:'Price: ₦3,100,000'}]})}}throw Error('unrelated pages must not be read') }});
+ const r=await service.run({agent,query,userId:'u'});assert.equal(count,2);assert.equal(r.sources.length,0);const md=researchSourcesMarkdown(r,query);assert.match(md,/No eligible sources could be included; other listings may exist/);assert.match(md,/no matching offer is confirmed/i);assert.doesNotMatch(md,/Honda|3,100,000|Accord/);
+});
+
+
+test('initial search containing one hinted candidate omits unrelated sources without a second search',async()=>{
+ const query='site:jiji.ng/yaba Lenovo ThinkPad laptop under ₦600,000';let searches=0;const svc=createWebResearch({enabled:true,keyless:true,transport:async(url)=>{if(url.hostname==='api.tavily.com'){searches++;return{status:200,body:JSON.stringify({results:[{title:'Lenovo ThinkPad 16GB',url:'https://jiji.ng/yaba/computers-and-laptops/thinkpad.html',content:'Laptop'},{title:'Honda',url:'https://jiji.ng/yaba/cars/car.html',content:'Price: ₦200,000'}]})}}return{status:403,contentType:'text/plain',body:''}}});const r=await svc.run({agent,query,userId:'u'});assert.equal(searches,1);assert.equal(r.sources.length,1);assert.match(r.sources[0].title,/ThinkPad/);assert.doesNotMatch(researchSourcesMarkdown(r,query),/Honda/);
 });
