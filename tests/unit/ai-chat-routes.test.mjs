@@ -1282,3 +1282,18 @@ test('opt-in user and admin can search simultaneously in separate workspace scop
  dependencies.channel3Client={isConfigured:()=>true,searchProducts:async input=>{searches++;return{query:input.query,products:[{title:'Notebook',amountMinor:325,currency:'USD',currencyVerified:true,priceFormatted:'$3.25 USD',merchantName:'Seller',merchantDomain:'example.com',url:'https://example.com/item',availability:'in_stock',evidenceHash:'sha256:abc'}],count:1,isLive:true,source:'channel3'}}};
  await withServer(dependencies,async base=>{const send=cookie=>fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({...messagePayload,message:'Find up to 3 real ruled notebooks priced under 5 USD each. Comparison only, do not buy.'})});const responses=await Promise.all([send('kues_session=admin-session'),send('kues_session=member-session')]);for(const r of responses){assert.equal(r.status,200);const d=await r.json();assert.match(d.reply,/Provider reports in stock; verify location, variant and delivery/);assert(!d.pendingAction)}assert.equal(searches,2);assert.equal(aiCalls.length,0)});
 });
+
+
+test('explicit provider selection is fail-closed for admin JSON and streaming chat', async () => {
+  const {dependencies,aiCalls,streamCalls} = testDependencies();
+  await withServer(dependencies, async base => {
+    for (const streaming of [false,true]) {
+      const response = await fetch(`${base}/api/chat`, {method:'POST',headers:{Cookie:'kues_session=admin-session',Origin:base,'Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,providerKey:'manual-target',modelId:'manual-model-id'})});
+      assert.equal(response.status,200); await response.text();
+    }
+    assert.equal(aiCalls[0].providerKey,'manual-target'); assert.equal(aiCalls[0].allowFallback,false);
+    assert.equal(streamCalls[0].providerKey,'manual-target'); assert.equal(streamCalls[0].allowFallback,false);
+    const response = await fetch(`${base}/api/chat`, {method:'POST',headers:{Cookie:'kues_session=admin-session',Origin:base,'Content-Type':'application/json'},body:JSON.stringify(messagePayload)});
+    assert.equal(response.status,200); assert.equal(aiCalls[1].allowFallback,true);
+  });
+});

@@ -1568,7 +1568,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       signal?.addEventListener('abort',abort,{once:true});res.once('close',abort);
       try{fileContext=await reviewDocumentContext({context:fileContext,agent,providerKey:requestProviderKey,modelId:requestModelId,signal:controller.signal,onStage,
         authorize:refreshFileContext,
-        call:options=>aiChatService.stream({...options, allowFallback:enabledForAdmin, requireAnonymousProvider:!enabledForAdmin}),
+        call:options=>aiChatService.stream({...options, allowFallback:enabledForAdmin && !requestProviderKey, requireAnonymousProvider:!enabledForAdmin}),
         reserve:(key,estimatedTokens)=>usageService.reserveTokens({workspaceId:workspace.id,userId:user.id,idempotencyKey:key,estimatedTokens}),
         settle:(key,result)=>usageService.settleTokenReservation({workspaceId:workspace.id,idempotencyKey:key,provider:result.provider,model:result.model,inputTokens:result.inputTokens,outputTokens:result.outputTokens}),
         release:key=>usageService.releaseTokenReservation({workspaceId:workspace.id,idempotencyKey:key})
@@ -1659,7 +1659,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           checkoutContext,
           agent,
           messages,
-          allowFallback: enabledForAdmin,
+          allowFallback: enabledForAdmin && !requestProviderKey,
           requireAnonymousProvider: !enabledForAdmin,
           workspaceTools: !wantsResearch && !fileContext,
           ...(researchContext ? { researchContext } : {}),
@@ -1824,7 +1824,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
         checkoutContext,
         agent,
         messages,
-        allowFallback: enabledForAdmin,
+        allowFallback: enabledForAdmin && !requestProviderKey,
         requireAnonymousProvider: !enabledForAdmin,
         workspaceTools: !wantsResearch && !fileContext,
         ...(researchContext ? { researchContext } : {}),
