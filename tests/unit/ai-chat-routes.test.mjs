@@ -1300,7 +1300,7 @@ test('explicit provider selection is fail-closed for admin JSON and streaming ch
 
 test('shopping research displays deterministic source-based naira checks, not model price assertions in JSON or SSE',async()=>{
  const bad='Seller made up says ₦1,100,000 is inside the budget';
- const {dependencies,historyCalls}=testDependencies({complete:async()=>({text:bad,provider:'test',model:'test',inputTokens:5,outputTokens:3}),stream:async({onDelta})=>{await onDelta(bad);return {text:bad,provider:'test',model:'test',inputTokens:5,outputTokens:3}}});
+ const {dependencies,historyCalls,aiCalls,streamCalls,usageCalls}=testDependencies({complete:async()=>({text:bad,provider:'test',model:'test',inputTokens:5,outputTokens:3}),stream:async({onDelta})=>{await onDelta(bad);return {text:bad,provider:'test',model:'test',inputTokens:5,outputTokens:3}}});
  dependencies.config={...dependencies.config,webResearchEnabled:true};
  const original=dependencies.workspaceService.getBootstrap;dependencies.workspaceService.getBootstrap=async args=>{const b=await original(args);b.agents[0].settings.toolPermissions={web_search:true,read_webpage:true};return b};
  dependencies.webResearchService={configured:true,async run(){return {sources:[{id:1,title:'Laptop price: ₦1,100,000',url:'https://jiji.ng/ikeja/computers-and-laptops/laptop-hp-omen-15-abcdef012345.html',excerpt:'Price: ₦1,100,000',pageRead:false}],retrievedAt:'2026-11-06T00:00:00Z'}}};
@@ -1309,4 +1309,5 @@ test('shopping research displays deterministic source-based naira checks, not mo
   assert.equal(response.status,200);const text=await response.text();assert.match(text,/over stated item-price limit/);assert.doesNotMatch(text,/Seller made up/);assert.match(text,/delivery and other fees are not verified/);
  }});
  assert.equal(historyCalls.append.length,2);for(const item of historyCalls.append)assert.doesNotMatch(item.assistantMessage,/Seller made up/);
+ assert.equal(aiCalls.length,0);assert.equal(streamCalls.length,0);assert.equal(usageCalls.release.length,2);assert.equal(usageCalls.settle.length,0);
 });

@@ -12,6 +12,7 @@ import { workspaceLibraryFromEnv } from './lib/ai-agent/workspace-storage.mjs';
 import { createWorkspaceFileRoutes } from './lib/ai-agent/workspace-file-routes.mjs';
 import { createFileTools, createFileRoutes, FileToolError, FILE_CONSENT, IMAGE_CONSENT } from './lib/ai-agent/file-tools.mjs';
 import { createWebResearch, researchSourcesMarkdown, researchAnswerForDisplay, RESEARCH_CONSENT, ResearchError } from './lib/ai-agent/web-research.mjs';
+import { isShoppingResearch } from './lib/ai-agent/shopping-price-check.mjs';
 import http from 'node:http';
 import { createAudioRoutes, createGroqTranscription } from './lib/audio/groq-transcription.mjs';
 import crypto from 'node:crypto';
@@ -1582,6 +1583,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
       try {
         researchContext = await researchService.run({ agent, query: researchQuery, userId: user.id, signal: controller.signal, onStage });
         await requireResearchPermissions();
+        // Shopping output is source-only; do not invoke a model whose text is discarded.
+        if (isShoppingResearch(researchQuery)) bypassSearchModel = true;
       } finally { signal?.removeEventListener('abort', abort); res.off('close', abort); }
     };
     const storedMessages = await aiChatHistoryService.getRecentMessages({

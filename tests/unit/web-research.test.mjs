@@ -81,3 +81,12 @@ test('keyless config is off by default, explicit opt-in and rejects malformed fl
  assert.equal(loadServerConfig({...base,WEB_RESEARCH_TAVILY_KEYLESS:'1'}).webResearchTavilyKeyless,true);
  assert.throws(()=>loadServerConfig({...base,WEB_RESEARCH_TAVILY_KEYLESS:'maybe'}),/WEB_RESEARCH_TAVILY_KEYLESS/);
 });
+
+test('shopping candidate ranking uses only explicit model and GPU hints and warns matches are unverified',async()=>{
+ const {selectResearchCandidates}=await import('../../apps/web/lib/ai-agent/web-research.mjs');
+ const results=[{url:'https://jiji.ng/ikeja/computers-and-laptops/a.html',title:'HP Victus',content:'budget laptop'}, {url:'https://jiji.ng/ikeja/computers-and-laptops/b.html',title:'HP Omen',content:'RTX 2070 laptop'}, {url:'https://jiji.ng/ikeja/computers-and-laptops/c.html',title:'HP Omen',content:'GTX 1060 laptop'}, {url:'https://jiji.ng/ikeja/computers-and-laptops/d.html',title:'Other',content:'RTX 2070'}];
+ const q='Find HP Omen RTX 2070 laptops in Lagos under ₦1,000,000';const selected=selectResearchCandidates(results,false,q);
+ assert.equal(selected[0].url,results[1].url);assert(!selected.some(s=>s.url===results[0].url));
+ assert.equal(selectResearchCandidates(results,false,'What are laptops?')[0].url,results[0].url);
+ assert.match(researchSourcesMarkdown({sources:[{id:1,title:'Example',url:results[0].url,pageRead:false}],retrievedAt:'2026-11-06'},q),/requested specifications are not verified/);
+});

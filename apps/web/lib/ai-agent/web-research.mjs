@@ -69,7 +69,19 @@ export async function readPublicPage(rawUrl, { transport = createResearchTranspo
 export function prefersPrimarySources(query) {
   return /\b(authoritative|official|primary(?: sources?)?|first[- ]hand)\b/i.test(query);
 }
-export function selectResearchCandidates(results, preferPrimary = false) {
+// Shopping ranking is a hint from search metadata, not validation of specs.
+// Only explicitly named Omen and NVIDIA RTX/GTX model codes are considered.
+export function shoppingSearchHints(query) {
+  if (!isShoppingResearch(query)) return [];
+  const hints = [];
+  if (/\bhp\s+omen\b/i.test(query)) hints.push(/\bhp\s+omen\b/i);
+  for (const match of String(query).matchAll(/\b(RTX|GTX)\s*[- ]?(\d{3,4})(?:\s*(Ti|Super))?\b/gi)) {
+    const suffix = match[3] ? `\\s*${match[3]}` : '';
+    hints.push(new RegExp(`\\b${match[1]}\\s*[- ]?${match[2]}${suffix}\\b`, 'i'));
+  }
+  return hints.slice(0, 4);
+}
+export function selectResearchCandidates(results, preferPrimary = false, query = '') {
   const recognized = ['iana.org', 'ietf.org', 'rfc-editor.org', 'w3.org', 'who.int', 'un.org'];
   const seen = new Set(), candidates = [];
   for (const result of results.slice(0, 6)) {
@@ -83,6 +95,13 @@ export function selectResearchCandidates(results, preferPrimary = false) {
     candidates.push({...result, url:url.href, preferredPublisher});
   }
   if (preferPrimary) candidates.sort((a,b) => Number(b.preferredPublisher) - Number(a.preferredPublisher));
+  else {
+    const hints = shoppingSearchHints(query);
+    if (hints.length) {
+      const score = candidate => hints.reduce((n, hint) => n + Number(hint.test(`${candidate.title || ''} ${candidate.content || ''}`)), 0);
+      candidates.sort((a,b) => score(b) - score(a));
+    }
+  }
   return candidates.slice(0, 3);
 }
 export function requestedResearchPublishers(query) {
@@ -173,7 +192,7 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
         const sources = [], seen = new Set();
         const requestedHost = raw => { try { const host=publicHttpsUrl(raw).hostname; return requestedPublishers.some(domain=>host===domain||host.endsWith('.'+domain)); } catch { return false; } };
         const searchCandidates=requestedPublishers.length ? data.results.filter(result=>result && requestedHost(result.url)) : data.results;
-        for (const result of selectResearchCandidates([...references, ...searchCandidates], preferPrimary)) {
+        for (const result of selectResearchCandidates([...references, ...searchCandidates], preferPrimary, query)) {
           if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout', 504);
           let url; try { url = publicHttpsUrl(result.url).href; } catch { continue; }
           if (seen.has(url)) continue; seen.add(url);
@@ -194,6 +213,7 @@ export function researchSourcesMarkdown(research, query = '') {
   const escape = value => value.replace(/[\\`*_{}\[\]()#+.!|>~-]/g, '\\$&');
   return '\n\n### Sources\n' + research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}) — ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n')
     + (research.sourceSelectionNotice ? `\n\n${research.sourceSelectionNotice}` : '')
+    + (isShoppingResearch(query) ? '\n\nRelevance and requested specifications are not verified. Search results may not match the requested model or GPU; check each listing.' : '')
     + '\n\nReading coverage: bounded page/search excerpts only, not a full-page review.'
     + `\n\nRetrieved ${research.retrievedAt.slice(0, 10)}. Sources can be incomplete or out of date; review important claims.`
     + shoppingPriceEvidence(research, query);
