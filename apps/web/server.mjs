@@ -3238,7 +3238,7 @@ export function createServer({
     }); } catch { console.error('Execution configuration invalid; code jobs disabled.'); }
   }
   const executionRoutes=createExecutionRoutes({service:jobsService,getScope:getFileScope,sameOrigin:fileOrigin});
-  const researchService = config.webResearchEnabled ? (webResearchService || createWebResearch({ enabled: true, apiKey: process.env.TAVILY_API_KEY || '' })) : createWebResearch();
+  const researchService = config.webResearchEnabled ? (webResearchService || createWebResearch({ enabled: true, apiKey: process.env.TAVILY_API_KEY || '', keyless: config.webResearchTavilyKeyless === true })) : createWebResearch();
   const audioRoutes = createAudioRoutes({
     getUser: async req => {
       const token = cookieValue(req, sessionCookieName(runtime.config));

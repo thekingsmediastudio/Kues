@@ -65,3 +65,19 @@ test('canonical bibliography strips generated duplicate sections while preservin
  for(const heading of ['### Sources','Sources:','**Sources**','## References','__Bibliography__']){const result=stripResearchBibliography('Answer [1].\n\n'+heading+'\n- [1] [fake](https://fake.example.com/)\n\n## Limitations\nCheck relevance.');assert.equal(result,'Answer [1].\n\n## Limitations\nCheck relevance.')}
  assert.equal(stripResearchBibliography('Sources of error are discussed below.'),'Sources of error are discussed below.');
 });
+
+test('keyless research never sends an API key, remains consent/permission gated and never retries quota failures',async()=>{
+ let calls=0; const service=createWebResearch({enabled:true,keyless:true,apiKey:'DO-NOT-SEND',transport:async(url,options)=>{calls++;assert.equal(options.headers.Authorization,undefined);assert.equal(options.headers['X-Tavily-Access-Mode'],'keyless');return {status:429,body:''}}});
+ assert.equal(service.configured,true);
+ await assert.rejects(service.run({agent:{settings:{toolPermissions:{web_search:true}}},query:'laptop',userId:'user'}),e=>e.code==='research_permission_required');assert.equal(calls,0);
+ await assert.rejects(service.run({agent,query:'laptop in Lagos under ₦1,000,000',userId:'user'}),e=>e.code==='research_provider_limit');assert.equal(calls,1);
+ assert.equal(createWebResearch({enabled:false,keyless:true}).configured,false);
+});
+
+test('keyless config is off by default, explicit opt-in and rejects malformed flag', async () => {
+ const {loadServerConfig}=await import('../../apps/web/lib/config.mjs');
+ const base={AUTH_PROVIDER:'workos',WORKOS_API_KEY:'sk_test_key',WORKOS_CLIENT_ID:'client_1234',WORKOS_REDIRECT_URI:'http://localhost:3100/auth/callback',TURSO_DATABASE_URL:'file:./local.db'};
+ assert.equal(loadServerConfig(base).webResearchTavilyKeyless,false);
+ assert.equal(loadServerConfig({...base,WEB_RESEARCH_TAVILY_KEYLESS:'1'}).webResearchTavilyKeyless,true);
+ assert.throws(()=>loadServerConfig({...base,WEB_RESEARCH_TAVILY_KEYLESS:'maybe'}),/WEB_RESEARCH_TAVILY_KEYLESS/);
+});

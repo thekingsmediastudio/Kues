@@ -76,6 +76,9 @@ export function loadServerConfig(env = process.env) {
   const webResearchFlag = String(env.WEB_RESEARCH_ENABLED || '').trim();
   if (webResearchFlag && !['0', '1'].includes(webResearchFlag)) issues.push('WEB_RESEARCH_ENABLED must be 0 or 1');
   const webResearchEnabled = webResearchFlag === '1';
+  const keylessResearchFlag = String(env.WEB_RESEARCH_TAVILY_KEYLESS || '').trim();
+  if (keylessResearchFlag && !['0', '1'].includes(keylessResearchFlag)) issues.push('WEB_RESEARCH_TAVILY_KEYLESS must be 0 or 1');
+  const webResearchTavilyKeyless = keylessResearchFlag === '1';
   const groqTranscriptionFlag = String(env.GROQ_TRANSCRIPTION_ENABLED || '').trim();
   if (groqTranscriptionFlag && !['0', '1'].includes(groqTranscriptionFlag)) issues.push('GROQ_TRANSCRIPTION_ENABLED must be 0 or 1');
   const groqTranscriptionEnabled = groqTranscriptionFlag === '1';
@@ -269,6 +272,7 @@ export function loadServerConfig(env = process.env) {
     aiProviderChatTestEnabled,
     aiProviderChatUsersEnabled,
     webResearchEnabled,
+    webResearchTavilyKeyless,
     groqTranscriptionEnabled,
     groqTranscriptionModel,
   });

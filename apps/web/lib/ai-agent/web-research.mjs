@@ -131,9 +131,10 @@ export function researchAnswerForDisplay(answer, query = '') {
   return clean;
 }
 
-export function createWebResearch({ enabled = false, apiKey = '', transport = createResearchTransport(), now = Date.now } = {}) {
+export function createWebResearch({ enabled = false, apiKey = '', keyless = false, transport = createResearchTransport(), now = Date.now } = {}) {
   const windows = new Map(); let active = 0;
-  const configured = enabled === true && Boolean(apiKey.trim());
+  const useKeyless = keyless === true;
+  const configured = enabled === true && (useKeyless || Boolean(apiKey.trim()));
   const readiness = { web_search: { ready: configured }, read_webpage: { ready: configured } };
   return { configured, readiness,
     async run({ agent, query, userId, signal, onStage = async () => {} }) {
@@ -156,7 +157,7 @@ export function createWebResearch({ enabled = false, apiKey = '', transport = cr
         const references = researchReferenceCandidates(query);
         await onStage('searching');
         const response = await transport(new URL('https://api.tavily.com/search'), {
-          method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+          method: 'POST', headers: { ...(useKeyless ? { 'X-Tavily-Access-Mode': 'keyless' } : { Authorization: `Bearer ${apiKey}` }), 'Content-Type': 'application/json', Accept: 'application/json' },
           body: Buffer.from(JSON.stringify({ query: query.trim() + (preferPrimary ? ' Official documentation or primary sources preferred.' : ''), ...(requestedPublishers.length ? {include_domains:requestedPublishers} : {}), search_depth: 'basic', max_results: 6, topic: 'general', auto_parameters: false, include_answer: false, include_raw_content: false, include_images: false })), signal: controller.signal,
         });
         if ([429, 432, 433, 434].includes(response.status)) throw new ResearchError('research_provider_limit', 429);
