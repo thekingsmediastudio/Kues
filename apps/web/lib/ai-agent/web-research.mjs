@@ -81,6 +81,22 @@ export function shoppingSearchHints(query) {
   }
   return hints.slice(0, 4);
 }
+// A bounded second keyless search for the observed Lagos Jiji/Omen failure.
+// It broadens search syntax only; the original request still governs budget checks.
+export function targetedOmenFallbackQuery(query) {
+  if (!isShoppingResearch(query) || !/\bsite:jiji\.ng\/ikeja(?:\s|$)/i.test(query) || !/\bhp\s+omen\b/i.test(query)) return null;
+  const gpus = [...String(query).matchAll(/\b(?:RTX|GTX)\s*[- ]?\d{3,4}(?:\s*(?:Ti|Super))?\b/gi)];
+  if (gpus.length !== 1 || /\b(?:not|exclude|excluding|without|except)\s+(?:an?\s+)?(?:hp\s+omen|(?:rtx|gtx))/i.test(query)) return null;
+  const memory = [...String(query).matchAll(/\b\d{1,3}\s*GB\b/gi)];
+  const ram = memory.length === 1 ? ` ${memory[0][0].replace(/\s+/g,'')}` : '';
+  return `HP Omen ${gpus[0][0]}${ram} price Lagos Nigeria site:jiji.ng`;
+}
+function isOmenHintCandidate(result, query) {
+  let u; try { u = publicHttpsUrl(result?.url); } catch { return false; }
+  if (u.hostname !== 'jiji.ng' || !/^\/ikeja\/computers-and-laptops\/[a-z0-9-]+\.html$/i.test(u.pathname)) return false;
+  const hints = shoppingSearchHints(query);
+  return hints.length === 2 && hints[0].test(String(result.title || '')) && hints[1].test(`${result.title || ''} ${result.content || ''}`);
+}
 export function selectResearchCandidates(results, preferPrimary = false, query = '') {
   const recognized = ['iana.org', 'ietf.org', 'rfc-editor.org', 'w3.org', 'who.int', 'un.org'];
   const seen = new Set(), candidates = [];
@@ -188,6 +204,31 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
         if (response.status !== 200) throw new ResearchError('research_search_unavailable', 503);
         let data; try { data = JSON.parse(response.body); } catch { throw new ResearchError('research_invalid_response', 502); }
         if (!Array.isArray(data.results)) throw new ResearchError('research_invalid_response', 502);
+        let fallbackNotice = '';
+        const fallbackQuery = useKeyless && !preferPrimary ? targetedOmenFallbackQuery(query) : null;
+        if (fallbackQuery && !data.results.slice(0, 6).some(result => isOmenHintCandidate(result, query))) {
+          fallbackNotice = 'No requested model and GPU were both identifiable in the initial search snippets; no matching offer is confirmed.';
+          try {
+            const fallback = await transport(new URL('https://api.tavily.com/search'), {
+              method: 'POST', headers: { 'X-Tavily-Access-Mode': 'keyless', 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: Buffer.from(JSON.stringify({query:fallbackQuery, include_domains:['jiji.ng'], search_depth:'basic', max_results:6, topic:'general', auto_parameters:false, include_answer:false, include_raw_content:false, include_images:false})), signal:controller.signal,
+            });
+            if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout',504);
+            if (fallback.status === 200) {
+              const extra = JSON.parse(fallback.body);
+              const hinted = Array.isArray(extra.results) ? extra.results.slice(0,6).filter(result => isOmenHintCandidate(result, query)) : [];
+              if (hinted.length) {
+                data.results = hinted;
+                fallbackNotice = 'A broader Jiji search supplied these possible leads. Model, GPU, location, other requirements and availability are not verified; no matching offer is confirmed.';
+              }
+            } else {
+              fallbackNotice += ' The broader keyless search was unavailable or rate-limited.';
+            }
+          } catch (error) {
+            if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout',504);
+            fallbackNotice += ' The broader keyless search was unavailable or returned an invalid response.';
+          }
+        }
         await onStage('reading');
         const sources = [], seen = new Set();
         const requestedHost = raw => { try { const host=publicHttpsUrl(raw).hostname; return requestedPublishers.some(domain=>host===domain||host.endsWith('.'+domain)); } catch { return false; } };
@@ -204,7 +245,7 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
         }
         if (!sources.length) throw new ResearchError('research_no_sources', 502);
         await onStage('writing');
-        return { sources, retrievedAt: new Date(now()).toISOString(), ...(requestedPublishers.length ? {requestedPublishers} : {}), ...(preferPrimary ? { sourceSelectionNotice: sources.some(s => s.preferredPublisher) ? 'Publisher-domain hints were used to prioritize sources; primary-source status, relevance and accuracy still require checking.' : 'No recognized primary-source publisher was found in the selected results. These sources have not been verified as authoritative.' } : {}) };
+        return { sources, retrievedAt: new Date(now()).toISOString(), ...(requestedPublishers.length ? {requestedPublishers} : {}), ...(preferPrimary ? { sourceSelectionNotice: sources.some(s => s.preferredPublisher) ? 'Publisher-domain hints were used to prioritize sources; primary-source status, relevance and accuracy still require checking.' : 'No recognized primary-source publisher was found in the selected results. These sources have not been verified as authoritative.' } : fallbackNotice ? {sourceSelectionNotice:fallbackNotice} : {}) };
       } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); active--; }
     },
   };

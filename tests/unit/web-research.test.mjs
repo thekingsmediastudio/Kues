@@ -90,3 +90,31 @@ test('shopping candidate ranking uses only explicit model and GPU hints and warn
  assert.equal(selectResearchCandidates(results,false,'What are laptops?')[0].url,results[0].url);
  assert.match(researchSourcesMarkdown({sources:[{id:1,title:'Example',url:results[0].url,pageRead:false}],retrievedAt:'2026-11-06'},q),/requested specifications are not verified/);
 });
+
+test('keyless Jiji Omen fallback searches targeted hints only and preserves budget and location boundaries',async()=>{
+ const {targetedOmenFallbackQuery}=await import('../../apps/web/lib/ai-agent/web-research.mjs');
+ const query='site:jiji.ng/ikeja HP Omen RTX 2070 32GB laptops price Lagos Nigeria maximum budget ₦1,000,000';
+ assert.equal(targetedOmenFallbackQuery(query),'HP Omen RTX 2070 32GB price Lagos Nigeria site:jiji.ng');
+ for(const q of ['site:jiji.ng/ikeja not HP Omen RTX 2070 laptops','site:jiji.ng/ikeja HP Omen RTX 2070 or RTX 3060 laptops','site:jiji.ng/abuja HP Omen RTX 2070 laptop','site:jiji.ng/ikeja laptop HP Omen'])assert.equal(targetedOmenFallbackQuery(q),null,q);
+ let calls=[];const service=createWebResearch({enabled:true,keyless:true,apiKey:'NEVER-SEND',transport:async(url,options)=>{
+  if(url.hostname==='api.tavily.com'){calls.push(JSON.parse(options.body));assert.equal(options.headers.Authorization,undefined);assert.equal(options.headers['X-Tavily-Access-Mode'],'keyless');
+   return {status:200,body:JSON.stringify({results:calls.length===1?[{url:'https://jiji.ng/ikeja/computers-and-laptops/victus.html',title:'HP Victus',content:'Not the requested model'}]:[
+    {url:'https://jiji.ng/abuja/computers-and-laptops/omen.html',title:'HP Omen',content:'RTX 2070'},
+    {url:'https://jiji.ng/ikeja/computers-and-laptops/omen.html',title:'HP Omen 32GB',content:'RTX 2070. Price: ₦990,000'},
+    {url:'https://evil.example/ikeja/computers-and-laptops/omen.html',title:'HP Omen',content:'RTX 2070'}]})};
+  }return {status:403,contentType:'text/plain',body:''};
+ }});
+ const r=await service.run({agent,query,userId:'u'});assert.equal(calls.length,2);assert.equal(calls[1].query,'HP Omen RTX 2070 32GB price Lagos Nigeria site:jiji.ng');assert.deepEqual(calls[1].include_domains,['jiji.ng']);assert.equal(r.sources.length,1);assert.match(r.sources[0].url,/jiji.ng\/ikeja/);assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/);assert.match(researchSourcesMarkdown(r,query),/₦990,000 — within stated item-price limit/);
+});
+
+test('no fallback on first match, paid key mode, or non-targeted shopping; fallback errors preserve original sources',async()=>{
+ const q='site:jiji.ng/ikeja HP Omen RTX 2070 32GB laptops price Lagos maximum budget ₦1,000,000';
+ for(const scenario of ['first-match','paid','other','limit']){
+  let searches=0;const svc=createWebResearch({enabled:true,keyless:scenario!=='paid',apiKey:'test',transport:async(url)=>{
+    if(url.hostname==='api.tavily.com'){searches++;if(searches===2)return{status:429,body:''};return{status:200,body:JSON.stringify({results:[scenario==='first-match'?{url:'https://jiji.ng/ikeja/computers-and-laptops/omen.html',title:'HP Omen',content:'RTX 2070'}:{url:'https://jiji.ng/ikeja/computers-and-laptops/victus.html',title:'HP Victus',content:'laptop'}]})};}
+    return{status:403,contentType:'text/plain',body:''};
+  }});
+  const r=await svc.run({agent,query:scenario==='other'?'find laptops under ₦1,000,000':q,userId:'u'});
+  assert.equal(searches,scenario==='limit'?2:1);assert.equal(r.sources.length,1);if(scenario==='limit'){assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/i);assert.match(r.sourceSelectionNotice,/rate-limited/i);}
+ }
+});
