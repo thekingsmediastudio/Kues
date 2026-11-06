@@ -31,3 +31,8 @@ test('budget checks use source evidence not LLM claims; equality and inclusive v
  assert.doesNotMatch(researchAnswerForDisplay('₦1,100,000 is inside the budget',q),/₦1,100,000/);
  assert.match(text,/delivery and other fees are not verified/);
 });
+
+test('negated, ranged and mixed-currency price evidence is not compared',()=>{
+ for(const q of ['not maximum ₦1,000,000','budget ₦500,000 to ₦1,000,000','budget maximum ₦500,000–₦1,000,000','up to ₦1,000,000 or $600'])assert.equal(parseNairaCeiling(q),null,q);
+ assert.equal(reportedJijiPrice(source('Price: ₦990,000. Price: USD 600')),null);
+});

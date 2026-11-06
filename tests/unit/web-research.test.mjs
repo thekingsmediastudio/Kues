@@ -118,3 +118,32 @@ test('no fallback on first match, paid key mode, or non-targeted shopping; fallb
   assert.equal(searches,scenario==='limit'?2:1);assert.equal(r.sources.length,1);if(scenario==='limit'){assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/i);assert.match(r.sourceSelectionNotice,/rate-limited/i);}
  }
 });
+
+test('bounded generalization recognizes other explicit product families and Lagos areas without rewriting alternatives or exclusions',async()=>{
+ const {shoppingRequirements,targetedShoppingFallbackQuery}=await import('../../apps/web/lib/ai-agent/web-research.mjs');
+ assert.equal(targetedShoppingFallbackQuery('site:jiji.ng/lekki Dell Alienware RTX 3060 16GB laptop under ₦1,000,000'),'Dell Alienware RTX 3060 16GB price lekki Lagos Nigeria site:jiji.ng');
+ assert.equal(targetedShoppingFallbackQuery('site:jiji.ng/yaba Lenovo ThinkPad 16GB laptop under ₦600,000'),'Lenovo ThinkPad 16GB price yaba Lagos Nigeria site:jiji.ng');
+ for(const q of ['site:jiji.ng/ikeja Lenovo ThinkPad or HP Omen laptop under ₦1m','site:jiji.ng/ikeja HP Victus laptop without RTX 3060','site:jiji.ng/ikeja HP Omen laptop not Victus','site:other.example site:jiji.ng/lekki HP Omen laptop','site:jiji.ng/abuja HP Omen laptop'])assert.equal(targetedShoppingFallbackQuery(q),null,q);
+ assert.equal(shoppingRequirements('site:jiji.ng/ikeja HP Omen RTX 2070 laptop do not buy').gpu,'RTX 2070');
+});
+
+test('per-source model and GPU evidence describes mentions only, including missing and misleading content',async()=>{
+ const {shoppingSpecificationEvidence}=await import('../../apps/web/lib/ai-agent/web-research.mjs');
+ const q='Find HP Omen RTX 2070 laptop under ₦1,000,000';const research={sources:[
+ {title:'HP Omen 15',excerpt:'RTX 2070 in related laptop suggestions',pageRead:false},
+ {title:'HP Victus',excerpt:'RTX 3060',pageRead:true},
+ {title:'Unknown',excerpt:'HP Omen and RTX 2070',pageRead:true}]};
+ const text=shoppingSpecificationEvidence(research,q);
+ assert.match(text,/\[1\] Requested model family HP Omen: mentioned in title; Requested GPU RTX 2070: mentioned in search excerpt/);
+ assert.match(text,/\[2\] Requested model family HP Omen: not found in supplied title\/excerpt; Requested GPU RTX 2070: not found/);
+ assert.match(text,/\[3\].*mentioned in page excerpt/);assert.match(text,/Mentions are not proof/);
+ assert.equal(shoppingSpecificationEvidence(research,'find HP Omen or HP Victus laptops under ₦1,000,000'),'');
+});
+
+test('generalized fallback preserves exact location and never claims unchecked requirements',async()=>{
+ const q='site:jiji.ng/lekki Dell Alienware RTX 3060 16GB laptop under ₦1,000,000';let search=0;const service=createWebResearch({enabled:true,keyless:true,transport:async(url,options)=>{
+  if(url.hostname==='api.tavily.com'){search++;if(search===1)return{status:200,body:JSON.stringify({results:[{title:'HP Omen',url:'https://jiji.ng/lekki/computers-and-laptops/omen.html',content:'Other'}]})};
+   assert.equal(JSON.parse(options.body).query,'Dell Alienware RTX 3060 16GB price lekki Lagos Nigeria site:jiji.ng');return{status:200,body:JSON.stringify({results:[{title:'Dell Alienware',url:'https://jiji.ng/lekki/computers-and-laptops/alien.html',content:'RTX 3060. Price: ₦900,000'},{title:'Dell Alienware',url:'https://jiji.ng/ikeja/computers-and-laptops/alien.html',content:'RTX 3060'}]})};}
+  return{status:403,contentType:'text/plain',body:''};
+ }});const r=await service.run({agent,query:q,userId:'u'});assert.equal(search,2);assert.equal(r.sources.length,1);const output=researchSourcesMarkdown(r,q);assert.match(output,/₦900,000 — within stated item-price limit/);assert.match(output,/Requested GPU RTX 3060: mentioned in search excerpt/);assert.match(output,/Other specifications are not checked/);assert.match(output,/no matching offer is confirmed/i);
+});

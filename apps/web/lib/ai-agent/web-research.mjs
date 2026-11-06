@@ -69,33 +69,56 @@ export async function readPublicPage(rawUrl, { transport = createResearchTranspo
 export function prefersPrimarySources(query) {
   return /\b(authoritative|official|primary(?: sources?)?|first[- ]hand)\b/i.test(query);
 }
-// Shopping ranking is a hint from search metadata, not validation of specs.
-// Only explicitly named Omen and NVIDIA RTX/GTX model codes are considered.
+// Bounded structured extraction: support only explicitly named families, optional
+// GPU codes and Jiji locations. Unsupported/negative/alternative requests are not
+// rewritten. Mention checks are not verification of the listed product's specs.
+const LAPTOP_FAMILIES = ['HP Omen','HP Victus','HP EliteBook','Dell Latitude','Dell Alienware','Lenovo ThinkPad','Acer Predator','Asus ROG'];
+function safePattern(value) { return new RegExp('\\b' + value.trim().split(/\s+/).map(t => t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('\\s+') + '\\b','i'); }
+export function shoppingRequirements(query) {
+  if (!isShoppingResearch(query)) return null;
+  const q=String(query).normalize('NFKC');
+  if (/\b(?:except|excluding|exclude|without|avoid|rather than|instead of|or)\b/i.test(q) || /\bnot\b(?!\s+(?:buy|purchase|add|place|to\s+buy))/i.test(q)) return null;
+  const families=LAPTOP_FAMILIES.filter(name => safePattern(name).test(q));
+  const gpus=[...q.matchAll(/\b(?:RTX|GTX)\s*[- ]?\d{3,4}(?:\s*(?:Ti|Super))?\b/gi)].map(m=>m[0].replace(/\s+/g,' ').toUpperCase());
+  if (families.length !== 1 || gpus.length > 1) return null;
+  const locs=[...q.matchAll(/\bsite:jiji\.ng\/(ikeja|lekki|yaba|ajah|surulere|lagos)(?=\s|$)/gi)].map(m=>m[1].toLowerCase());
+  const allSites=[...q.matchAll(/\bsite:/gi)];
+  const location=locs.length === 1 && allSites.length === 1 ? locs[0] : null;
+  const memory=[...q.matchAll(/\b\d{1,3}\s*GB\b/gi)];
+  return {family:families[0],gpu:gpus[0]||null,location,memory:memory.length===1?memory[0][0].replace(/\s+/g,'').toUpperCase():null};
+}
 export function shoppingSearchHints(query) {
-  if (!isShoppingResearch(query)) return [];
-  const hints = [];
-  if (/\bhp\s+omen\b/i.test(query)) hints.push(/\bhp\s+omen\b/i);
-  for (const match of String(query).matchAll(/\b(RTX|GTX)\s*[- ]?(\d{3,4})(?:\s*(Ti|Super))?\b/gi)) {
-    const suffix = match[3] ? `\\s*${match[3]}` : '';
-    hints.push(new RegExp(`\\b${match[1]}\\s*[- ]?${match[2]}${suffix}\\b`, 'i'));
-  }
-  return hints.slice(0, 4);
+  const req=shoppingRequirements(query);if(!req)return [];
+  return [safePattern(req.family),...(req.gpu?[safePattern(req.gpu.replace(/-/g,' '))]:[])];
 }
-// A bounded second keyless search for the observed Lagos Jiji/Omen failure.
-// It broadens search syntax only; the original request still governs budget checks.
+export function targetedShoppingFallbackQuery(query) {
+  const req=shoppingRequirements(query);if(!req?.location)return null;
+  // The specific previously deployed Ikeja Omen form is kept stable.
+  const locality=req.location==='ikeja'?'Lagos':`${req.location} Lagos`;
+  return `${req.family}${req.gpu?' '+req.gpu:''}${req.memory?' '+req.memory:''} price ${locality} Nigeria site:jiji.ng`;
+}
+// Compatibility for callers of the former narrowly-scoped helper.
 export function targetedOmenFallbackQuery(query) {
-  if (!isShoppingResearch(query) || !/\bsite:jiji\.ng\/ikeja(?:\s|$)/i.test(query) || !/\bhp\s+omen\b/i.test(query)) return null;
-  const gpus = [...String(query).matchAll(/\b(?:RTX|GTX)\s*[- ]?\d{3,4}(?:\s*(?:Ti|Super))?\b/gi)];
-  if (gpus.length !== 1 || /\b(?:not|exclude|excluding|without|except)\s+(?:an?\s+)?(?:hp\s+omen|(?:rtx|gtx))/i.test(query)) return null;
-  const memory = [...String(query).matchAll(/\b\d{1,3}\s*GB\b/gi)];
-  const ram = memory.length === 1 ? ` ${memory[0][0].replace(/\s+/g,'')}` : '';
-  return `HP Omen ${gpus[0][0]}${ram} price Lagos Nigeria site:jiji.ng`;
+  const req=shoppingRequirements(query);return req?.family==='HP Omen' && req.location==='ikeja' && req.gpu ? targetedShoppingFallbackQuery(query) : null;
 }
-function isOmenHintCandidate(result, query) {
-  let u; try { u = publicHttpsUrl(result?.url); } catch { return false; }
-  if (u.hostname !== 'jiji.ng' || !/^\/ikeja\/computers-and-laptops\/[a-z0-9-]+\.html$/i.test(u.pathname)) return false;
-  const hints = shoppingSearchHints(query);
-  return hints.length === 2 && hints[0].test(String(result.title || '')) && hints[1].test(`${result.title || ''} ${result.content || ''}`);
+function isShoppingHintCandidate(result, query) {
+  const req=shoppingRequirements(query);if(!req?.location)return false;
+  let u;try{u=publicHttpsUrl(result?.url)}catch{return false}
+  if(u.hostname!=='jiji.ng' || !new RegExp(`^/${req.location}/computers-and-laptops/[a-z0-9-]+\\.html$`,'i').test(u.pathname))return false;
+  const hints=shoppingSearchHints(query);
+  return hints[0].test(String(result.title||'')) && (!hints[1] || hints[1].test(`${result.title||''} ${result.content||''}`));
+}
+// Shows textual mentions only; snippets may contain unrelated products or outdated text.
+export function shoppingSpecificationEvidence(research,query) {
+  const req=shoppingRequirements(query);if(!req)return '';
+  const checks=[['Requested model family',req.family,safePattern(req.family)],...(req.gpu?[['Requested GPU',req.gpu,safePattern(req.gpu.replace(/-/g,' '))]]:[])];
+  const rows=(research.sources||[]).map((source,i)=>{
+    const details=checks.map(([label,value,pattern])=>{
+      const foundTitle=pattern.test(String(source.title||''));const foundExcerpt=pattern.test(String(source.excerpt||''));
+      return `${label} ${value}: ${foundTitle?'mentioned in title':foundExcerpt?(source.pageRead?'mentioned in page excerpt':'mentioned in search excerpt'):'not found in supplied title/excerpt'}`;
+    });return `- [${i+1}] ${details.join('; ')}.`;
+  });
+  return '\n\n### Requested specification mentions (unverified)\n'+(rows.join('\n')||'No sources returned.')+'\n\nMentions are not proof that the listing meets the requirement: excerpts can include unrelated products or outdated information. Other specifications are not checked.';
 }
 export function selectResearchCandidates(results, preferPrimary = false, query = '') {
   const recognized = ['iana.org', 'ietf.org', 'rfc-editor.org', 'w3.org', 'who.int', 'un.org'];
@@ -205,9 +228,9 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
         let data; try { data = JSON.parse(response.body); } catch { throw new ResearchError('research_invalid_response', 502); }
         if (!Array.isArray(data.results)) throw new ResearchError('research_invalid_response', 502);
         let fallbackNotice = '';
-        const fallbackQuery = useKeyless && !preferPrimary ? targetedOmenFallbackQuery(query) : null;
-        if (fallbackQuery && !data.results.slice(0, 6).some(result => isOmenHintCandidate(result, query))) {
-          fallbackNotice = 'No requested model and GPU were both identifiable in the initial search snippets; no matching offer is confirmed.';
+        const fallbackQuery = useKeyless && !preferPrimary ? targetedShoppingFallbackQuery(query) : null;
+        if (fallbackQuery && !data.results.slice(0, 6).some(result => isShoppingHintCandidate(result, query))) {
+          fallbackNotice = 'The requested product hints were not identifiable together in the initial search snippets; no matching offer is confirmed.';
           try {
             const fallback = await transport(new URL('https://api.tavily.com/search'), {
               method: 'POST', headers: { 'X-Tavily-Access-Mode': 'keyless', 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -216,7 +239,7 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
             if (controller.signal.aborted) throw new ResearchError('research_canceled_or_timeout',504);
             if (fallback.status === 200) {
               const extra = JSON.parse(fallback.body);
-              const hinted = Array.isArray(extra.results) ? extra.results.slice(0,6).filter(result => isOmenHintCandidate(result, query)) : [];
+              const hinted = Array.isArray(extra.results) ? extra.results.slice(0,6).filter(result => isShoppingHintCandidate(result, query)) : [];
               if (hinted.length) {
                 data.results = hinted;
                 fallbackNotice = 'A broader Jiji search supplied these possible leads. Model, GPU, location, other requirements and availability are not verified; no matching offer is confirmed.';
@@ -257,5 +280,6 @@ export function researchSourcesMarkdown(research, query = '') {
     + (isShoppingResearch(query) ? '\n\nRelevance and requested specifications are not verified. Search results may not match the requested model or GPU; check each listing.' : '')
     + '\n\nReading coverage: bounded page/search excerpts only, not a full-page review.'
     + `\n\nRetrieved ${research.retrievedAt.slice(0, 10)}. Sources can be incomplete or out of date; review important claims.`
+    + shoppingSpecificationEvidence(research, query)
     + shoppingPriceEvidence(research, query);
 }

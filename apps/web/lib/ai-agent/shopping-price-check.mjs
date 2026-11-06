@@ -10,6 +10,8 @@ export function isShoppingResearch(query) {
 export function parseNairaCeiling(query) {
   const q = String(query || '').normalize('NFKC');
   if (/\b(?:between|minimum|min\.?|at least|more than|over|above|not under|not below|not less than|per month|monthly|each month|USD|CAD|EUR|GBP|dollars?|euros?|pounds?)\b|[$€£]/i.test(q)) return null;
+  if (/\bnot\s+(?:(?:a|the|my)\s+)?(?:maximum|budget|ceiling|at most|up to|less than)\b/i.test(q)) return null;
+  if (/(?:₦|NGN\s*)\s*[\d,.]+\s*(?:million|thousand)?\s*(?:to\b|[-–~])\s*(?:₦|NGN\s*)?\s*\d/i.test(q)) return null;
   const re = /\b(under|below|less than|up to|at most|no more than|at or below|maximum(?:\s+(?:of|price))?|budget\s*(?:maximum|at most|up to|of|is|:)?|ceiling(?:\s+of)?)\s*(?:is\s+|of\s+|:\s*)?(₦|NGN\s*)?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)\s*(million|thousand)?\s*(NGN|naira)?\b/gi;
   const hits = [...q.matchAll(re)];
   if (hits.length !== 1) return null;
@@ -26,6 +28,7 @@ export function reportedJijiPrice(source) {
   let u; try { u = new URL(source?.url); } catch { return null; }
   if (u.protocol !== 'https:' || u.hostname !== 'jiji.ng' || !/^\/[a-z0-9-]+\/[a-z0-9-]+\/[a-z0-9-]+\.html$/i.test(u.pathname)) return null;
   const text = `${String(source.title || '')}\n${String(source.excerpt || '')}`.normalize('NFKC').slice(0, 5000);
+  if (/\bprice\s*:\s*(?:[$€£]|USD\b|EUR\b|GBP\b|CAD\b)/i.test(text)) return null;
   const re = /\bprice\s*:\s*(?:₦|NGN)\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?!(?:\d|,\d|\.\d))(?:\s*(million|thousand))?/gi;
   const values = new Set(); let unsafe = false;
   for (const m of text.matchAll(re)) {
