@@ -170,7 +170,12 @@ export async function evaluateSpendPolicy({
     try { blockedPayees = JSON.parse(policyRow.blocked_payees_json || '[]'); } catch {}
 
     const isDomainBlocked = blockedPayees.some((d) => normalizedDomain.includes(String(d).toLowerCase()));
-    const isDomainNotAllowed = allowedDomains.length > 0 && !allowedDomains.some((d) => normalizedDomain.includes(String(d).toLowerCase()));
+    // Match only the configured domain itself or its DNS-label subdomains.
+    // Substring matching would allow shop.example.evil.test and notshop.example.
+    const isDomainNotAllowed = allowedDomains.length > 0 && !allowedDomains.some((d) => {
+      const allowed = String(d).toLowerCase().trim();
+      return allowed.length > 0 && (normalizedDomain === allowed || normalizedDomain.endsWith('.' + allowed));
+    });
 
     // 5. Evaluate limits
     let allowed = 1;
