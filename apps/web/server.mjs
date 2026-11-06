@@ -1772,7 +1772,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
             await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
           }
         }
-        if (researchContext) { const sources = researchSourcesMarkdown(researchContext); visibleReply += sources; await writeSseEvent(res, 'delta', { text: sources }, streamController.signal); }
+        if (researchContext) { const sources = researchSourcesMarkdown(researchContext, newUserMessage.content); visibleReply += sources; await writeSseEvent(res, 'delta', { text: sources }, streamController.signal); }
         if(fileContext){const coverage=documentCoverageMarkdown(fileContext);visibleReply+=coverage;await writeSseEvent(res,'delta',{text:coverage},streamController.signal);}
         streamCompletion = { ...completion, text: visibleReply };
         if (streamCompletion.fallbackUsed === true) {
@@ -1897,7 +1897,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
       }
     }
     if (!visibleReply.trim()) visibleReply = 'I could not complete that workspace request. Please try again.';
-    if (researchContext) visibleReply = (researchAnswerForDisplay(visibleReply, newUserMessage.content)) + researchSourcesMarkdown(researchContext);
+    if (researchContext) visibleReply = (researchAnswerForDisplay(visibleReply, newUserMessage.content)) + researchSourcesMarkdown(researchContext, newUserMessage.content);
     if (fileContext) visibleReply += documentCoverageMarkdown(fileContext);
     completion = { ...completion, text: visibleReply };
 
@@ -1988,7 +1988,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
           text: safePrefix.trim() ? safePrefix : 'I could not safely interpret that workspace operation, so nothing was changed. Please try again.',
         };
       }
-      if (wantsResearch && completionToSave) completionToSave = { ...completionToSave, text: (researchAnswerForDisplay(completionToSave.text, newUserMessage.content)) + (researchContext ? researchSourcesMarkdown(researchContext) : '') };
+      if (wantsResearch && completionToSave) completionToSave = { ...completionToSave, text: (researchAnswerForDisplay(completionToSave.text, newUserMessage.content)) + (researchContext ? researchSourcesMarkdown(researchContext, newUserMessage.content) : '') };
       let streamFailure = error;
 
       if (tokenReservationHeld && bypassSearchModel) {

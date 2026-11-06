@@ -1,3 +1,4 @@
+import { isShoppingResearch, shoppingPriceEvidence } from './shopping-price-check.mjs';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { resolvePublicAddresses, requestHttpsStream } from '../api-hub/service.mjs';
@@ -123,8 +124,7 @@ export function stripResearchBibliography(answer) {
 export function researchAnswerForDisplay(answer, query = '') {
   // Marketplace prices and availability must not be inferred by a language model.
   // Until structured offer validation is available, show only the source list.
-  const q = String(query || '').normalize('NFKC');
-  if (/\bjiji\.ng\b/i.test(q) || (/\b(?:laptop|laptops|product|products|seller|sellers|buy|shopping|listing|listings)\b/i.test(q) && /(?:₦|\b(?:NGN|naira)\b|\b(?:price|priced|budget|cost|under|below)\b)/i.test(q))) return 'Shopping results are shown as sources only. Prices, budget fit, seller details and availability have not been verified; check the individual listings before deciding.';
+  if (isShoppingResearch(query)) return 'Shopping results are shown as sources only. Prices, budget fit, seller details and availability have not been verified; check the individual listings before deciding.';
   const clean = stripResearchBibliography(answer);
   if (!clean) return 'The sources were retrieved, but no usable answer was produced.';
   const unclosedStrong = (clean.match(/\*\*/g) || []).length % 2 !== 0;
@@ -190,10 +190,11 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
     },
   };
 }
-export function researchSourcesMarkdown(research) {
+export function researchSourcesMarkdown(research, query = '') {
   const escape = value => value.replace(/[\\`*_{}\[\]()#+.!|>~-]/g, '\\$&');
   return '\n\n### Sources\n' + research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}) — ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n')
     + (research.sourceSelectionNotice ? `\n\n${research.sourceSelectionNotice}` : '')
     + '\n\nReading coverage: bounded page/search excerpts only, not a full-page review.'
-    + `\n\nRetrieved ${research.retrievedAt.slice(0, 10)}. Sources can be incomplete or out of date; review important claims.`;
+    + `\n\nRetrieved ${research.retrievedAt.slice(0, 10)}. Sources can be incomplete or out of date; review important claims.`
+    + shoppingPriceEvidence(research, query);
 }
