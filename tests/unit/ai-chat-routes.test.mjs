@@ -1311,3 +1311,23 @@ test('shopping research displays deterministic source-based naira checks, not mo
  assert.equal(historyCalls.append.length,2);for(const item of historyCalls.append)assert.doesNotMatch(item.assistantMessage,/Seller made up/);
  assert.equal(aiCalls.length,0);assert.equal(streamCalls.length,0);assert.equal(usageCalls.release.length,2);assert.equal(usageCalls.settle.length,0);
 });
+
+test('explicit single saved-offer purchase review uses real scoped price and waits for decision in both modes',async()=>{
+ const {createClient}=await import('@libsql/client');const {applyMigrations}=await import('../../apps/web/lib/db/migrate.mjs');const {discoverProducts}=await import('../../apps/web/lib/channel3/discovery.mjs');
+ for(const streaming of [false,true]){
+  const db=createClient({url:':memory:'});await applyMigrations(db);const workspaceId='workspace-'+admin.id;
+  await db.execute({sql:'INSERT INTO users (id,email_normalized,status) VALUES (?,?,?)',args:[admin.id,admin.email,'active']});
+  await db.execute({sql:'INSERT INTO workspaces (id,owner_user_id,name,status) VALUES (?,?,?,?)',args:[workspaceId,admin.id,'Test','active']});
+  await db.execute({sql:'INSERT INTO agents (workspace_id,id,name,role,avatar,status,settings_json) VALUES (?,?,?,?,?,?,?)',args:[workspaceId,'agent-1','Test','test','cart','active',JSON.stringify({orderCap:100,dailyCap:200})]});
+  const item={id:'one',title:'Notebook',amountMinor:125,currency:'USD',currencyVerified:true,availability:'in_stock',merchantName:'Shop',merchantDomain:'shop.example',url:'https://shop.example/one',evidenceHash:'sha256:'+'1'.repeat(64)};
+  const search=await discoverProducts({db,workspaceId,userId:admin.id,agentId:'agent-1',query:'notebook',channel3Client:{isConfigured:()=>true,searchProducts:async()=>({query:'notebook',count:1,products:[item],isLive:true,source:'channel3'})}});const id=search.products[0].offerId;
+  const broken='[[KEUS_WORKSPACE_TOOL:{bad-json}]]';const {dependencies}=testDependencies({stream:streamWorkspaceToolMarker(broken),complete:async()=>({text:broken,inputTokens:10,outputTokens:10})});dependencies.db=db;
+  try {await withServer(dependencies,async base=>{
+   const post=message=>fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message})});
+   const response=await post(`Prepare a purchase review for 1 unit of saved offer ${id}. Do not approve the review, open PayPal, authorize, capture, or pay.`);const text=await response.text();assert.equal(response.status,200);assert.match(text,/1\.25/);assert.match(text,streaming?/tool_approval_required/:/pendingAction/);assert.match(text,/Review purchase quantities/);assert.doesNotMatch(text,/bad-json/);
+   const rows=await db.execute('SELECT id,status,amount_minor FROM mandates');assert.equal(rows.rows.length,1);assert.equal(rows.rows[0].status,'awaiting_approval');assert.equal(Number(rows.rows[0].amount_minor),125);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM paypal_standard_checkouts')).rows[0].n),0);
+   const bad=await post(`Prepare a purchase review for 21 units of saved offer ${id}.`);assert.doesNotMatch(await bad.text(),/tool_approval_required|pendingAction/);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM mandates')).rows[0].n),1);
+   await db.execute({sql:'UPDATE product_offers SET evidence_ref=? WHERE id=?',args:['{}',id]});const unverified=await post(`Prepare a purchase review for 1 unit of saved offer ${id}.`);assert.doesNotMatch(await unverified.text(),/tool_approval_required|pendingAction/);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM mandates')).rows[0].n),1);
+  })}finally{db.close()}
+ }
+});

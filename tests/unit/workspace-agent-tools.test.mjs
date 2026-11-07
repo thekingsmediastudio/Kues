@@ -255,6 +255,17 @@ test('explicit saved-offer review requires precise consent and refuses ambiguous
  assert.throws(()=>prepareWorkspaceToolCall(explicitSavedOfferReview(`Prepare a purchase review for 2 units of saved offer ${a} and 3 units of saved offer ${a}.`),bootstrap()),/arguments_invalid/);
 });
 
+test('explicit single saved-offer review requires precise consent and rejects ambiguous requests',async()=>{
+ const {explicitSavedOfferReview,prepareWorkspaceToolCall}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
+ const id='off_'+'a'.repeat(32);
+ for (const suffix of ['', ' Do not approve the review, open PayPal, authorize, capture, or pay.', ' Use the saved offers and the specified quantities. Do not approve the review, open PayPal, authorize, capture, or pay.']) {
+  const tool=explicitSavedOfferReview(`Prepare a purchase review for 1 unit of saved offer ${id}.${suffix}`);
+  assert.deepEqual(tool.arguments.items,[{offerId:id,quantity:1}]);assert.deepEqual(prepareWorkspaceToolCall(tool,bootstrap()).items,tool.arguments.items);
+ }
+ for(const text of [`Do not prepare a purchase review for 1 unit of saved offer ${id}.`,`Prepare a purchase review for 1 unit of saved offer ${id}. Do not prepare the review.`,`Prepare a purchase review for 1 unit of saved offer ${id}. Actually make it 5.`,`Prepare a purchase review for 1 unit of saved offer ${id} and 2 units of saved offer invalid.`])assert.equal(explicitSavedOfferReview(text),null,text);
+ for(const quantity of [0,21])assert.throws(()=>prepareWorkspaceToolCall(explicitSavedOfferReview(`Prepare a purchase review for ${quantity} units of saved offer ${id}.`),bootstrap()),/arguments_invalid/);
+});
+
 test('quantity-change interpretation requires a clear review request and suppresses unverified follow-up claims',async()=>{
  const {explicitBundleQuantityChange,isPendingPurchaseChangeRequest}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
  const message='Actually make the second notebook quantity 4 and keep the first notebook quantity 2. Prepare a new review only. Do not approve either review, open PayPal, authorize, capture, or pay.';
