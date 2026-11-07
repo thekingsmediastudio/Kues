@@ -565,6 +565,7 @@
   }
   .msg-sender-line {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -6227,7 +6228,7 @@
     }
   }
 
-  function createAssistantChatMessage(content, { pending = false } = {}) {
+  function createAssistantChatMessage(content, { pending = false, verifiedCheckout = false } = {}) {
     const agent = findSelectedChatAgent();
     const row = document.createElement('div');
     row.className = pending ? 'agent-msg-row chat-pending' : 'agent-msg-row';
@@ -6242,7 +6243,10 @@
     const sender = document.createElement('span');
     sender.className = 'msg-sender';
     sender.textContent = String(agent?.name || 'Keus assistant');
-    senderLine.append(sender);
+    const provenance = document.createElement('span');
+    provenance.className = 'msg-badge';
+    provenance.textContent = verifiedCheckout ? 'Verified checkout record' : 'Assistant message · not a verified checkout record';
+    senderLine.append(sender, provenance);
     const text = document.createElement('div');
     text.className = 'msg-text';
     if (pending) {
@@ -6268,55 +6272,6 @@
       answerText._keusExport = { text: content, agentId: agent?.id };
       if (typeof window !== 'undefined') window.keusFiles?.addDownloads(answerText, content, agent?.id);
       text.append(answerText);
-
-      const holdMatch = /\[PayPal Sandbox Hold Created:\s*(AUTH-SANDBOX-[A-Za-z0-9_-]+)\]/i.exec(content);
-      const mandateMatch = /man_[a-f0-9]{32}/i.exec(content);
-      if (holdMatch) {
-        const holdAuthId = holdMatch[1];
-        const mandateId = mandateMatch ? mandateMatch[0] : null;
-        const holdActions = document.createElement('div');
-        holdActions.className = 'workspace-tool-approval-buttons';
-        holdActions.style.marginTop = '10px';
-
-        const voidBtn = document.createElement('button');
-        voidBtn.type = 'button';
-        voidBtn.className = 'workspace-tool-void-hold-btn';
-        voidBtn.textContent = 'Void Sandbox Hold';
-        voidBtn.setAttribute('title', 'Safely void this test authorization in PayPal Sandbox');
-
-        const voidStatus = document.createElement('span');
-        voidStatus.style.fontSize = '11px';
-        voidStatus.style.color = 'var(--text-sec)';
-        voidStatus.style.marginLeft = '8px';
-        voidStatus.style.alignSelf = 'center';
-
-        voidBtn.addEventListener('click', async () => {
-          voidBtn.disabled = true;
-          voidStatus.textContent = 'Voiding PayPal Sandbox hold...';
-          try {
-            const vRes = await fetch('/api/commerce/paypal/void', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mandateId, authorizationId: holdAuthId }),
-            });
-            const vData = await vRes.json();
-            if (vRes.ok) {
-              voidStatus.textContent = `PayPal Sandbox authorization hold ${holdAuthId} voided safely.`;
-              voidStatus.style.color = 'var(--green)';
-              voidBtn.remove();
-            } else {
-              voidStatus.textContent = `Could not void hold: ${vData.message || vData.error || 'Failed'}`;
-              voidBtn.disabled = false;
-            }
-          } catch {
-            voidStatus.textContent = 'Could not void hold. Please retry.';
-            voidBtn.disabled = false;
-          }
-        });
-
-        holdActions.append(voidBtn, voidStatus);
-        text.append(holdActions);
-      }
     }
     body.append(senderLine, text);
     row.append(avatar, body);
@@ -7155,12 +7110,12 @@
         && typeof message.content === 'string'
         && message.content.length <= 20_000
       )) : [];
-      chatMessages = messages.slice(-100).map(({ role, content }) => ({ role, content }));
+      chatMessages = messages.slice(-100).map(({ role, content, source }) => ({ role, content, verifiedCheckout: role === 'assistant' && source === 'verified_checkout' }));
       clearChatStream();
       let lastAssistantRow = null;
       for (const message of chatMessages) {
         if (message.role === 'user') appendUserChatMessage(message.content);
-        else lastAssistantRow = createAssistantChatMessage(message.content);
+        else lastAssistantRow = createAssistantChatMessage(message.content, { verifiedCheckout: message.verifiedCheckout });
       }
       if (lastAssistantRow && Array.isArray(data.pendingActions)) {
         for (const action of data.pendingActions.slice(0, 20)) {

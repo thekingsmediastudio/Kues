@@ -36,6 +36,7 @@ export async function readCheckoutChatEvents({
     try{const q=JSON.parse(r.details_json).quantities;if(Array.isArray(q)&&q.length)quantityText='\nQuantities: '+q.map((i,n)=>`item ${n+1}: ${i.quantity} × ${(i.unitAmountMinor/100).toFixed(2)} ${r.currency} = ${(i.lineTotalMinor/100).toFixed(2)} ${r.currency}`).join('; ')+'.';}catch{}
     return {
       role: "assistant",
+      source: "verified_checkout",
       content: `Verified checkout update: ${text}${quantityText}\nNo seller order or shipment was placed.\nCheckout reference: ${r.mandate_id}`,
       createdAt: r.created_at,
     };

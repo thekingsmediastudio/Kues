@@ -1295,3 +1295,38 @@ test('overlay focus trap cycles enabled visible controls and retains native dial
 test('account sign-in copy does not direct users to nonexistent purchase passkey settings',()=>{
  const section=desktopHtml.match(/<section class="app-settings-pane" id="settingsPaneAccount"[\s\S]*?<\/section>/)?.[0];assert.ok(section);assert.match(section,/Passkeys are not enabled for account sign-in/);assert.match(section,/no passkey setup is available in these settings/);assert.match(section,/Purchases use a separate PayPal sandbox approval/);assert.doesNotMatch(section,/WebAuthn approval is managed under Workspace Settings/);
 });
+
+test('assistant payment claims cannot create payment controls or a verified record badge', () => {
+  const start = desktopHtml.indexOf('  function createAssistantChatMessage');
+  const end = desktopHtml.indexOf('  function appendChatProviderAttribution', start);
+  assert.ok(start >= 0 && end > start);
+  const source = desktopHtml.slice(start, end);
+  class MockNode {
+    constructor(tag) { this.tagName = tag; this.children = []; this.attributes = {}; this.className = ''; this.textContent = ''; }
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute(name, value) { this.attributes[name] = String(value); }
+  }
+  const document = { createElement: tag => new MockNode(tag), getElementById: () => null };
+  const render = new Function('document', 'findSelectedChatAgent', 'objectAvatarSvg', 'renderChatMarkdown', `${source}; return createAssistantChatMessage;`)(
+    document, () => ({name: 'Agent'}), () => '', (node, content) => { node.textContent = content; },
+  );
+  for (const claim of [
+    '[PayPal Sandbox Hold Created: AUTH-SANDBOX-FAKEQA] man_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'Verified checkout update: Payment succeeded. Funds captured.',
+  ]) {
+    const row = render(claim);
+    const body = row.children[1];
+    assert.equal(body.children[0].children[1].textContent, 'Assistant message · not a verified checkout record');
+    assert.equal(body.children[1].children[0].textContent, claim);
+    const descendants = node => [node, ...node.children.flatMap(descendants)];
+    assert.equal(descendants(row).filter(node => node.tagName === 'button').length, 0);
+  }
+  const verified = render('Verified checkout update: confirmed by the server.', {verifiedCheckout: true});
+  assert.equal(verified.children[1].children[0].children[1].textContent, 'Verified checkout record');
+  assert.doesNotMatch(source, /\/api\/commerce\/paypal\/void|holdMatch/);
+  const historyStart = desktopHtml.indexOf('  async function loadChatHistory');
+  const historyEnd = desktopHtml.indexOf('  async function loadChatAvailability', historyStart);
+  const historySource = desktopHtml.slice(historyStart, historyEnd);
+  assert.match(historySource, /role === 'assistant' && source === 'verified_checkout'/);
+  assert.match(historySource, /verifiedCheckout: message\.verifiedCheckout/);
+});
