@@ -8,6 +8,7 @@ import { createWorkspaceService } from "../../apps/web/lib/workspaces/service.mj
 import {
   createPurchaseMandate,
   authorizePurchaseMandate,
+  evaluateSpendPolicy,
 } from "../../apps/web/lib/channel3/mandate-service.mjs";
 import {
   createCheckoutClient,
@@ -527,4 +528,47 @@ test('missing item hash with retained item rows cannot downgrade to legacy check
 });
 test('missing rows or incorrect hash fail closed for itemized checkout',async t=>{
  for(const change of ['delete','replace']){const f=await fixture(t,{quantity:3});await f.db.execute(change==='delete'?{sql:'DELETE FROM mandate_purchase_items WHERE mandate_id=?',args:[f.m.mandateId]}:{sql:'UPDATE mandates SET purchase_items_hash=? WHERE id=?',args:['sha256:'+ 'b'.repeat(64),f.m.mandateId]});await assert.rejects(f.begin(),/purchase_items_changed/);assert.deepEqual(f.calls,[])}
+});
+
+
+test("prior-day unresolved checkouts and unexpired reviews remain reserved without double counting", async (t) => {
+  const f=await fixture(t); await f.begin();
+  const agentId=(await f.db.execute({sql:'SELECT agent_id FROM runs WHERE id=?',args:[f.m.runId]})).rows[0].agent_id;
+  await f.db.execute({sql:"UPDATE mandates SET created_at='2020-01-01T00:00:00.000Z',expires_at='2020-01-01T00:15:00.000Z' WHERE id=?",args:[f.m.mandateId]});
+  await f.db.execute({sql:"UPDATE spend_policies SET daily_budget_minor=1000 WHERE workspace_id=? AND agent_id=?",args:[f.c.workspaceId,agentId]});
+  const evaluate=()=>evaluateSpendPolicy({db:f.db,workspaceId:f.c.workspaceId,agentId,amountMinor:1,merchantDomain:'shop.example',currency:'USD'});
+  for(const status of ['authorizing','authorized','voiding','uncertain','void_uncertain']){
+    await f.db.execute({sql:'UPDATE paypal_standard_checkouts SET status=? WHERE mandate_id=?',args:[status,f.m.mandateId]});
+    const result=await evaluate(); assert.equal(result.dailySpentMinor,1000,status);assert.equal(result.allowed,false,status);assert.equal(result.decisionCode,'daily_cap_exceeded',status);
+  }
+  for(const status of ['voided','cancelled','failed','pending','creating']){
+    await f.db.execute({sql:'UPDATE paypal_standard_checkouts SET status=? WHERE mandate_id=?',args:[status,f.m.mandateId]});
+    const result=await evaluate();assert.equal(result.dailySpentMinor,0,status);assert.equal(result.allowed,true,status);
+  }
+  await f.db.execute({sql:"UPDATE paypal_standard_checkouts SET status='pending' WHERE mandate_id=?",args:[f.m.mandateId]});
+  await f.db.execute({sql:'UPDATE mandates SET expires_at=? WHERE id=?',args:[new Date(Date.now()+60000).toISOString(),f.m.mandateId]});
+  assert.equal((await evaluate()).dailySpentMinor,1000,'unexpired prior-day review');
+  await f.db.execute({sql:'UPDATE mandates SET created_at=? WHERE id=?',args:[new Date().toISOString(),f.m.mandateId]});
+  await f.db.execute({sql:"UPDATE paypal_standard_checkouts SET status='uncertain' WHERE mandate_id=?",args:[f.m.mandateId]});
+  assert.equal((await evaluate()).dailySpentMinor,1000,'same-day unresolved review counted once');
+});
+
+test("checkout safety includes a prior-day unresolved reservation before provider creation", async (t) => {
+  const f=await fixture(t); await f.begin();
+  const agentId=(await f.db.execute({sql:'SELECT agent_id FROM runs WHERE id=?',args:[f.m.runId]})).rows[0].agent_id;
+  await f.db.execute({sql:"UPDATE mandates SET created_at='2020-01-01T00:00:00.000Z',expires_at='2020-01-01T00:15:00.000Z' WHERE id=?",args:[f.m.mandateId]});
+  await f.db.execute({sql:"UPDATE paypal_standard_checkouts SET status='uncertain' WHERE mandate_id=?",args:[f.m.mandateId]});
+  const next=await createPurchaseMandate({db:f.db,...f.c,agentId,product:{title:'Synthetic next item',merchantDomain:'shop.example',amountMinor:1,currency:'USD',evidenceHash:'sha256:'+'c'.repeat(64)}});
+  assert.equal(next.allowed,true);await authorizePurchaseMandate({db:f.db,...f.c,mandateId:next.mandateId,decision:'approve'});
+  const row=(await f.db.execute({sql:'SELECT settings_json FROM agents WHERE workspace_id=? AND id=?',args:[f.c.workspaceId,agentId]})).rows[0];
+  const settings=JSON.parse(row.settings_json);settings.dailyCap=10;
+  await f.db.execute({sql:'UPDATE agents SET settings_json=? WHERE workspace_id=? AND id=?',args:[JSON.stringify(settings),f.c.workspaceId,agentId]});
+  await f.db.execute({sql:'UPDATE spend_policies SET daily_budget_minor=1000 WHERE workspace_id=? AND agent_id=?',args:[f.c.workspaceId,agentId]});
+  const initialCalls=f.calls.length;
+  await assert.rejects(f.service().begin(f.c,next.mandateId,'https://keus.example'),/spend_limit_exceeded/);
+  assert.equal(f.calls.length,initialCalls,'no second provider order');
+  await f.db.execute({sql:"UPDATE paypal_standard_checkouts SET status='pending' WHERE mandate_id=?",args:[f.m.mandateId]});
+  await f.db.execute({sql:'UPDATE mandates SET expires_at=? WHERE id=?',args:[new Date(Date.now()+60000).toISOString(),f.m.mandateId]});
+  await assert.rejects(f.service().begin(f.c,next.mandateId,'https://keus.example'),/spend_limit_exceeded/);
+  assert.equal(f.calls.length,initialCalls,'unexpired prior-day review also blocks provider order');
 });

@@ -157,12 +157,16 @@ async function evaluateSpendPolicyInTransaction({
 
     // 3. Calculate daily spend so far today
     const dailySpentResult = await tx.execute({
-      sql: `SELECT COALESCE(SUM(amount_minor), 0) AS daily_spent
-            FROM mandates
-            WHERE workspace_id = ?
-              AND status IN ('authorized', 'awaiting_approval', 'approved', 'captured')
-              AND created_at >= ?`,
-      args: [workspaceId, startOfDayIso],
+      sql: `SELECT COALESCE(SUM(m.amount_minor), 0) AS daily_spent
+            FROM mandates m
+            WHERE m.workspace_id = ?
+              AND m.status IN ('authorized', 'awaiting_approval', 'approved', 'captured')
+              AND (m.created_at >= ?
+                OR (m.expires_at > ? AND m.status IN ('authorized', 'awaiting_approval', 'approved'))
+                OR EXISTS (SELECT 1 FROM paypal_standard_checkouts c
+                           WHERE c.workspace_id = m.workspace_id AND c.mandate_id = m.id
+                             AND c.status IN ('authorizing', 'authorized', 'voiding', 'uncertain', 'void_uncertain')))`,
+      args: [workspaceId, startOfDayIso, currentIso],
     });
     const dailySpentMinor = Number(dailySpentResult.rows[0]?.daily_spent || 0);
 

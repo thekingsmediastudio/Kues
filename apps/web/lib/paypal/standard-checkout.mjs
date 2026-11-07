@@ -283,10 +283,11 @@ export function createStandardCheckoutService({
         if((allow.length&&!allow.some(matches))||blocked.some(x=>matches(x)||String(m.payee).toLowerCase()===String(x).toLowerCase()))fail('merchant_policy_changed',409);
       }
     }
-    const day = iso(now()).slice(0, 10) + "T00:00:00.000Z";
+    const current = iso(now());
+    const day = current.slice(0, 10) + "T00:00:00.000Z";
     const sum = await tx.execute({
-      sql: `SELECT COALESCE(SUM(m.amount_minor),0) AS total FROM mandates m WHERE m.workspace_id=? AND m.currency='USD' AND m.status IN ('authorized','approved','awaiting_approval','captured') AND (m.created_at>=? OR EXISTS(SELECT 1 FROM paypal_standard_checkouts c WHERE c.mandate_id=m.id AND c.status IN ('authorizing','authorized','voiding','uncertain','void_uncertain')))`,
-      args: [c.workspaceId, day],
+      sql: `SELECT COALESCE(SUM(m.amount_minor),0) AS total FROM mandates m WHERE m.workspace_id=? AND m.currency='USD' AND m.status IN ('authorized','approved','awaiting_approval','captured') AND (m.created_at>=? OR (m.expires_at>? AND m.status IN ('authorized','approved','awaiting_approval')) OR EXISTS(SELECT 1 FROM paypal_standard_checkouts c WHERE c.workspace_id=m.workspace_id AND c.mandate_id=m.id AND c.status IN ('authorizing','authorized','voiding','uncertain','void_uncertain')))`,
+      args: [c.workspaceId, day, current],
     });
     if (m.amount_minor > max || Number(sum.rows[0].total) > budget)
       fail("spend_limit_exceeded", 409);
