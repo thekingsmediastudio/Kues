@@ -42,9 +42,17 @@ export async function readCheckoutChatEvents({
   });
 }
 export function mergeCheckoutHistory(messages, events, limit) {
-  return [...messages, ...events]
-    .sort((a, b) =>
-      String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
-    )
-    .slice(-limit);
+  const ordered = [...messages, ...events].sort((a, b) =>
+    String(a.createdAt || "").localeCompare(String(b.createdAt || "")),
+  );
+  // Keep the latest verified checkout facts visible even when later chat turns
+  // fill the history window. The total window stays bounded and chronological.
+  const pinned = new Set(events.slice(-Math.min(10, limit)));
+  const chosen = new Set([...ordered.slice(-limit), ...pinned]);
+  const result = ordered.filter((item) => chosen.has(item));
+  for (let i = 0; result.length > limit && i < result.length;) {
+    if (pinned.has(result[i])) i += 1;
+    else result.splice(i, 1);
+  }
+  return result;
 }
