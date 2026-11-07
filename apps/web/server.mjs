@@ -282,7 +282,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
       workspaceId,
       userId,
       agentId,
-      allowFixtureFallback: true,
+      allowFixtureFallback: false,
     });
 
     const lines = [];
@@ -343,7 +343,7 @@ async function executeProductSearchTool(preparedSearch, { channel3Client, db, wo
     if (err instanceof Channel3Error && err.code === 'channel3_not_configured') {
       return 'Channel3 product discovery is not configured. Add CHANNEL3_API_KEY to search live products.';
     }
-    return `Product discovery failed: ${err.message || 'unknown error'}`;
+    return 'Product discovery is unavailable right now. No sample products were substituted. Please try again later.';
   }
 }
 
