@@ -39,6 +39,7 @@ import {
   MandatePolicyError,
   createPurchaseMandate,
   authorizePurchaseMandate,
+  declineUnapprovedMandate,
   getMandateDetails,
   evaluateSpendPolicy,
 } from './lib/channel3/mandate-service.mjs';
@@ -2683,6 +2684,24 @@ async function handleCommerceRequest(req, res, url, {
         :action==='void'?await service.voidHold(context,body.mandateId):await service.reconcile(context,body.mandateId);
       sendJson(res,200,{ok:true,checkout:result});
     }catch(error){const known=error instanceof CheckoutError||error instanceof RequestError;sendJson(res,known?(error.status||400):500,{error:known?error.code:'checkout_request_failed'});}
+    return true;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/commerce/mandates/decline') {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      requireSameOrigin(req);
+      const body = await readJsonBody(req, 4096);
+      if (!body || Array.isArray(body) || Object.keys(body).length !== 1 ||
+          typeof body.mandateId !== 'string' || !/^man_[a-f0-9]{32}$/.test(body.mandateId)) {
+        throw new MandatePolicyError('mandate_arguments_invalid', 400);
+      }
+      const mandate = await declineUnapprovedMandate({ db, workspaceId, userId: user.id, mandateId: body.mandateId });
+      sendJson(res, 200, { ok: true, mandate });
+    } catch (error) {
+      const known = error instanceof MandatePolicyError || error instanceof RequestError;
+      sendJson(res, known ? (error.status || 400) : 500, { error: known ? error.code : 'mandate_decline_failed' });
+    }
     return true;
   }
 

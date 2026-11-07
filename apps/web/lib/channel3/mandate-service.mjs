@@ -634,6 +634,38 @@ export async function createPurchaseMandate({
   });
 }
 
+/** Decline only an owned, unapproved mandate; never touches a provider or checkout. */
+export async function declineUnapprovedMandate({ db, workspaceId, userId, mandateId, now = Date.now() }) {
+  if (!db) throw new Error('database_required');
+  if (!workspaceId) throw new Error('workspace_id_required');
+  if (!userId) throw new Error('user_id_required');
+  if (!mandateId) throw new Error('mandate_id_required');
+  const timestamp = isoNow(now);
+  return withWriteTransaction(db, async (tx) => {
+    const result = await tx.execute({
+      sql: `SELECT m.id, m.status, m.expires_at, ma.status AS approval_status,
+                   EXISTS(SELECT 1 FROM paypal_standard_checkouts c WHERE c.mandate_id=m.id) AS has_checkout
+            FROM mandates m JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id
+            JOIN mandate_approvals ma ON ma.mandate_id=m.id AND ma.workspace_id=m.workspace_id
+            WHERE m.workspace_id=? AND m.id=? AND r.user_id=? AND ma.user_id=?`,
+      args: [workspaceId, mandateId, userId, userId],
+    });
+    const row = result.rows[0];
+    if (!row) throw new MandatePolicyError('mandate_not_found', 404);
+    if (Number(row.has_checkout)) throw new MandatePolicyError('mandate_already_processed', 409);
+    if ((row.status === 'rejected' && row.approval_status === 'rejected') ||
+        (row.status === 'expired' && row.approval_status === 'expired')) return { mandateId, status: row.status };
+    if (row.status !== 'awaiting_approval' || row.approval_status !== 'pending') {
+      throw new MandatePolicyError('mandate_already_processed', 409);
+    }
+    const status = Date.parse(row.expires_at) <= now ? 'expired' : 'rejected';
+    await tx.execute({sql:'UPDATE mandates SET status=?,updated_at=? WHERE workspace_id=? AND id=?',args:[status,timestamp,workspaceId,mandateId]});
+    await tx.execute({sql:'UPDATE mandate_approvals SET status=? WHERE workspace_id=? AND mandate_id=? AND user_id=?',args:[status,workspaceId,mandateId,userId]});
+    await tx.execute({sql:"INSERT INTO run_events (id,workspace_id,run_id,event_type,details_json,created_at) SELECT ?,workspace_id,run_id,?, ?,? FROM mandates WHERE workspace_id=? AND id=?",args:[`evt_${crypto.randomUUID().replaceAll('-', '')}`,status === 'expired'?'mandate_expired':'mandate_rejected',JSON.stringify({mandateId,userId}),timestamp,workspaceId,mandateId]});
+    return { mandateId, status };
+  });
+}
+
 /**
  * Authorizes or rejects a proposed purchase mandate.
  */
