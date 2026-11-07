@@ -719,3 +719,24 @@ test('a nested saved offer id cannot make a client-supplied product override its
   const manual=await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product:{title:'Manual test item',merchantDomain:'example.test',amountMinor:1,quantity:1,currency:'USD',evidenceHash:'sha256:'+'e'.repeat(64)}});
   assert.equal(manual.items[0].unitAmountMinor,1);
 });
+
+test('unknown and legacy currency provenance cannot become a saved-offer review', async () => {
+ const {db,wsId,userId,agentId}=await setupTestDatabase();
+ const raw=[{id:'missing',title:'Missing currency',price:2,merchant_domain:'shop.example'},{id:'conflict',title:'Conflicting currency',price:2,currency:'EUR',offers:[{price:2,currency:'USD'}],merchant_domain:'shop.example'},{id:'unknownprice',title:'Missing price',currency:'USD',merchant_domain:'shop.example'},{id:'valid',title:'Valid USD',price:3,currency:'USD',merchant_domain:'shop.example'},{id:'euro',title:'Euro',price:4,currency:'EUR',merchant_domain:'shop.example'}];
+ const client=createChannel3Client({apiKey:'local-test',resolveHost:async()=>[{address:'93.184.216.34',family:4}],fetchImpl:async()=>({ok:true,status:200,json:async()=>({products:raw})})});
+ try{
+  const d=await discoverProducts({channel3Client:client,query:'fixture',db,workspaceId:wsId,userId,agentId});const byId=Object.fromEntries(d.products.map(p=>[p.id,p]));
+  assert.equal(byId.missing.currencyVerified,false);assert.equal(byId.missing.currency,'XXX');assert.equal(byId.missing.priceFormatted,'Price currency unverified');
+  await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,offerId:byId.missing.offerId}),/currency is unverified/i);
+  assert.equal(byId.conflict.currencyVerified,false);assert.equal(byId.conflict.priceFormatted,'Price currency unverified');
+  await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,offerId:byId.conflict.offerId}),/currency is unverified/i);
+  await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,offerId:byId.unknownprice.offerId}),/price_invalid/);
+  await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,items:[{offerId:byId.valid.offerId},{offerId:byId.euro.offerId}]}),/same currency/);
+  await db.execute({sql:'UPDATE product_offers SET evidence_ref=NULL WHERE id=?',args:[byId.valid.offerId]});
+  await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,offerId:byId.valid.offerId}),/currency is unverified/i);
+  await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,items:[{offerId:byId.euro.offerId},{offerId:byId.valid.offerId}]}),/currency is unverified/i);
+  const rows=await db.execute('SELECT COUNT(*) AS n FROM mandates');assert.equal(Number(rows.rows[0].n),0);
+ }finally{db.close()}
+});
+
+test('manual purchase details require an explicitly stated currency',async()=>{const {db,wsId,userId,agentId}=await setupTestDatabase();try{const product={title:'Manual',merchantDomain:'shop.example',amountMinor:100,evidenceHash:'test'};await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product}),/currency must be explicitly supplied/i);await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,items:[product]}),/currency must be explicitly supplied/i);assert.equal((await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product:{...product,currency:'USD'}})).allowed,true);}finally{db.close()}});

@@ -59,7 +59,7 @@ async function setup(t) {
   const db = createClient({ url: "file::memory:" });
   t.after(() => db.close());
   await db.executeMultiple(
-    "CREATE TABLE runs(id TEXT,workspace_id TEXT,user_id TEXT,agent_id TEXT,mode TEXT);CREATE TABLE product_offers(id TEXT,workspace_id TEXT,run_id TEXT,title TEXT,amount_minor INTEGER,currency TEXT,availability TEXT,observed_at TEXT);",
+    "CREATE TABLE runs(id TEXT,workspace_id TEXT,user_id TEXT,agent_id TEXT,mode TEXT);CREATE TABLE product_offers(id TEXT,workspace_id TEXT,run_id TEXT,title TEXT,amount_minor INTEGER,currency TEXT,availability TEXT,observed_at TEXT,evidence_ref TEXT);",
   );
   await db.execute("INSERT INTO runs VALUES('run','w','u','a','live_search')");
   for (const [id, title, amount] of [
@@ -67,7 +67,7 @@ async function setup(t) {
     ["offer-b", "Keyboard", 3000],
   ])
     await db.execute({
-      sql: "INSERT INTO product_offers VALUES(?,?,?,?,?,?,?,?)",
+      sql: "INSERT INTO product_offers VALUES(?,?,?,?,?,?,?,?,?)",
       args: [
         id,
         "w",
@@ -77,6 +77,7 @@ async function setup(t) {
         "USD",
         "in_stock",
         new Date().toISOString(),
+        JSON.stringify({keusCurrencyEvidence:1,explicit:true,currency:"USD"}),
       ],
     });
   return {
@@ -129,3 +130,5 @@ test("mixed currencies fail closed and stale/sample offers are not presented as 
   assert.match(result, /Sample\/preview/);
   assert.match(result, /confirm stock/);
 });
+
+test('basket refuses a zero price or an older currency-unverified offer',async t=>{const o=await setup(t);await o.db.execute("UPDATE product_offers SET amount_minor=0 WHERE id='offer-a'");assert.match(await reviewShoppingBasket(o),/cannot be totalled/);await o.db.execute("UPDATE product_offers SET amount_minor=5000,evidence_ref=NULL WHERE id='offer-a'");assert.match(await reviewShoppingBasket(o),/cannot be totalled/);});

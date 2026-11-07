@@ -360,7 +360,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
         if (!Number.isSafeInteger(item.amountMinor) || item.amountMinor <= 0) {
           throw new WorkspaceToolError('workspace_tool_arguments_invalid');
         }
-        const currency = cleanText(item.currency || 'USD', 'currency', 3).toUpperCase();
+        const currency = cleanText(item.currency, 'currency', 3).toUpperCase();
         const evidenceHash = cleanText(item.evidenceHash, 'evidence_hash', 100);
         return {
           productTitle,
@@ -391,7 +391,7 @@ export function prepareWorkspaceToolCall(call, bootstrap) {
     if (!Number.isSafeInteger(args.amountMinor) || args.amountMinor <= 0) {
       throw new WorkspaceToolError('workspace_tool_arguments_invalid');
     }
-    const currency = cleanText(args.currency || 'USD', 'currency', 3).toUpperCase();
+    const currency = cleanText(args.currency, 'currency', 3).toUpperCase();
     const evidenceHash = cleanText(args.evidenceHash, 'evidence_hash', 100);
     return {
       kind: 'purchase_product',

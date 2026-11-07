@@ -1,3 +1,4 @@
+import { hasExplicitCurrency } from "../channel3/currency-evidence.mjs";
 import { escapeMarkdown } from "./workspace-tools.mjs";
 import { withReadTransaction } from "../db/transaction.mjs";
 export async function reviewShoppingBasket({
@@ -48,9 +49,10 @@ export async function reviewShoppingBasket({
   if (
     rows.some(
       (r) =>
+        !hasExplicitCurrency(r.evidence_ref, r.currency) ||
         r.currency !== "USD" ||
         !Number.isSafeInteger(Number(r.amount_minor)) ||
-        Number(r.amount_minor) < 0,
+        Number(r.amount_minor) <= 0,
     )
   )
     return "These offers cannot be totalled safely in USD. Mixed currencies are not converted automatically. Nothing was purchased.";

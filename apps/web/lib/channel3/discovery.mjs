@@ -1,3 +1,4 @@
+import { currencyEvidenceRef, hasExplicitCurrency } from './currency-evidence.mjs';
 import crypto from 'node:crypto';
 import { withReadTransaction, withWriteTransaction } from '../db/transaction.mjs';
 import { Channel3Error } from './client.mjs';
@@ -115,7 +116,7 @@ export async function recordDiscoveredOffers({
           p.currency || 'USD',
           p.availability || 'unknown',
           p.evidenceHash,
-          p.evidenceRef || null,
+          currencyEvidenceRef(p),
           p.observedAt || timestamp,
           timestamp,
         ],
@@ -166,8 +167,9 @@ export async function getProductOffersForRun({ db, workspaceId, runId }) {
       merchantDomain: r.merchant_domain,
       title: r.title,
       amountMinor: r.amount_minor,
-      priceFormatted: `$${(r.amount_minor / 100).toFixed(2)} ${r.currency}`,
-      currency: r.currency,
+      priceFormatted: Number(r.amount_minor) <= 0 ? 'Price on request' : !hasExplicitCurrency(r.evidence_ref, r.currency) ? 'Price currency unverified' : r.currency === 'USD' ? `$${(r.amount_minor / 100).toFixed(2)} USD` : `${(r.amount_minor / 100).toFixed(2)} ${r.currency}`,
+      currency: hasExplicitCurrency(r.evidence_ref, r.currency) ? r.currency : null,
+      currencyVerified: hasExplicitCurrency(r.evidence_ref, r.currency),
       availability: r.availability,
       evidenceHash: r.evidence_hash,
       evidenceRef: r.evidence_ref,

@@ -1,3 +1,4 @@
+import {hasExplicitCurrency} from '../channel3/currency-evidence.mjs';
 import {readPurchaseItems,paypalLineItems} from '../commerce/purchase-items.mjs';
 import crypto from "node:crypto";
 import { withWriteTransaction } from "../db/transaction.mjs";
@@ -227,6 +228,16 @@ export function createStandardCheckoutService({
     return m;
   }
   async function safety(tx, c, m, { fresh = true } = {}) {
+    // Only reviews created after explicit-currency validation carry this
+    // server-written marker. Read/void/reconcile paths do not call safety.
+    const proofs = await tx.execute({sql:"SELECT details_json FROM run_events WHERE workspace_id=? AND run_id=? AND event_type='purchase_currency_checked_v1'",args:[c.workspaceId,m.run_id]});
+    const verified = proofs.rows.some(row => { try { const proof=JSON.parse(row.details_json); return proof.mandateId===m.id && proof.currency===m.currency && proof.itemsHash===m.purchase_items_hash && Boolean(m.purchase_items_hash); } catch { return false; } });
+    if (!verified || !m.purchaseItems.length) fail('purchase_currency_unverified', 409);
+    for (const item of m.purchaseItems) {
+      if (!item.offerId) continue; // Manual currency was explicit in the fresh review.
+      const found = await tx.execute({sql:'SELECT currency,evidence_ref FROM product_offers WHERE workspace_id=? AND id=?',args:[c.workspaceId,item.offerId]});
+      if (!found.rows[0] || found.rows[0].currency !== item.currency || !hasExplicitCurrency(found.rows[0].evidence_ref, item.currency)) fail('purchase_currency_unverified', 409);
+    }
     if (
       m.status !== "authorized" ||
       m.approval_status !== "verified" ||

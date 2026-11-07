@@ -1,3 +1,4 @@
+import { hasExplicitCurrency } from './currency-evidence.mjs';
 import {purchaseQuantity,quantityLine,purchaseItemsHash} from '../commerce/purchase-items.mjs';
 import crypto from 'node:crypto';
 import { withReadTransaction, withWriteTransaction } from '../db/transaction.mjs';
@@ -271,13 +272,14 @@ export async function createPurchaseMandate({
       if (rawItem.offerId) {
         const offerResult = await db.execute({
           sql: `SELECT id, run_id, source, source_url, merchant_name, merchant_domain,
-                       title, amount_minor, currency, availability, evidence_hash
+                       title, amount_minor, currency, availability, evidence_hash, evidence_ref
                 FROM product_offers
                 WHERE workspace_id = ? AND id = ? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=product_offers.run_id AND r.workspace_id=product_offers.workspace_id AND r.user_id=? AND r.agent_id=?)`,
           args: [workspaceId, rawItem.offerId,userId,agentId],
         });
         const offer = offerResult.rows[0];
         if (!offer) throw new MandatePolicyError('product_offer_not_found', 404, `Product offer ${rawItem.offerId} not found`);
+        if (!hasExplicitCurrency(offer.evidence_ref, offer.currency)) throw new MandatePolicyError('purchase_currency_unverified', 409, 'Offer currency is unverified. Search again before requesting a new review.');
         resolvedItems.push({
           offerId: offer.id,
           title: offer.title,
@@ -305,7 +307,7 @@ export async function createPurchaseMandate({
           merchantDomain,
           amountMinor,
           quantity: rawItem.quantity,
-          currency: rawItem.currency || 'USD',
+          currency: rawItem.currency,
           url: rawItem.url || '',
           evidenceHash,
         });
@@ -314,13 +316,14 @@ export async function createPurchaseMandate({
   } else if (offerId) {
     const offerResult = await db.execute({
       sql: `SELECT id, run_id, source, source_url, merchant_name, merchant_domain,
-                   title, amount_minor, currency, availability, evidence_hash
+                   title, amount_minor, currency, availability, evidence_hash, evidence_ref
             FROM product_offers
             WHERE workspace_id = ? AND id = ? AND EXISTS(SELECT 1 FROM runs r WHERE r.id=product_offers.run_id AND r.workspace_id=product_offers.workspace_id AND r.user_id=? AND r.agent_id=?)`,
       args: [workspaceId, offerId,userId,agentId],
     });
     const offer = offerResult.rows[0];
     if (!offer) throw new MandatePolicyError('product_offer_not_found', 404, `Product offer ${offerId} not found`);
+    if (!hasExplicitCurrency(offer.evidence_ref, offer.currency)) throw new MandatePolicyError('purchase_currency_unverified', 409, 'Offer currency is unverified. Search again before requesting a new review.');
     resolvedItems.push({
       offerId: offer.id,
       title: offer.title,
@@ -344,7 +347,7 @@ export async function createPurchaseMandate({
       merchantDomain: product.merchantDomain,
       amountMinor: product.amountMinor,
       quantity: quantity===undefined?product.quantity:quantity,
-      currency: product.currency || 'USD',
+      currency: product.currency,
       url: product.url || '',
       evidenceHash: product.evidenceHash,
     });
@@ -358,6 +361,7 @@ export async function createPurchaseMandate({
 
   try {for(let i=0;i<resolvedItems.length;i++)resolvedItems[i]=quantityLine(resolvedItems[i]);}
   catch(e){throw new MandatePolicyError(e.message,400,e.message);}
+  if (resolvedItems.some(i => typeof i.currency !== 'string' || !/^[A-Z]{3}$/.test(i.currency) || i.currency === 'XXX')) throw new MandatePolicyError('purchase_currency_unverified', 400, 'A currency must be explicitly supplied for every item.');
   const primaryCurrency = resolvedItems[0].currency;
   if (resolvedItems.some((i) => i.currency !== primaryCurrency)) {
     throw new MandatePolicyError('currency_mismatch', 400, 'All bundle items must share the same currency');
@@ -549,6 +553,9 @@ export async function createPurchaseMandate({
 
     await tx.execute({sql:'UPDATE mandates SET purchase_items_hash=? WHERE id=? AND workspace_id=?',args:[itemsHash,mandateId,workspaceId]});
     for(const [index,item] of resolvedItems.entries())await tx.execute({sql:'INSERT INTO mandate_purchase_items(mandate_id,workspace_id,line_number,offer_id,title,merchant_domain,currency,unit_amount_minor,quantity,line_total_minor,evidence_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?)',args:[mandateId,workspaceId,index+1,item.offerId||null,item.title,item.merchantDomain,item.currency,item.unitAmountMinor,item.quantity,item.lineTotalMinor,item.evidenceHash]});
+
+    // Persist provenance atomically with the snapshot, so pre-fix reviews fail closed.
+    await tx.execute({sql: `INSERT INTO run_events (id,workspace_id,run_id,event_type,details_json,created_at) VALUES (?,?,?,'purchase_currency_checked_v1',?,?)`,args:[`evt_${crypto.randomUUID().replaceAll('-', '')}`,workspaceId,targetRunId,JSON.stringify({mandateId,currency:primaryCurrency,itemsHash}),timestamp]});
 
     // Insert mandate approval ceremony record
     await tx.execute({

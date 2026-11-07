@@ -183,18 +183,16 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
     else if (typeof raw.amount_minor === 'number' && raw.amount_minor > 0) amountMinor = Math.round(raw.amount_minor);
   }
 
-  const currencyInput = (
-    primaryOffer.currency
-    || primaryOffer.priceCurrency
-    || primaryOffer.price?.currency
-    || primaryOffer.price?.priceCurrency
-    || raw.currency
-    || raw.priceCurrency
-    || ''
-  );
-  const rawCurrency = safeString(currencyInput, 20).toUpperCase();
-  const currencyVerified = /^[A-Z]{3}$/.test(rawCurrency);
-  const currency = currencyVerified ? rawCurrency : 'USD';
+  const currencyCandidates = [
+    primaryOffer.currency, primaryOffer.priceCurrency,
+    primaryOffer.price?.currency, primaryOffer.price?.priceCurrency,
+    raw.currency, raw.priceCurrency,
+  ].filter(value => value !== undefined && value !== null && value !== '')
+    .map(value => safeString(value, 20).toUpperCase());
+  const rawCurrency = currencyCandidates[0] || '';
+  const currencyVerified = currencyCandidates.length > 0
+    && currencyCandidates.every(value => /^[A-Z]{3}$/.test(value) && value !== 'XXX' && value === rawCurrency);
+  const currency = currencyVerified ? rawCurrency : 'XXX';
 
   let availability = 'unknown';
   const rawAvail = safeString(primaryOffer.availability || raw.availability || '').toLowerCase();
@@ -230,7 +228,7 @@ export function normalizeProduct(raw, { source = 'channel3', isLive = true, obse
     merchantDomain,
     url,
     amountMinor,
-    priceFormatted: amountMinor > 0 ? `$${(amountMinor / 100).toFixed(2)} ${currency}` : 'Price on request',
+    priceFormatted: amountMinor <= 0 ? 'Price on request' : !currencyVerified ? 'Price currency unverified' : currency === 'USD' ? `$${(amountMinor / 100).toFixed(2)} USD` : `${(amountMinor / 100).toFixed(2)} ${currency}`,
     currency,
     currencyVerified,
     availability,

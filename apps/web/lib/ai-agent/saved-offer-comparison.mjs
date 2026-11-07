@@ -1,3 +1,4 @@
+import { hasExplicitCurrency } from '../channel3/currency-evidence.mjs';
 import { withReadTransaction } from '../db/transaction.mjs';
 import { escapeMarkdown } from './workspace-tools.mjs';
 
@@ -30,7 +31,7 @@ export async function compareSavedOffers({ db, workspaceId, userId, agentId, ids
   const lines = ['## Saved-offer comparison', '', 'These are server-read saved records, not a fresh seller price or stock check.', ''];
   for (const row of rows) {
     const amount = Number(row.amount_minor);
-    const validPrice = row.currency === 'USD' && Number.isSafeInteger(amount) && amount > 0;
+    const validPrice = hasExplicitCurrency(row.evidence_ref, row.currency) && row.currency === 'USD' && Number.isSafeInteger(amount) && amount > 0;
     lines.push(`- **${escapeMarkdown(row.title || 'Untitled')}** — ${validPrice ? `$${(amount / 100).toFixed(2)} USD` : 'Price unavailable or unverified'}; merchant: ${escapeMarkdown(row.merchant_name || 'unknown')} (${escapeMarkdown(row.merchant_domain || 'unknown')}); recorded: ${escapeMarkdown(row.observed_at || 'unknown')}; availability: ${escapeMarkdown(row.availability || 'unknown')}; source: ${row.mode === 'live_search' ? 'saved live-search result' : 'sample or preview'}; offer: \`${row.id}\`.`);
   }
   lines.push('', 'Prices and availability may have changed; verify with the seller before a decision. Shipping and taxes are not verified.', 'No purchase, order, mandate, or payment hold was created.');

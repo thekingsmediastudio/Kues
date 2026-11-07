@@ -195,10 +195,10 @@ test('Tier 2: Channel3 UCP Direct Partner Order is backed by PayPal Authorizatio
   const timestamp = new Date().toISOString();
   await db.execute({
     sql: `INSERT INTO product_offers (id, workspace_id, run_id, source, source_listing_id, source_url,
-      merchant_name, merchant_domain, title, amount_minor, currency, availability, evidence_hash, observed_at, created_at)
-      VALUES (?, ?, ?, 'channel3', ?, '', ?, ?, ?, ?, 'USD', 'in_stock', ?, ?, ?)`,
+      merchant_name, merchant_domain, title, amount_minor, currency, availability, evidence_hash, observed_at, created_at, evidence_ref)
+      VALUES (?, ?, ?, 'channel3', ?, '', ?, ?, ?, ?, 'USD', 'in_stock', ?, ?, ?, ?)`,
     args: ['off_81b2159e39e54d89af93d85419cf3289',wsId,runId,'off_81b2159e39e54d89af93d85419cf3289','Studio Kera',
-      'studiokera.example.com','Ceramic Tabletop Bundle',7850,'sha256:'+'b'.repeat(64),timestamp,timestamp],
+      'studiokera.example.com','Ceramic Tabletop Bundle',7850,'sha256:'+'b'.repeat(64),timestamp,timestamp,JSON.stringify({keusCurrencyEvidence:1,explicit:true,currency:'USD'})],
   });
   const mandateResult = await createPurchaseMandate({
     db, workspaceId:wsId, userId, agentId, offerId:'off_81b2159e39e54d89af93d85419cf3289',

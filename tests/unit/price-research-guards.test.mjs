@@ -59,3 +59,11 @@ test('shopping research never shows model-computed budget or invented listing cl
  }
  assert.equal(researchAnswerForDisplay('One million naira.','/research What is NGN?'),'One million naira.');
 });
+
+test('legacy saved comparisons do not present guessed currency as verified USD',async()=>{
+ const {compareSavedOffers}=await import('../../apps/web/lib/ai-agent/saved-offer-comparison.mjs');
+ const ids=['off_'+'a'.repeat(32),'off_'+'b'.repeat(32)];
+ const db={transaction:async()=>({execute:async q=>({rows:[{id:q.args[0],title:'Fixture',merchant_name:'Shop',merchant_domain:'shop.example',amount_minor:200,currency:'USD',evidence_ref:null,mode:'live_search'}]}),commit:async()=>{},rollback:async()=>{}})};
+ const text=await compareSavedOffers({db,workspaceId:'w',userId:'u',agentId:'a',ids});
+ assert.equal((text.match(/Price unavailable or unverified/g)||[]).length,2);assert.doesNotMatch(text,/\$2\.00/);
+});
