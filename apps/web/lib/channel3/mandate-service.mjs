@@ -47,8 +47,13 @@ export function computeMandateChallenge({
  * Evaluates spending policy for a proposed autonomous order.
  * Checks per-order cap, daily budget, and domain restrictions.
  */
-export async function evaluateSpendPolicy({
-  db,
+export async function evaluateSpendPolicy({ db, ...params }) {
+  if (!db) throw new Error('database_required');
+  return withWriteTransaction(db, (tx) => evaluateSpendPolicyInTransaction({ tx, ...params }));
+}
+
+async function evaluateSpendPolicyInTransaction({
+  tx,
   workspaceId,
   agentId = null,
   amountMinor,
@@ -57,7 +62,6 @@ export async function evaluateSpendPolicy({
   currency = 'USD',
   now = Date.now(),
 }) {
-  if (!db) throw new Error('database_required');
   if (!workspaceId) throw new Error('workspace_id_required');
   if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
     throw new MandatePolicyError('invalid_amount', 400, 'Order amount must be a positive integer in minor units');
@@ -68,7 +72,6 @@ export async function evaluateSpendPolicy({
   const currentIso = isoNow(now);
   const startOfDayIso = new Date(new Date(now).setUTCHours(0, 0, 0, 0)).toISOString();
 
-  return withWriteTransaction(db, async (tx) => {
     // 1. Fetch active spend policy for this agent or workspace default
     let policyRow = null;
     if (agentId) {
@@ -223,7 +226,6 @@ export async function evaluateSpendPolicy({
       remainingDailyMinor: Math.max(0, policyRow.daily_budget_minor - dailySpentMinor),
       currency: policyRow.currency,
     };
-  });
 }
 
 /**
@@ -399,28 +401,26 @@ export async function createPurchaseMandate({
     targetRunId = newRun.runId;
   }
 
-  // 3. Evaluate spend policy (outside inner tx to prevent write-queue deadlock)
-  let policyResult = await evaluateSpendPolicy({
-    db,
-    workspaceId,
-    agentId,
-    amountMinor: targetProduct.amountMinor,
-    merchantDomain: resolvedItems[0].merchantDomain,
-    payee: targetProduct.merchantName,
-    currency: targetProduct.currency,
-    now,
-  });
-
-  // Every line's merchant must pass policy; a permitted first line cannot hide another.
-  for(const item of resolvedItems.slice(1)){
-    if(!policyResult.allowed)break;
-    const check=await evaluateSpendPolicy({db,workspaceId,agentId,amountMinor:totalAmountMinor,merchantDomain:item.merchantDomain,payee:item.merchantName,currency:primaryCurrency,now});
-    if(!check.allowed)policyResult=check;
-  }
-
   const decisionId = `pdec_${crypto.randomUUID().replaceAll('-', '')}`;
 
+  // Evaluate all merchants and reserve the budget in the same write transaction.
+  // Separate transactions allow parallel reviews to both see the same budget.
   return withWriteTransaction(db, async (tx) => {
+    let policyResult = await evaluateSpendPolicyInTransaction({
+      tx,
+      workspaceId,
+      agentId,
+      amountMinor: targetProduct.amountMinor,
+      merchantDomain: resolvedItems[0].merchantDomain,
+      payee: targetProduct.merchantName,
+      currency: targetProduct.currency,
+      now,
+    });
+    for (const item of resolvedItems.slice(1)) {
+      if (!policyResult.allowed) break;
+      const check = await evaluateSpendPolicyInTransaction({tx,workspaceId,agentId,amountMinor:totalAmountMinor,merchantDomain:item.merchantDomain,payee:item.merchantName,currency:primaryCurrency,now});
+      if (!check.allowed) policyResult = check;
+    }
     if (!policyResult.allowed) {
       // Record denied policy decision
       await tx.execute({

@@ -13,8 +13,8 @@ import {
 import { discoverProducts } from '../../apps/web/lib/channel3/discovery.mjs';
 import { createChannel3Client } from '../../apps/web/lib/channel3/client.mjs';
 
-async function setupTestDatabase() {
-  const db = createClient({ url: ':memory:' });
+async function setupTestDatabase(url = ':memory:') {
+  const db = createClient({ url });
   await applyMigrations(db);
 
   const wsId = 'ws_mandate_test';
@@ -686,4 +686,16 @@ test('merchant allowlist uses DNS label boundaries and checks every bundle item'
  for(const domain of ['shop.example','SHOP.EXAMPLE','store.shop.example'])assert.equal((await evaluateSpendPolicy({...base,merchantDomain:domain})).allowed,true,domain);
  for(const domain of ['shop.example.evil.test','notshop.example','shop-example','evil.test']){const r=await evaluateSpendPolicy({...base,merchantDomain:domain});assert.equal(r.allowed,false,domain);assert.equal(r.decisionCode,'merchant_domain_blocked');}
  const common={title:'Fixture',amountMinor:100,currency:'USD',evidenceHash:'sha256:'+'a'.repeat(64)};const result=await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,items:[{...common,merchantDomain:'shop.example'},{...common,merchantDomain:'shop.example.evil.test'}]});assert.equal(result.allowed,false);assert.equal(result.decisionCode,'merchant_domain_blocked');
+});
+
+
+test('parallel purchase reviews reserve daily budget atomically on one database client',async()=>{
+ const {db,wsId,userId,agentId}=await setupTestDatabase(),base={db,workspaceId:wsId,agentId};await evaluateSpendPolicy({...base,merchantDomain:'shop.example',amountMinor:100});await db.execute({sql:'UPDATE spend_policies SET daily_budget_minor=5000 WHERE workspace_id=? AND agent_id=?',args:[wsId,agentId]});
+ const product={title:'Fixture',merchantDomain:'shop.example',amountMinor:4000,currency:'USD',evidenceHash:'sha256:'+'a'.repeat(64)};const results=await Promise.all(Array.from({length:5},()=>createPurchaseMandate({...base,userId,product})));assert.equal(results.filter(r=>r.allowed).length,1);assert.equal(results.filter(r=>r.decisionCode==='daily_cap_exceeded').length,4);const rows=await db.execute({sql:"SELECT SUM(amount_minor) AS total, COUNT(*) AS count FROM mandates WHERE workspace_id=? AND status='awaiting_approval'",args:[wsId]});assert.equal(Number(rows.rows[0].total),4000);assert.equal(Number(rows.rows[0].count),1);
+});
+
+test('parallel purchase reviews reserve daily budget across separate database clients',async t=>{
+ const {mkdtemp,rm}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const dir=await mkdtemp(join(tmpdir(),'keus-policy-'));const url='file:'+join(dir,'db.sqlite');let one,two;t.after(async()=>{one?.close();two?.close();await rm(dir,{recursive:true,force:true})});
+ const {db,wsId,userId,agentId}=await setupTestDatabase(url);one=db;two=createClient({url});const base={workspaceId:wsId,agentId};await evaluateSpendPolicy({db:one,...base,merchantDomain:'shop.example',amountMinor:100});await one.execute({sql:'UPDATE spend_policies SET daily_budget_minor=5000 WHERE workspace_id=? AND agent_id=?',args:[wsId,agentId]});
+ const product={title:'Fixture',merchantDomain:'shop.example',amountMinor:4000,currency:'USD',evidenceHash:'sha256:'+'a'.repeat(64)};const settled=await Promise.allSettled([one,two].map(db=>createPurchaseMandate({db,...base,userId,product})));const results=settled.filter(r=>r.status==='fulfilled').map(r=>r.value);assert.equal(results.filter(r=>r.allowed).length,1);for(const r of settled)if(r.status==='rejected')assert.match(String(r.reason),/SQLITE_BUSY|SQLITE_LOCKED/);for(const r of results)if(!r.allowed)assert.equal(r.decisionCode,'daily_cap_exceeded');const rows=await one.execute({sql:"SELECT SUM(amount_minor) AS total,COUNT(*) AS count FROM mandates WHERE workspace_id=? AND status='awaiting_approval'",args:[wsId]});assert.equal(Number(rows.rows[0].total),4000);assert.equal(Number(rows.rows[0].count),1);
 });
