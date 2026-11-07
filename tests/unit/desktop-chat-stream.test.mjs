@@ -1280,3 +1280,8 @@ test('dashboard no longer claims shopping is disconnected or no tokens are consu
  assert.match(dashboard,/separate PayPal sandbox buyer approval/);
  assert.match(dashboard,/Usage totals are not displayed here/);
 });
+
+
+test('hidden run-code control remains disabled when agent settings are enabled',async()=>{
+ const vm=await import('node:vm');const f=desktopHtml.match(/function setSettingsFormEnabled\(formId, enabled\) \{[\s\S]*?\n  \}/)?.[0];assert.ok(f);const normal={disabled:true,dataset:{}},hidden={disabled:true,dataset:{agentTool:'run_code'}},other={disabled:true,dataset:{}};const forms={settingsAgentForm:{elements:[normal,hidden]},profileSettingsForm:{elements:[other]}};const run=vm.runInNewContext(`(${f})`,{document:{getElementById:id=>forms[id]}});run('settingsAgentForm',true);assert.equal(normal.disabled,false);assert.equal(hidden.disabled,true);run('settingsAgentForm',false);assert.equal(normal.disabled,true);assert.equal(hidden.disabled,true);run('profileSettingsForm',true);assert.equal(other.disabled,false);
+});

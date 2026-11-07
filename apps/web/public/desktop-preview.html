@@ -4451,7 +4451,7 @@
   function setSettingsFormEnabled(formId, enabled) {
     const form = document.getElementById(formId);
     if (!form) return;
-    Array.from(form.elements).forEach((element) => { element.disabled = !enabled; });
+    Array.from(form.elements).forEach((element) => { element.disabled = !enabled || (formId === 'settingsAgentForm' && element.dataset?.agentTool === 'run_code'); });
   }
 
   function applySettingsAvailability() {
