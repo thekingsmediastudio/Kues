@@ -3984,6 +3984,22 @@
   let activeAvatarMoodBurstTimer = null;
   let activeAvatarMoodBurstFrame = null;
   let renderedChatAgentId = null;
+  function trapOverlayTab(event, dialog) {
+    if (!dialog) return;
+    const controls = Array.from(dialog.querySelectorAll('a[href],button,input,select,textarea,[tabindex]'))
+      .filter((element) => element.tabIndex >= 0 && !element.disabled &&
+        !element.closest('[inert],[hidden],[aria-hidden="true"]') &&
+        element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden');
+    if (!controls.length) { event.preventDefault(); dialog.focus(); return; }
+    const active = document.activeElement;
+    if (!dialog.contains(active) || active === dialog || !controls.includes(active)) {
+      event.preventDefault(); (event.shiftKey ? controls.at(-1) : controls[0]).focus();
+    } else if (event.shiftKey && active === controls[0]) {
+      event.preventDefault(); controls.at(-1).focus();
+    } else if (!event.shiftKey && active === controls.at(-1)) {
+      event.preventDefault(); controls[0].focus();
+    }
+  }
   function openOverlay(id) {
     const backdrop = document.getElementById(id);
     if (!backdrop) return;
@@ -7903,6 +7919,10 @@
   });
 
   document.addEventListener('keydown', (event) => {
+    if (event.key === 'Tab' && openOverlayId && !document.querySelector('dialog[open]')) {
+      trapOverlayTab(event, document.getElementById(openOverlayId)?.querySelector('[role="dialog"]'));
+      return;
+    }
     if (event.key !== 'Escape') return;
     if (openOverlayId) {
       const id = openOverlayId;
