@@ -699,3 +699,23 @@ test('parallel purchase reviews reserve daily budget across separate database cl
  const {db,wsId,userId,agentId}=await setupTestDatabase(url);one=db;two=createClient({url});const base={workspaceId:wsId,agentId};await evaluateSpendPolicy({db:one,...base,merchantDomain:'shop.example',amountMinor:100});await one.execute({sql:'UPDATE spend_policies SET daily_budget_minor=5000 WHERE workspace_id=? AND agent_id=?',args:[wsId,agentId]});
  const product={title:'Fixture',merchantDomain:'shop.example',amountMinor:4000,currency:'USD',evidenceHash:'sha256:'+'a'.repeat(64)};const settled=await Promise.allSettled([one,two].map(db=>createPurchaseMandate({db,...base,userId,product})));const results=settled.filter(r=>r.status==='fulfilled').map(r=>r.value);assert.equal(results.filter(r=>r.allowed).length,1);for(const r of settled)if(r.status==='rejected')assert.match(String(r.reason),/SQLITE_BUSY|SQLITE_LOCKED/);for(const r of results)if(!r.allowed)assert.equal(r.decisionCode,'daily_cap_exceeded');const rows=await one.execute({sql:"SELECT SUM(amount_minor) AS total,COUNT(*) AS count FROM mandates WHERE workspace_id=? AND status='awaiting_approval'",args:[wsId]});assert.equal(Number(rows.rows[0].total),4000);assert.equal(Number(rows.rows[0].count),1);
 });
+
+test('a nested saved offer id cannot make a client-supplied product override its stored price', async () => {
+  const { db, wsId, userId, agentId } = await setupTestDatabase();
+  const discovery = await discoverProducts({channel3Client:createChannel3Client({apiKey:''}),query:'notebook',db,workspaceId:wsId,userId,agentId,allowFixtureFallback:true});
+  const row = (await db.execute({sql:'SELECT * FROM product_offers WHERE run_id=? LIMIT 1',args:[discovery.runId]})).rows[0];
+  await db.execute({sql:'UPDATE product_offers SET amount_minor=325 WHERE id=?',args:[row.id]});
+  const baselineRuns = Number((await db.execute('SELECT count(*) AS n FROM runs')).rows[0].n);
+  const forged = {offerId:row.id,title:row.title,merchantDomain:row.merchant_domain,merchantName:row.merchant_name,amountMinor:1,quantity:1,currency:'USD',evidenceHash:row.evidence_hash};
+  for (const value of [row.id, 'off_unrelated_agent', '', null]) {
+    await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product:{...forged,offerId:value}}), /nested_offer_id_not_allowed/);
+  }
+  assert.equal(Number((await db.execute('SELECT count(*) AS n FROM mandates')).rows[0].n), 0);
+  assert.equal(Number((await db.execute('SELECT count(*) AS n FROM runs')).rows[0].n), baselineRuns);
+  assert.equal(Number((await db.execute({sql:'SELECT amount_minor FROM product_offers WHERE id=?',args:[row.id]})).rows[0].amount_minor),325);
+  const proper=await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,offerId:row.id,quantity:2});
+  assert.equal(proper.items[0].unitAmountMinor,325);
+  assert.equal(proper.product.amountMinor,650);
+  const manual=await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product:{title:'Manual test item',merchantDomain:'example.test',amountMinor:1,quantity:1,currency:'USD',evidenceHash:'sha256:'+'e'.repeat(64)}});
+  assert.equal(manual.items[0].unitAmountMinor,1);
+});

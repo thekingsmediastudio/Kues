@@ -15,6 +15,7 @@ import {
   getCheckoutExecution,
 } from '../../apps/web/lib/commerce/checkout-engine.mjs';
 import { linkWorkspaceWallet } from '../../apps/web/lib/paypal/service.mjs';
+import { createAgentRun } from '../../apps/web/lib/channel3/discovery.mjs';
 
 async function setupTestEnvironment() {
   const db = createClient({ url: ':memory:' });
@@ -188,19 +189,19 @@ test('Tier 3: Single-Use Virtual Card Bridge is funded 1:1 by active PayPal Auth
 test('Tier 2: Channel3 UCP Direct Partner Order is backed by PayPal Authorization Hold', async () => {
   const { db, wsId, userId, agentId } = await setupTestEnvironment();
 
+  // Seed a scoped saved offer; callers select it by top-level offerId so the
+  // server, not client-provided product fields, determines price and merchant.
+  const { runId } = await createAgentRun({db, workspaceId:wsId, userId, agentId, goal:'Synthetic saved offer for rail fixture'});
+  const timestamp = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT INTO product_offers (id, workspace_id, run_id, source, source_listing_id, source_url,
+      merchant_name, merchant_domain, title, amount_minor, currency, availability, evidence_hash, observed_at, created_at)
+      VALUES (?, ?, ?, 'channel3', ?, '', ?, ?, ?, ?, 'USD', 'in_stock', ?, ?, ?)`,
+    args: ['off_81b2159e39e54d89af93d85419cf3289',wsId,runId,'off_81b2159e39e54d89af93d85419cf3289','Studio Kera',
+      'studiokera.example.com','Ceramic Tabletop Bundle',7850,'sha256:'+'b'.repeat(64),timestamp,timestamp],
+  });
   const mandateResult = await createPurchaseMandate({
-    db,
-    workspaceId: wsId,
-    userId,
-    agentId,
-    product: {
-      title: 'Ceramic Tabletop Bundle',
-      merchantDomain: 'studiokera.example.com',
-      amountMinor: 7850,
-      currency: 'USD',
-      offerId: 'off_81b2159e39e54d89af93d85419cf3289',
-      evidenceHash: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    },
+    db, workspaceId:wsId, userId, agentId, offerId:'off_81b2159e39e54d89af93d85419cf3289',
   });
 
   await authorizePurchaseMandate({

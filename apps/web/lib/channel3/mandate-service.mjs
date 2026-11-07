@@ -258,7 +258,7 @@ export async function createPurchaseMandate({
     if(items!==null){if(!Array.isArray(items)||items.length<1||items.length>10||quantity!==undefined||offerId||product)throw Error('purchase_items_invalid');
       for(const i of items){if(!i||typeof i!=='object'||Array.isArray(i))throw Error('purchase_items_invalid');purchaseQuantity(i.quantity);}
       const offers=items.filter(i=>i.offerId).map(i=>i.offerId);if(new Set(offers).size!==offers.length)throw Error('duplicate_purchase_offer');
-    }else{if(offerId&&product)throw Error('purchase_items_ambiguous');if(quantity!==undefined&&product?.quantity!==undefined)throw Error('purchase_quantity_ambiguous');purchaseQuantity(quantity===undefined?product?.quantity:quantity);}
+    }else{if(offerId&&product)throw Error('purchase_items_ambiguous');if(product && typeof product === 'object' && Object.hasOwn(product,'offerId'))throw Error('nested_offer_id_not_allowed');if(quantity!==undefined&&product?.quantity!==undefined)throw Error('purchase_quantity_ambiguous');purchaseQuantity(quantity===undefined?product?.quantity:quantity);}
   }catch(e){throw new MandatePolicyError(e.message,400,e.message);}
 
 
