@@ -180,6 +180,10 @@ function verifiedOrder(order, row) {
   )
     fail("paypal_order_mismatch", 409);
   if(row.purchaseItems?.length){
+    // Providers may omit a response breakdown, but if they supply one it must
+    // agree with the itemized, reviewed amount and currency before authorization.
+    if (Object.prototype.hasOwnProperty.call(unit.amount, 'breakdown') &&
+        !amountMatches(unit.amount.breakdown?.item_total, row)) fail('paypal_item_total_mismatch',409);
     const expected=paypalLineItems(row.purchaseItems);
     if(!Array.isArray(unit.items)||unit.items.length!==expected.length||expected.some((item,i)=>String(unit.items[i].quantity)!==item.quantity||unit.items[i].unit_amount?.currency_code!==item.unit_amount.currency_code||unit.items[i].unit_amount?.value!==item.unit_amount.value||unit.items[i].name!==item.name))fail('paypal_quantity_mismatch',409);
   }

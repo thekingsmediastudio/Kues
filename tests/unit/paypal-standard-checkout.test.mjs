@@ -502,3 +502,9 @@ test('settings cap reduction after PayPal order creation prevents authorization'
   await f.workspaceService.updateAgent({userId:f.c.userId,agentId:a.id,input:{...a.settings,name:a.name,role:a.role,avatar:a.avatar,orderCap:20,dailyCap:100}});
   f.approve();await assert.rejects(f.service().complete(f.c,state),/spend_limit_exceeded/);assert(!f.calls.includes('authorize'));
 });
+
+
+test('provider item total and item unit amounts fail closed when inconsistent',async t=>{
+ for(const mutate of [o=>{o.purchase_units[0].amount.breakdown={item_total:{currency_code:'USD',value:'99.00'}}},o=>{o.purchase_units[0].amount.breakdown={item_total:{currency_code:'EUR',value:'30.00'}}},o=>{o.purchase_units[0].amount.breakdown={}},o=>{o.purchase_units[0].items[0].unit_amount.value='9.00'},o=>{o.purchase_units[0].items[0].unit_amount.currency_code='EUR'},o=>{o.purchase_units[0].amount.currency_code='EUR'}]){const f=await fixture(t,{quantity:3}),state=await f.begin();f.approve();mutate(f.order());await assert.rejects(f.service().complete(f.c,state),/mismatch/);assert.equal(f.calls.includes('authorize'),false)}
+});
+test('provider matching item total or omitted breakdown remains supported',async t=>{for(const withBreakdown of [false,true]){const f=await fixture(t,{quantity:3}),state=await f.begin();f.approve();if(withBreakdown)f.order().purchase_units[0].amount.breakdown={item_total:{currency_code:'USD',value:'30.00'}};assert.equal((await f.service().complete(f.c,state)).status,'authorized');assert.equal(f.calls.filter(x=>x==='authorize').length,1)}});
