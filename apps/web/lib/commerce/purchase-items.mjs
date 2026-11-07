@@ -42,11 +42,16 @@ export const purchaseItemsHash = (items) =>
     .update(JSON.stringify(canonical(items)))
     .digest("hex");
 export async function readPurchaseItems(tx, workspaceId, mandate) {
-  if (!mandate.purchase_items_hash) return [];
   const r = await tx.execute({
     sql: "SELECT * FROM mandate_purchase_items WHERE workspace_id=? AND mandate_id=? ORDER BY line_number",
     args: [workspaceId, mandate.id],
   });
+  // Legacy amount-only mandates have neither a hash nor item rows. A missing
+  // hash with item rows is corruption, not permission to skip item validation.
+  if (!mandate.purchase_items_hash) {
+    if (r.rows.length) throw Error("purchase_items_changed");
+    return [];
+  }
   const items = r.rows.map((i) => ({
     offerId: i.offer_id,
     title: i.title,

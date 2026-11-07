@@ -520,3 +520,11 @@ test('newest verified checkout facts survive a full chat history without duplica
 test('bounded history preserves at most ten older checkout facts without dropping recent chat',async()=>{
  const {mergeCheckoutHistory}=await import('../../apps/web/lib/paypal/chat-events.mjs');const events=Array.from({length:15},(_,i)=>({role:'assistant',content:`event-${i}`,createdAt:new Date(Date.UTC(2026,0,1,0,i)).toISOString()}));const messages=Array.from({length:100},(_,i)=>({role:'user',content:`message-${i}`,createdAt:new Date(Date.UTC(2026,1,1,0,i)).toISOString()}));const result=mergeCheckoutHistory(messages,events,100);assert.equal(result.length,100);assert.deepEqual(result.filter(x=>x.content.startsWith('event-')).map(x=>x.content),events.slice(-10).map(x=>x.content));assert.equal(result.filter(x=>x.content.startsWith('message-')).length,90);assert.equal(result.at(-1).content,'message-99');assert.deepEqual(mergeCheckoutHistory(messages,[],100),messages);
 });
+
+
+test('missing item hash with retained item rows cannot downgrade to legacy checkout',async t=>{
+ for(const timing of ['before','after']){const f=await fixture(t,{quantity:3});let state;if(timing==='after'){state=await f.begin();f.approve()}await f.db.execute({sql:'UPDATE mandates SET purchase_items_hash=NULL WHERE id=?',args:[f.m.mandateId]});await assert.rejects(timing==='before'?f.begin():f.service().complete(f.c,state),/purchase_items_changed/);assert.deepEqual(f.calls,timing==='before'?[]:['create']);}
+});
+test('missing rows or incorrect hash fail closed for itemized checkout',async t=>{
+ for(const change of ['delete','replace']){const f=await fixture(t,{quantity:3});await f.db.execute(change==='delete'?{sql:'DELETE FROM mandate_purchase_items WHERE mandate_id=?',args:[f.m.mandateId]}:{sql:'UPDATE mandates SET purchase_items_hash=? WHERE id=?',args:['sha256:'+ 'b'.repeat(64),f.m.mandateId]});await assert.rejects(f.begin(),/purchase_items_changed/);assert.deepEqual(f.calls,[])}
+});
