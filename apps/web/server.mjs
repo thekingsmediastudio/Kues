@@ -216,10 +216,10 @@ function pendingWorkspaceToolApprovalViews(pendingApprovals, { userId, workspace
   return views.slice(-20);
 }
 
-// Reconstruct only from one scoped pending action and its hash-verified database snapshot.
+// Reconstruct only from one scoped pending or internally approved action and its hash-verified snapshot.
 async function preparePendingBundleChange({ pendingApprovals, db, workspaceId, userId, agentId, change, bootstrap }) {
   pruneWorkspaceToolApprovals(pendingApprovals);
-  const matches = [...pendingApprovals.values()].filter(a => a.status === 'pending' && a.type === 'purchase_product'
+  const matches = [...pendingApprovals.values()].filter(a => (a.status === 'pending' || (a.status === 'completed' && a.decision === 'approve')) && a.type === 'purchase_product'
     && a.userId === String(userId) && a.workspaceId === String(workspaceId) && a.chatAgentId === String(agentId)
     && a.payload?.isBundle === true);
   if (!db || matches.length !== 1) throw new WorkspaceToolError('workspace_tool_change_ambiguous');
@@ -227,13 +227,14 @@ async function preparePendingBundleChange({ pendingApprovals, db, workspaceId, u
   let items;
   try {
     items=await withReadTransaction(db,async tx=>{
-      const r=await tx.execute({sql:`SELECT m.* FROM mandates m JOIN mandate_approvals ma ON ma.mandate_id=m.id AND ma.workspace_id=m.workspace_id JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id WHERE m.id=? AND m.workspace_id=? AND r.user_id=? AND r.agent_id=? AND m.status='awaiting_approval' AND ma.status='pending'`,args:[action.payload.mandateId,workspaceId,userId,agentId]});
+      const r=await tx.execute({sql:`SELECT m.* FROM mandates m JOIN mandate_approvals ma ON ma.mandate_id=m.id AND ma.workspace_id=m.workspace_id JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id WHERE m.id=? AND m.workspace_id=? AND r.user_id=? AND r.agent_id=? AND ((? = 'pending' AND m.status='awaiting_approval' AND ma.status='pending') OR (? = 'approved' AND m.status='authorized' AND ma.status='verified'))`,args:[action.payload.mandateId,workspaceId,userId,agentId,action.status === 'pending' ? 'pending' : 'approved',action.status === 'pending' ? 'pending' : 'approved']});
       const row=r.rows[0];
       if (!row || !Number.isFinite(Date.parse(row.expires_at)) || Date.parse(row.expires_at)<=Date.now()) return null;
       return readPurchaseItems(tx,workspaceId,row);
     });
   } catch { throw new WorkspaceToolError('workspace_tool_change_ambiguous'); }
   if (!Array.isArray(items) || items.length !== 2 || items.some(i=>!/^off_[a-f0-9]{32}$/.test(i.offerId || ''))
+      || (change.firstKind === 'organizer' && !/\borganizer\b/i.test(items[0].title))
       || (change.firstKind === 'notebook' && !/\bnotebook\b/i.test(items[0].title))
       || (change.secondKind === 'notebook' && !/\bnotebook\b/i.test(items[1].title))) throw new WorkspaceToolError('workspace_tool_change_ambiguous');
   // No stored snapshot is mutated: this enters the normal fresh-review and policy path.
@@ -263,7 +264,7 @@ function workspaceToolFailureMessage(error) {
     invalid_query: 'The search query is invalid. Please specify a product query.',
     workspace_tool_price_conflict: 'The requested price range could not be safely interpreted. Please restate the minimum and maximum prices in USD.',
     workspace_tool_exact_identifier_ambiguous: 'I found more than one possible exact product identifier. Please specify one code to search for.',
-    workspace_tool_change_ambiguous: 'I could not safely identify one current pending two-item review to change. Please specify the saved offers and quantities for a new review. No new review or payment was created.',
+    workspace_tool_change_ambiguous: 'I could not safely identify one current two-item review to change. Please specify the saved offers and quantities for a new review. No new review or payment was created.',
   };
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
 }

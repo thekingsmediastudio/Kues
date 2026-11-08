@@ -461,6 +461,8 @@ export function explicitSavedOfferReview(message) {
 // unique, still-pending, server-verified review. Never infer approval.
 export function explicitBundleQuantityChange(message) {
   const text=String(message || '').normalize('NFKC').trim();
+  const named=/^actually\s+make\s+it\s+(\d+)\s+for\s+the\s+notebook,\s*keeping\s+the\s+organizer\s+quantity\s+at\s+(\d+)\.\s*prepare\s+a\s+new\s+purchase\s+review\s+only\.\s*do\s+not\s+approve\s+it,\s*open\s+paypal,\s*authorize,\s*capture,\s*or\s*pay\.$/i.exec(text);
+  if (named) return {secondKind:'notebook',secondQuantity:Number(named[1]),firstKind:'organizer',firstQuantity:Number(named[2])};
   const match=/^actually\s+make\s+the\s+second\s+(notebook|item)\s+quantity\s+(\d+)\s+and\s+keep\s+the\s+first\s+(notebook|item)\s+quantity\s+(\d+)\.\s*prepare\s+a\s+new\s+review\s+only\.(?:\s*do\s+not\s+approve\s+either\s+review,\s*open\s+paypal,\s*authorize,\s*capture,\s*or\s*pay\.)?$/i.exec(text);
   if (!match) return null;
   return { secondKind:match[1].toLowerCase(),secondQuantity:Number(match[2]),firstKind:match[3].toLowerCase(),firstQuantity:Number(match[4]) };
