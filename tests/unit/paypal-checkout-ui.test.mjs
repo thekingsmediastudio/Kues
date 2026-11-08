@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { validatedSandboxApprovalUrl } from "../../apps/web/public/standard-checkout-ui.mjs";
+import { validatedSandboxApprovalUrl, expiredCheckoutStatus } from "../../apps/web/public/standard-checkout-ui.mjs";
 test("checkout links accept only HTTPS PayPal sandbox hosts without credentials or nonstandard ports", () => {
   for (const url of [
     "https://www.sandbox.paypal.com/checkoutnow?token=TEST",
@@ -29,4 +29,10 @@ test("checkout UI does not require automatic popups or persist approval links in
   assert.match(source, /address\.select\(\)/);
   assert.match(source, /noopener noreferrer/);
   assert.match(source, /!card\.isConnected/);
+});
+
+
+test('expired checkout distinguishes an unconfirmed provider order from an unstarted review',()=>{
+ assert.equal(expiredCheckoutStatus({status:'expired',orderId:'ORDER'}),'Approval window expired — PayPal status unconfirmed');
+ assert.equal(expiredCheckoutStatus({status:'expired',orderId:null}),'Purchase review expired');
 });

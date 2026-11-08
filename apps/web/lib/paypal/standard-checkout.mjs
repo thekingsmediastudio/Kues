@@ -351,12 +351,19 @@ export function createStandardCheckoutService({
   async function list(c) {
     context(c);
     const rows = await execute({
-      sql: `SELECT m.id AS mandate_id,m.amount_minor,m.currency,m.merchant_domain,m.expires_at,m.purchase_items_hash,m.run_id,c.status,c.order_id,c.authorization_id,c.authorized_at FROM mandates m JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id JOIN mandate_approvals ma ON ma.mandate_id=m.id LEFT JOIN paypal_standard_checkouts c ON c.mandate_id=m.id WHERE m.workspace_id=? AND r.user_id=? AND ma.user_id=? AND ma.status='verified' AND m.status IN ('authorized','voided','rejected') ORDER BY m.created_at DESC LIMIT 20`,
+      sql: `SELECT m.id AS mandate_id,m.amount_minor,m.currency,m.merchant_domain,m.expires_at,m.purchase_items_hash,m.run_id,c.status,c.order_id,c.authorization_id,c.authorized_at,c.expires_at AS checkout_expires_at FROM mandates m JOIN runs r ON r.id=m.run_id AND r.workspace_id=m.workspace_id JOIN mandate_approvals ma ON ma.mandate_id=m.id LEFT JOIN paypal_standard_checkouts c ON c.mandate_id=m.id WHERE m.workspace_id=? AND r.user_id=? AND ma.user_id=? AND ma.status='verified' AND m.status IN ('authorized','voided','rejected') ORDER BY m.created_at DESC LIMIT 20`,
       args: [c.workspaceId, c.userId, c.userId],
     });
     const result=[];
     for(const r of rows.rows){let purchaseItems;try{purchaseItems=await withWriteTransaction(db,tx=>readPurchaseItems(tx,c.workspaceId,{...r,id:r.mandate_id}));}catch{fail('purchase_items_changed',409)}
-      result.push({...publicRow({...r,purchaseItems}),merchantDomain:r.merchant_domain,status:r.status||(Date.parse(r.expires_at)>now()?'ready':'expired')});
+      // A started pending checkout can outlive its approval window in storage.
+      // Reflect expiry without changing the durable provider state or inferring
+      // that the provider has no hold. Uncertain/authorized/void states stay intact.
+      const expiredPending = r.status === 'pending' && (
+        (r.checkout_expires_at != null && Number(r.checkout_expires_at) <= now()) ||
+        Date.parse(r.expires_at) <= now()
+      );
+      result.push({...publicRow({...r,purchaseItems}),merchantDomain:r.merchant_domain,status:expiredPending?'expired':r.status||(Date.parse(r.expires_at)>now()?'ready':'expired')});
     }
     return result;
   }

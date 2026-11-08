@@ -1,3 +1,11 @@
+// An expired started checkout has an unconfirmed provider state; do not
+// imply the PayPal order was cancelled or that a hold was voided.
+export function expiredCheckoutStatus(item) {
+  return item?.status === 'expired' && item?.orderId
+    ? 'Approval window expired — PayPal status unconfirmed'
+    : 'Purchase review expired';
+}
+
 export function validatedSandboxApprovalUrl(value) {
   const u = new URL(value);
   if (
@@ -105,7 +113,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
     info.textContent = `Product seller reference: ${item.merchantDomain}. Payment is only to the app’s sandbox test merchant.`;
     const state = document.createElement("p");
     state.setAttribute("role", "status");
-    state.textContent = statuses[item.status] || "Status unavailable";
+    state.textContent = item.status === "expired" ? expiredCheckoutStatus(item) : (statuses[item.status] || "Status unavailable");
     const ids = document.createElement("p");
     ids.style.cssText = "font:11px/1.6 monospace;overflow-wrap:anywhere";
     ids.textContent = [

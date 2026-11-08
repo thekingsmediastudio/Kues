@@ -591,3 +591,22 @@ test('old unverified reviews cannot start or complete checkout, but previously a
  const pending=await fixture(t),state=await pending.begin();await pending.db.execute({sql:"DELETE FROM run_events WHERE event_type='purchase_currency_checked_v1'",args:[]});pending.approve();await assert.rejects(pending.service().complete(pending.c,state),/purchase_currency_unverified/);assert.deepEqual(pending.calls,['create']);
  const held=await fixture(t),heldState=await held.begin();held.approve();await held.service().complete(held.c,heldState);await held.db.execute({sql:"DELETE FROM run_events WHERE event_type='purchase_currency_checked_v1'",args:[]});assert.equal((await held.service().list(held.c))[0].status,'authorized');assert.equal((await held.service().voidHold(held.c,held.m.mandateId)).status,'voided');assert.equal(held.calls.filter(x=>x==='authorize').length,1);
 });
+
+
+test('expired started pending checkout is shown expired without changing durable or provider status',async t=>{
+ const f=await fixture(t),state=await f.begin();assert.equal((await f.service().list(f.c))[0].status,'pending');
+ const before=(await f.db.execute('SELECT status,order_id FROM paypal_standard_checkouts')).rows[0];assert.equal(before.status,'pending');
+ f.advance(86400000);const entry=(await f.service().list(f.c))[0];assert.equal(entry.status,'expired');assert.equal(entry.orderId,'MOCK-ORDER');
+ assert.equal((await f.service().result(f.c,f.m.mandateId)).status,'expired');
+ const after=(await f.db.execute('SELECT status,order_id FROM paypal_standard_checkouts')).rows[0];assert.equal(after.status,'pending');assert.equal(after.order_id,'MOCK-ORDER');
+ assert.deepEqual(f.calls,['create']);await assert.rejects(f.service().begin(f.c,f.m.mandateId,'https://keus.example'),/expired/);await assert.rejects(f.service().complete(f.c,state),/expired/);assert.deepEqual(f.calls,['create']);
+});
+
+test('expiry display never hides an authorized or uncertain checkout',async t=>{
+ const f=await fixture(t),state=await f.begin();f.approve();await f.service().complete(f.c,state);f.advance(86400000);assert.equal((await f.service().list(f.c))[0].status,'authorized');assert.equal((await f.service().voidHold(f.c,f.m.mandateId)).status,'voided');
+ const g=await fixture(t);const gs=await g.begin();g.approve();g.provider.authorize=async()=>{throw Error('provider timeout')};await assert.rejects(g.service().complete(g.c,gs));g.advance(86400000);assert.equal((await g.service().list(g.c))[0].status,'uncertain');
+});
+
+test('shorter checkout expiry is reflected even while the review remains fresh',async t=>{
+ const f=await fixture(t);await f.begin();await f.db.execute('UPDATE paypal_standard_checkouts SET expires_at=1');const entry=(await f.service().list(f.c))[0];assert.equal(entry.status,'expired');assert.equal(entry.orderId,'MOCK-ORDER');assert.equal((await f.service().result(f.c,f.m.mandateId)).status,'expired');assert.equal((await f.db.execute('SELECT status FROM paypal_standard_checkouts')).rows[0].status,'pending');assert.deepEqual(f.calls,['create']);
+});
