@@ -1,6 +1,7 @@
 import { readPurchaseItems } from './lib/commerce/purchase-items.mjs';
 import { explicitOfferComparison, compareSavedOffers } from './lib/ai-agent/saved-offer-comparison.mjs';
 import { isPurchaseReviewRequest, NO_PURCHASE_CHECK_REPLY } from './lib/ai-agent/workspace-tools.mjs';
+import { resolveNamedBundleReview, NAMED_BUNDLE_CLARIFICATION } from './lib/ai-agent/named-bundle-review.mjs';
 import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
 import { createWalletLinkService, WalletLinkError, WALLET_RETURN_HTML } from './lib/paypal/wallet-link.mjs';
 import { reviewShoppingBasket } from './lib/ai-agent/shopping-basket.mjs';
@@ -1611,7 +1612,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const recentPurchaseReview = storedMessages.some(entry => entry.role === 'assistant' && /\bprepared a purchase review\b/i.test(String(entry.content || '')));
     const guardPurchaseClaims = !wantsResearch && !fileContext && (isPurchaseReviewRequest(newUserMessage.content) || isPendingPurchaseChangeRequest(newUserMessage.content,pendingPurchases || recentPurchaseReview));
     const directChange = !wantsResearch && !fileContext ? explicitBundleQuantityChange(newUserMessage.content) : null;
-    const directPurchase = !wantsResearch && !fileContext ? explicitSavedOfferReview(newUserMessage.content) : null;
+    const namedBundle = !wantsResearch && !fileContext ? await resolveNamedBundleReview({message:newUserMessage.content,storedMessages,db,workspaceId:workspace.id,userId:user.id,agentId}) : null;
+    const directPurchase = !wantsResearch && !fileContext ? (namedBundle || explicitSavedOfferReview(newUserMessage.content)) : null;
     const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
     const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
     const forcedRead = Boolean(comparisonIds || directSearch || directPurchase || directChange);
@@ -1699,6 +1701,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
         if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
           visibleReply = 'The analysis response could not be safely presented. No action was taken.';
+          await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
+        } else if (toolCall.kind === 'clarify_named_bundle') {
+          visibleReply = NAMED_BUNDLE_CLARIFICATION;
+          streamCompletion = { ...completion, text: visibleReply };
           await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
         } else if (toolCall.kind === 'invalid') {
           visibleReply = safePrefix.trim()
@@ -1853,6 +1859,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
     let preparedWorkspaceProposal = null;
     if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
       visibleReply = 'The analysis response could not be safely presented. No action was taken.';
+    } else if (toolCall.kind === 'clarify_named_bundle') {
+      visibleReply = NAMED_BUNDLE_CLARIFICATION;
     } else if (toolCall.kind === 'invalid') {
       visibleReply = 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
     } else if (toolCall.kind === 'tool' || toolCall.kind === 'direct_search' || toolCall.kind === 'direct_bundle_change') {
