@@ -3,9 +3,14 @@
 // verified currency, limits and approval; this function never starts checkout.
 const clarify = { kind: 'clarify_named_bundle' };
 const norm = value => String(value || '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
-export async function resolveNamedBundleReview({message, storedMessages, db, workspaceId, userId, agentId}) {
+function parseNamedBundleRequest(message) {
   const text = String(message || '').normalize('NFKC').trim();
-  const m = /^(?:please\s+)?(?:buy|purchase)\s+(\d{1,2})\s+of\s+the\s+([^.!?;\n]{1,160}?)\s+and\s+(\d{1,2})\s+of\s+the\s+([^.!?;\n]{1,160}?)(?:\s+from\s+the\s+(?:search\s+)?results)?[.!?]?(?:\s+prepare\s+a\s+purchase\s+review\s+only;\s*do\s+not\s+approve,\s*open\s+paypal,\s*authorize,\s*capture\s+or\s+pay\.)?$/i.exec(text);
+  return /^(?:please\s+)?(?:buy|purchase)\s+(\d{1,2})\s+of\s+the\s+([^.!?;\n]{1,160}?)\s+and\s+(\d{1,2})\s+of\s+the\s+([^.!?;\n]{1,160}?)(?:\s+from\s+the\s+(?:search\s+)?results)?[.!?]?(?:\s+prepare\s+a\s+purchase\s+review\s+only;\s*do\s+not\s+approve,\s*open\s+paypal,\s*authorize,\s*capture\s+or\s+pay\.)?$/i.exec(text);
+}
+export function isNamedBundleReviewRequest(message) { return Boolean(parseNamedBundleRequest(message)); }
+
+export async function resolveNamedBundleReview({message, storedMessages, db, workspaceId, userId, agentId}) {
+  const m = parseNamedBundleRequest(message);
   if (!m) return null;
   const quantities = [Number(m[1]), Number(m[3])];
   if (quantities.some(n => n < 1 || n > 20)) return clarify;
