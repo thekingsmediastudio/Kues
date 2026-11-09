@@ -3016,7 +3016,8 @@
   :root[data-theme="light"] .app-settings-modal{background:#fff;border-color:#dce5dc;box-shadow:0 15px 40px rgba(25,45,30,.12)}
   :root[data-theme="light"] .app-settings-modal .modal-content{background:#fff}
   :root[data-theme="light"] .app-settings-modal .modal-header{background:#fff;border-color:#e1e8df}
-  :root[data-theme="light"] .app-settings-nav .modal-side-title{color:#718076}
+  :root[data-theme="light"] .admin-model-chip-mark{color:#345c46}
+  :root[data-theme="light"] .app-settings-nav .modal-side-title{color:#52685b}
   :root[data-theme="light"] .app-settings-nav .modal-nav-btn{color:#5e7064}
   :root[data-theme="light"] .app-settings-nav .modal-nav-btn:hover{background:rgba(33,70,42,.045);color:#25382b}
   :root[data-theme="light"] .app-settings-nav .modal-nav-btn.active{background:#f6f0e2;border-color:#ebdfc1;color:#43391f}
@@ -3336,7 +3337,7 @@
       <span class="app-settings-footer-label">Settings</span>
     </button>
     <div class="cue-footer account-footer sidebar-bottom-tile">
-      <button class="account-menu-trigger" id="accountMenuToggle" type="button" aria-labelledby="accountName accountEmail accountMenuAction" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">
+      <button class="account-menu-trigger" id="accountMenuToggle" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">
         <span class="account-avatar" id="accountAvatar" aria-hidden="true">K</span>
         <span id="accountMenuAction" class="visually-hidden">Open account menu</span><span class="account-trigger-copy"><strong id="accountName">Loading your account</strong> <small id="accountEmail">Loading account details</small></span>
         <svg class="account-caret" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
@@ -3357,7 +3358,7 @@
 
     <header class="chat-header">
       <button class="phone-menu-button" id="phoneMenuButton" type="button" aria-label="Open agents and settings" aria-controls="phoneNavigation" aria-haspopup="dialog" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
-      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite" role="button" tabindex="0" title="Open this agent’s settings" aria-labelledby="hdrName hdrSub activeAgentAction">
+      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite" role="button" tabindex="0" title="Open this agent’s settings">
         <span id="activeAgentAction" class="visually-hidden">Open current agent settings</span><span id="hdrAvatar" class="header-agent-avatar" aria-hidden="true"></span>
         <div class="header-title">
           <span id="hdrName">Loading your workspace…</span>
@@ -3366,7 +3367,7 @@
       </div>
       <span class="review-data-badge" id="sampleReviewBadge" role="status" aria-label="Sample review data, not an authenticated account" hidden><span class="review-badge-full">Sample review data</span><span class="review-badge-compact" aria-hidden="true">Sample data</span></span>
       <div class="header-actions" aria-label="Conversation controls">
-        <button class="admin-model-chip" id="adminModelChip" type="button" aria-controls="adminChatControls" aria-expanded="false" hidden><span class="admin-model-chip-mark" aria-hidden="true">AI</span><span id="adminModelChipLabel">Provider and model</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+        <button class="admin-model-chip" id="adminModelChip" type="button" aria-controls="adminChatControls" aria-expanded="false" hidden><span class="admin-model-chip-mark" aria-hidden="true">AI</span><span id="adminModelChipLabel">Provider and model</span> <span class="visually-hidden">Change provider and model for the next request.</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
         <div class="header-upcoming" tabindex="0" role="group" aria-label="Voice call and agent desktop: coming soon, not connected" title="Voice call and agent desktop are not connected yet">
           <div class="header-upcoming-buttons">
         <button class="hdr-btn icon-only" id="voiceCallButton" type="button" disabled aria-label="Voice call, not connected in this preview" title="Voice call is not connected in this preview">
@@ -6658,7 +6659,6 @@
       modelName.textContent = model;
       label.replaceChildren(providerName, separator, modelName);
       chip.title = `${provider.displayName} · ${model}`;
-      chip.setAttribute('aria-label', `${provider.displayName} · ${model}. Change provider and model for the next request.`);
     }
     if (chip) chip.setAttribute('aria-expanded', String(Boolean(document.getElementById('adminChatControls') && !document.getElementById('adminChatControls').hidden)));
   }
