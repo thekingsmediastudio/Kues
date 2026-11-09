@@ -46,3 +46,28 @@ export async function compareSavedOffers({ db, workspaceId, userId, agentId, ids
   lines.push('', 'Prices and availability may have changed; verify with the seller before a decision. Shipping and taxes are not verified.', 'No purchase, order, mandate, or payment hold was created.');
   return lines.join('\n');
 }
+
+// A deliberately narrow read-only wording. Unrecognized requests still follow
+// the existing chat path; a recognized but ambiguous request must clarify.
+function namedComparisonParts(message) {
+  const text = String(message || '').normalize('NFKC').trim();
+  const m = /^(?:please\s+)?compare\s+(?:the\s+)?([^\n,;!?]{1,160}?)\s+from\s+([\p{L}\p{N}][\p{L}\p{N} &'’\-]{0,99}(?:\.[\p{L}\p{N}-]+)*)\s+and\s+(?:the\s+)?([^\n,;!?]{1,160}?)\s+from\s+the\s+(?:search\s+)?results(?:,\s+including\s+their\s+prices\s+and\s+sellers(?:\s+and\s+links\s+to\s+their\s+sources)?)?\.(?:\s+do\s+not\s+buy\s+anything\.)?$/iu.exec(text);
+  return m ? {first:m[1], seller:m[2], second:m[3]} : null;
+}
+export function isNamedSearchComparison(message) { return Boolean(namedComparisonParts(message)); }
+const normComparison = value => String(value || '').normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim();
+export async function resolveNamedSearchComparison({message,storedMessages,db,workspaceId,userId,agentId}) {
+  const parts=namedComparisonParts(message); if(!parts) return null;
+  if(!db) return [];
+  // A later empty/failed search supersedes earlier results; never resurrect them.
+  const latest=[...(storedMessages||[])].reverse().find(e=>e.role==='assistant'&&(/:::products-grid/.test(String(e.content||''))||/No verified products(?:\s|$)|Product discovery is unavailable right now/i.test(String(e.content||''))));
+  if(!latest||!String(latest.content||'').includes(':::products-grid')) return [];
+  const ids=[...new Set([...String(latest.content).matchAll(/(?:\*\*)?Offer ID:(?:\*\*)?\s*`(off_[a-f0-9]{32})`/gi)].map(x=>x[1].toLowerCase()))];
+  if(!ids.length||ids.length>50) return [];
+  const offers=[];
+  for(const id of ids){const r=await db.execute({sql:'SELECT p.id,p.title,p.merchant_name,p.merchant_domain FROM product_offers p JOIN runs r ON r.id=p.run_id AND r.workspace_id=p.workspace_id WHERE p.id=? AND p.workspace_id=? AND r.user_id=? AND r.agent_id=?',args:[id,workspaceId,userId,agentId]});if(r.rows[0])offers.push(r.rows[0])}
+  const first=offers.filter(o=>normComparison(o.title)===normComparison(parts.first)&&(normComparison(o.merchant_name)===normComparison(parts.seller)||normComparison(o.merchant_domain)===normComparison(parts.seller)));
+  const second=offers.filter(o=>normComparison(o.title)===normComparison(parts.second));
+  if(first.length!==1||second.length!==1||first[0].id===second[0].id) return [];
+  return [first[0].id,second[0].id];
+}

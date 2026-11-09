@@ -1,5 +1,5 @@
 import { readPurchaseItems } from './lib/commerce/purchase-items.mjs';
-import { explicitOfferComparison, compareSavedOffers } from './lib/ai-agent/saved-offer-comparison.mjs';
+import { explicitOfferComparison, compareSavedOffers, isNamedSearchComparison, resolveNamedSearchComparison } from './lib/ai-agent/saved-offer-comparison.mjs';
 import { isPurchaseReviewRequest, NO_PURCHASE_CHECK_REPLY } from './lib/ai-agent/workspace-tools.mjs';
 import { resolveNamedBundleReview, isNamedBundleReviewRequest, NAMED_BUNDLE_CLARIFICATION, resolveNamedSingleReview, isNamedSingleReviewRequest, NAMED_SINGLE_CLARIFICATION } from './lib/ai-agent/named-bundle-review.mjs';
 import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
@@ -1613,17 +1613,18 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const recentPurchaseReview = storedMessages.some(entry => entry.role === 'assistant' && /\bprepared a purchase review\b/i.test(String(entry.content || '')));
     const guardPurchaseClaims = !wantsResearch && !fileContext && (isPurchaseReviewRequest(newUserMessage.content) || isPendingPurchaseChangeRequest(newUserMessage.content,pendingPurchases || recentPurchaseReview));
     const directChange = !wantsResearch && !fileContext ? explicitBundleQuantityChange(newUserMessage.content) : null;
-    const namedBundleMessages = !wantsResearch && !fileContext && (isNamedBundleReviewRequest(newUserMessage.content) || isNamedSingleReviewRequest(newUserMessage.content))
+    const namedBundleMessages = !wantsResearch && !fileContext && (isNamedBundleReviewRequest(newUserMessage.content) || isNamedSingleReviewRequest(newUserMessage.content) || isNamedSearchComparison(newUserMessage.content))
       ? await aiChatHistoryService.getRecentMessages({workspaceId:workspace.id,userId:user.id,agentId,limit:40}) : storedMessages;
     const namedBundle = !wantsResearch && !fileContext ? await resolveNamedBundleReview({message:newUserMessage.content,storedMessages:namedBundleMessages,db,workspaceId:workspace.id,userId:user.id,agentId}) : null;
     const namedSingle = !wantsResearch && !fileContext ? await resolveNamedSingleReview({message:newUserMessage.content,storedMessages:namedBundleMessages,db,workspaceId:workspace.id,userId:user.id,agentId}) : null;
     const directPurchase = !wantsResearch && !fileContext ? (namedBundle || namedSingle || explicitSavedOfferReview(newUserMessage.content)) : null;
-    const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
+    const namedComparison = !wantsResearch && !fileContext ? await resolveNamedSearchComparison({message:newUserMessage.content,storedMessages:namedBundleMessages,db,workspaceId:workspace.id,userId:user.id,agentId}) : null;
+    const comparisonIds = !wantsResearch && !fileContext ? (explicitOfferComparison(newUserMessage.content) || namedComparison) : null;
     const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
     const forcedRead = Boolean(comparisonIds || directSearch || directPurchase || directChange);
     // Narrow deterministic search and exact named single-review requests skip
     // the model; the latter still runs all mandate and explicit approval gates.
-    bypassSearchModel = Boolean((directSearch && !directChange && !directPurchase && !guardPurchaseClaims) || (namedSingle && !directChange && directPurchase === namedSingle));
+    bypassSearchModel = Boolean((directSearch && !directChange && !directPurchase && !guardPurchaseClaims) || (namedSingle && !directChange && directPurchase === namedSingle) || (namedComparison && !directChange && !directPurchase && !guardPurchaseClaims));
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length + JSON.stringify({...fileContext,images:undefined}).length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
