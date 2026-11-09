@@ -2,6 +2,14 @@ import { hasExplicitCurrency } from '../channel3/currency-evidence.mjs';
 import { withReadTransaction } from '../db/transaction.mjs';
 import { escapeMarkdown } from './workspace-tools.mjs';
 
+// Stored source URLs are untrusted: only present absolute HTTPS links without
+// credentials, control characters or markdown delimiter injection.
+function safeSourceLink(value) {
+  if (typeof value !== 'string' || !value || value.length > 2048 || /[\u0000-\u0020\u007f\\]/.test(value)) return null;
+  try { const u = new URL(value); if (u.protocol !== 'https:' || !u.hostname || u.username || u.password) return null; return u.href.replace(/\(/g, '%28').replace(/\)/g, '%29'); }
+  catch { return null; }
+}
+
 // This route only handles a compare request that explicitly identifies saved offers.
 export function explicitOfferComparison(message) {
   const text = String(message || '');
@@ -32,7 +40,8 @@ export async function compareSavedOffers({ db, workspaceId, userId, agentId, ids
   for (const row of rows) {
     const amount = Number(row.amount_minor);
     const validPrice = hasExplicitCurrency(row.evidence_ref, row.currency) && row.currency === 'USD' && Number.isSafeInteger(amount) && amount > 0;
-    lines.push(`- **${escapeMarkdown(row.title || 'Untitled')}** — ${validPrice ? `$${(amount / 100).toFixed(2)} USD` : 'Price unavailable or unverified'}; merchant: ${escapeMarkdown(row.merchant_name || 'unknown')} (${escapeMarkdown(row.merchant_domain || 'unknown')}); recorded: ${escapeMarkdown(row.observed_at || 'unknown')}; availability: ${escapeMarkdown(row.availability || 'unknown')}; source: ${row.mode === 'live_search' ? 'saved live-search result' : 'sample or preview'}; offer: \`${row.id}\`.`);
+    const source = safeSourceLink(row.source_url);
+    lines.push(`- **${escapeMarkdown(row.title || 'Untitled')}** — ${validPrice ? `$${(amount / 100).toFixed(2)} USD` : 'Price unavailable or unverified'}; merchant: ${escapeMarkdown(row.merchant_name || 'unknown')} (${escapeMarkdown(row.merchant_domain || 'unknown')}); recorded: ${escapeMarkdown(row.observed_at || 'unknown')}; availability: ${escapeMarkdown(row.availability || 'unknown')}; source: ${row.mode === 'live_search' ? 'saved live-search result' : 'sample or preview'}; offer: \`${row.id}\`; ${source ? `[View source](${source})` : 'source link unavailable'}.`);
   }
   lines.push('', 'Prices and availability may have changed; verify with the seller before a decision. Shipping and taxes are not verified.', 'No purchase, order, mandate, or payment hold was created.');
   return lines.join('\n');

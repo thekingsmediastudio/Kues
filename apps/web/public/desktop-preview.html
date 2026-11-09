@@ -2892,7 +2892,7 @@
   .settings-form .form-input{min-height:38px;margin:0;font-size:13px;font-weight:400}
   .settings-form .settings-textarea{height:auto;min-height:72px;padding:9px 10px;resize:vertical}
   .settings-form-hint{margin:0!important;color:var(--text-dim)!important;font-size:11px!important;line-height:1.45!important}
-  .settings-form-status{min-height:17px;margin:0!important;color:var(--text-dim)!important;font-size:11px!important;line-height:1.45!important}
+  .settings-form-status{min-height:17px;margin:0!important;color:var(--text-sec)!important;font-size:11px!important;line-height:1.45!important}
   .settings-form-status[data-state="error"]{color:#ffaaa0!important}
   .settings-form-status[data-state="success"]{color:#8fe1ae!important}
   .settings-form-actions{display:flex;justify-content:flex-end;gap:8px}
@@ -3255,6 +3255,7 @@
   #generalOverlayBackdrop.agent-detail-mode #appSettingsTitle { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1; }
   #generalOverlayBackdrop.agent-detail-mode #settingsAgentEditorCard { margin:0; }
   #generalOverlayBackdrop.agent-detail-mode #settingsPaneAgents > .app-settings-card:not(#settingsAgentEditorCard) { display:none!important; }
+  .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
   #activeAgentSummary[role="button"]{cursor:pointer;border-radius:10px}
   #activeAgentSummary[role="button"]:focus-visible{outline:2px solid var(--agent-accent);outline-offset:3px}
   .agent-settings-tabs{position:sticky;top:0;z-index:3;background:var(--bg-card);display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px}
@@ -3324,7 +3325,7 @@
       <div class="agent-row saved-agent-list-row" id="savedAgentRow" role="button" tabindex="-1" aria-pressed="false" aria-label="Saved agent profile" hidden>
         <span class="saved-agent-avatar" id="savedAgentAvatar" aria-hidden="true"></span>
         <div class="agent-meta">
-          <div class="agent-top"><span class="agent-name" id="savedAgentName">Saved agent</span><span class="agent-time" id="savedAgentStatus">Status unavailable</span></div>
+          <div class="agent-top"><span class="agent-name" id="savedAgentName">Saved agent</span> <span class="agent-time" id="savedAgentStatus">Status unavailable</span></div>
           <div class="agent-preview" id="savedAgentRole">Saved workspace profile</div>
         </div>
       </div>
@@ -3335,9 +3336,9 @@
       <span class="app-settings-footer-label">Settings</span>
     </button>
     <div class="cue-footer account-footer sidebar-bottom-tile">
-      <button class="account-menu-trigger" id="accountMenuToggle" type="button" aria-label="Open account menu" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">
+      <button class="account-menu-trigger" id="accountMenuToggle" type="button" aria-labelledby="accountName accountEmail accountMenuAction" aria-haspopup="true" aria-expanded="false" aria-controls="accountMenu">
         <span class="account-avatar" id="accountAvatar" aria-hidden="true">K</span>
-        <span class="account-trigger-copy"><strong id="accountName">Loading your account</strong><small id="accountEmail">Loading account details</small></span>
+        <span id="accountMenuAction" class="visually-hidden">Open account menu</span><span class="account-trigger-copy"><strong id="accountName">Loading your account</strong> <small id="accountEmail">Loading account details</small></span>
         <svg class="account-caret" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
       </button>
       <div class="account-menu" id="accountMenu" aria-label="Account options" hidden>
@@ -3356,8 +3357,8 @@
 
     <header class="chat-header">
       <button class="phone-menu-button" id="phoneMenuButton" type="button" aria-label="Open agents and settings" aria-controls="phoneNavigation" aria-haspopup="dialog" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
-      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite" role="button" tabindex="0" title="Open this agent’s settings" aria-label="Open current agent settings">
-        <span id="hdrAvatar" class="header-agent-avatar" aria-hidden="true"></span>
+      <div class="active-agent-summary" id="activeAgentSummary" aria-live="polite" role="button" tabindex="0" title="Open this agent’s settings" aria-labelledby="hdrName hdrSub activeAgentAction">
+        <span id="activeAgentAction" class="visually-hidden">Open current agent settings</span><span id="hdrAvatar" class="header-agent-avatar" aria-hidden="true"></span>
         <div class="header-title">
           <span id="hdrName">Loading your workspace…</span>
           <span class="header-sub" id="hdrSub">Loading your agents…</span>
@@ -4862,7 +4863,7 @@
       row.setAttribute('role', 'button');
       row.tabIndex = 0;
       row.setAttribute('aria-pressed', String(isActive));
-      row.setAttribute('aria-label', `${String(agent.name || 'Saved agent')}, ${status}${isActive ? ', selected' : ''}`);
+      row.setAttribute('aria-label', `${String(agent.name || 'Saved agent')} ${status} ${String(agent.role || 'Role not set')}${isActive ? ', selected' : ''}`);
       row.addEventListener('click', () => selectDesktopAgent(agent.id));
       row.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -6657,7 +6658,7 @@
       modelName.textContent = model;
       label.replaceChildren(providerName, separator, modelName);
       chip.title = `${provider.displayName} · ${model}`;
-      chip.setAttribute('aria-label', `Provider and model: ${provider.displayName}, ${model}. Change for the next request.`);
+      chip.setAttribute('aria-label', `${provider.displayName} · ${model}. Change provider and model for the next request.`);
     }
     if (chip) chip.setAttribute('aria-expanded', String(Boolean(document.getElementById('adminChatControls') && !document.getElementById('adminChatControls').hidden)));
   }
