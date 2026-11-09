@@ -2128,7 +2128,7 @@
   .agent-row.active::before { display:none!important;content:none!important; }
   .agent-name { letter-spacing:-.015em; }
   .agent-time { color:var(--text-sec); }
-  .agent-preview { font-size:11.5px;color:#888b95; }
+  .agent-preview { font-size:11.5px;color:var(--text-sec); }
   .dot-avatar { box-shadow:none; }
   .dot-face i { width:3px;height:7px;box-shadow:0 1px 0 rgba(255,255,255,.12); }
   .cue-footer { margin:9px;padding:11px 12px;border-radius:13px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018)); }
@@ -2261,7 +2261,7 @@
   .account-trigger-copy{min-width:0;flex:1}
   .account-trigger-copy strong,.account-trigger-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .account-trigger-copy strong{color:var(--text-main);font-size:12px;font-weight:650}
-  .account-trigger-copy small{margin-top:2px;color:var(--text-dim);font-size:11px}
+  .account-trigger-copy small{margin-top:2px;color:var(--text-sec);font-size:11px}
   .account-caret{width:13px;height:13px;flex:none;fill:none;stroke:var(--text-dim);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
   .account-menu{position:absolute;left:0;bottom:calc(100% + 8px);z-index:80;width:min(270px,calc(100vw - 32px));padding:7px;border:1px solid var(--border-strong);border-radius:13px;background:#191a20;box-shadow:0 18px 55px rgba(0,0,0,.48)}
   .account-menu-user{padding:8px 9px 10px;border-bottom:1px solid var(--border)}
@@ -2738,7 +2738,7 @@
     color: #1a221b;
   }
   :root[data-theme="light"] .agent-preview {
-    color: #68786d;
+    color: #4e6355;
   }
   :root[data-theme="light"] .agent-time {
     color: #4e6355;
@@ -2759,7 +2759,7 @@
     border-color: #b5c4b4;
   }
 
-  .composer-preview-note{margin:7px 6px 0;color:var(--text-dim);font-size:9px;line-height:1.4;text-align:center}
+  .composer-preview-note{margin:7px 6px 0;color:var(--text-sec);font-size:9px;line-height:1.4;text-align:center}
   @media(max-width:640px){
     .chat-header{height:58px;padding:0 5px;gap:4px}
     .active-agent-summary{gap:4px}
@@ -3055,7 +3055,7 @@
   .header-actions .hdr-btn.icon-only{width:36px;height:36px;padding:0;border-radius:10px;justify-content:center;border-color:#ffffff1c;background:#ffffff02}
   .header-actions .hdr-btn svg{width:17px;height:17px}
   .header-actions .hdr-btn:disabled{opacity:.48;cursor:not-allowed;color:var(--text-sec);box-shadow:none;transform:none}
-  .header-coming-soon{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:400;line-height:1;color:var(--text-dim)}
+  .header-coming-soon{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;font-weight:400;line-height:1;color:var(--text-sec)}
   :root[data-theme="light"] .admin-model-chip,:root[data-theme="light"] .header-actions .hdr-btn.icon-only{background:#fff;border-color:#d4ddd5}
   :root[data-theme="light"] .active-agent-summary .header-sub[data-state="paused"]{color:#886019;background:#fbf2df;border-color:#ecdfbf}
   :root[data-theme="light"] .active-agent-summary .header-sub[data-state="active"]{color:#276746;background:#eaf5ec;border-color:#cee3d2}
