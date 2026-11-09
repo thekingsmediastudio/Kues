@@ -102,7 +102,7 @@
     font-size: 12px;
     font-weight: 600;
     font-family: var(--font);
-    transition: all 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .new-agent-plus-btn:hover {
     background: rgba(255, 255, 255, 0.1);
@@ -576,7 +576,7 @@
   }
   .msg-badge {
     font-size: 11px;
-    color: var(--text-dim);
+    color: var(--text-sec);
   }
   .msg-text {
     font-size: 14px;
@@ -586,7 +586,7 @@
     overflow-wrap: anywhere;
   }
   .msg-text strong { color: #fff; font-weight: 600; }
-  .chat-provider-attribution { margin-top:8px; color:var(--text-dim); font-size:10.5px; line-height:1.45; overflow-wrap:anywhere; }
+  .chat-provider-attribution { margin-top:8px; color:var(--text-sec); font-size:10.5px; line-height:1.45; overflow-wrap:anywhere; }
   .workspace-tool-approval{width:min(100%,680px);padding:13px 14px;border:1px solid rgba(50,213,131,.32);border-radius:12px;background:var(--bg-card);color:var(--text-main)}
   .workspace-tool-approval-title{display:block;font-size:12px;font-weight:750}
   .workspace-tool-approval-summary,.workspace-tool-approval-status{margin:5px 0 0;color:var(--text-sec);font-size:11px;line-height:1.45;overflow-wrap:anywhere}
@@ -2288,6 +2288,7 @@
   :root[data-theme="light"] .chat-header{background:rgba(255,255,255,.92);border-bottom-color:#e1e8e0}
   :root[data-theme="light"] .cue-footer{background:#fff;border-color:#dce5dc;box-shadow:none}
   :root[data-theme="light"] .account-footer{background-color:#fff!important;background-image:none}
+  :root[data-theme="light"] .account-avatar{color:#17663d}
   :root[data-theme="light"] .agent-row:hover,:root[data-theme="light"] .account-menu-trigger:hover{background:rgba(33,70,42,.045)}
   :root[data-theme="light"] .header-title,:root[data-theme="light"] .agent-name{color:#22362a}
   :root[data-theme="light"] .header-sub,:root[data-theme="light"] .agent-preview{color:#718076}
@@ -3049,7 +3050,7 @@
   #adminModelChipLabel{display:flex;align-items:center;min-width:0;gap:4px;overflow:hidden;white-space:nowrap}
   .chip-provider-name{min-width:0;max-width:125px;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
   .chip-model-name{min-width:0;max-width:165px;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
-  .chip-separator{flex:none;color:var(--text-dim)}
+  .chip-separator{flex:none;color:var(--text-sec)}
   .header-upcoming{position:relative;flex:none;border-radius:10px}
   .header-upcoming-buttons{display:flex;gap:8px}
   .header-actions .hdr-btn.icon-only{width:36px;height:36px;padding:0;border-radius:10px;justify-content:center;border-color:#ffffff1c;background:#ffffff02}
