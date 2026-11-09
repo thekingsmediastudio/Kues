@@ -35,6 +35,14 @@ test('research guard preserves complete answers and exposes incomplete ones with
 test('deterministic product fallback only handles narrow per-item USD search grammar', async()=>{
  const {explicitUsdProductSearch}=await import('../../apps/web/lib/ai-agent/workspace-tools.mjs');
  assert.deepEqual(explicitUsdProductSearch('Find up to 3 real ruled notebooks priced under 5 USD each. Show prices.'),{kind:'search_products',query:'ruled notebooks',limit:3,filters:{max_price:5,price_max_exclusive:true,enforce_usd_price:true}});
+ const expected={kind:'search_products',query:'notebooks',limit:3,filters:{max_price:5,price_max_exclusive:true,enforce_usd_price:true}};
+ assert.deepEqual(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each and show their price and merchant.'),expected);
+ assert.deepEqual(explicitUsdProductSearch('Find up to 3 notebooks priced under 5 USD each.'),expected);
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each and buy them.'),null);
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each. Buy them.'),null);
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each and show their price and merchant. Buy them.'),null);
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 CAD each and show their price and merchant.'),null);
+ assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD total and show their price and merchant.'),null);
  assert.equal(explicitUsdProductSearch('Find up to 3 notebooks priced under 5 CAD each.'),null);
  assert.equal(explicitUsdProductSearch('Find up to 3 notebooks priced under 5 USD each and buy them.'),null);
  assert.equal(explicitUsdProductSearch('Find up to 0 notebooks priced under 5 USD each.'),null);

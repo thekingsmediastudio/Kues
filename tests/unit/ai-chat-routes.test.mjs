@@ -1367,3 +1367,16 @@ test('approved bundle quantity change makes new review without mutating or creat
   })}finally{db.close()}
  }
 });
+
+test('natural bounded notebook search actually calls catalog in JSON and SSE, not a model promise',async()=>{
+ for(const streaming of [false,true]){
+  let searches=0,models=0;
+  const promise=async()=>{models++;return{text:"I'll search the catalog for in-stock notebooks under $5.",inputTokens:1,outputTokens:1}};
+  const {dependencies}=testDependencies({complete:promise,stream:promise});
+  dependencies.channel3Client={isConfigured:()=>true,searchProducts:async input=>{searches++;assert.equal(input.query,'notebooks');assert.equal(input.limit,3);assert.equal(input.filters.max_price,5);assert.equal(input.filters.price_max_exclusive,true);assert.equal(input.filters.enforce_usd_price,true);return {query:input.query,products:[{title:'Test notebook',amountMinor:325,currency:'USD',currencyVerified:true,priceFormatted:'$3.25 USD',merchantName:'Seller',merchantDomain:'example.com',url:'https://example.com/item',availability:'in_stock',evidenceHash:'sha256:abc'}],count:1,isLive:true,source:'channel3'}}};
+  await withServer(dependencies,async base=>{
+   const response=await fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message:'Find up to 3 notebooks under 5 USD each and show their price and merchant.'})});
+   const body=await response.text();assert.equal(response.status,200);assert.equal(searches,1);assert.equal(models,0);assert.match(body,/Test notebook/);assert.doesNotMatch(body,/I'll search the catalog|tool_approval_required/);
+  });
+ }
+});
