@@ -1,7 +1,7 @@
 import { readPurchaseItems } from './lib/commerce/purchase-items.mjs';
 import { explicitOfferComparison, compareSavedOffers } from './lib/ai-agent/saved-offer-comparison.mjs';
 import { isPurchaseReviewRequest, NO_PURCHASE_CHECK_REPLY } from './lib/ai-agent/workspace-tools.mjs';
-import { resolveNamedBundleReview, isNamedBundleReviewRequest, NAMED_BUNDLE_CLARIFICATION } from './lib/ai-agent/named-bundle-review.mjs';
+import { resolveNamedBundleReview, isNamedBundleReviewRequest, NAMED_BUNDLE_CLARIFICATION, resolveNamedSingleReview, isNamedSingleReviewRequest, NAMED_SINGLE_CLARIFICATION } from './lib/ai-agent/named-bundle-review.mjs';
 import { createStandardCheckoutService, CheckoutError, CHECKOUT_RETURN_HTML } from './lib/paypal/standard-checkout.mjs';
 import { createWalletLinkService, WalletLinkError, WALLET_RETURN_HTML } from './lib/paypal/wallet-link.mjs';
 import { reviewShoppingBasket } from './lib/ai-agent/shopping-basket.mjs';
@@ -1613,16 +1613,17 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const recentPurchaseReview = storedMessages.some(entry => entry.role === 'assistant' && /\bprepared a purchase review\b/i.test(String(entry.content || '')));
     const guardPurchaseClaims = !wantsResearch && !fileContext && (isPurchaseReviewRequest(newUserMessage.content) || isPendingPurchaseChangeRequest(newUserMessage.content,pendingPurchases || recentPurchaseReview));
     const directChange = !wantsResearch && !fileContext ? explicitBundleQuantityChange(newUserMessage.content) : null;
-    const namedBundleMessages = !wantsResearch && !fileContext && isNamedBundleReviewRequest(newUserMessage.content)
+    const namedBundleMessages = !wantsResearch && !fileContext && (isNamedBundleReviewRequest(newUserMessage.content) || isNamedSingleReviewRequest(newUserMessage.content))
       ? await aiChatHistoryService.getRecentMessages({workspaceId:workspace.id,userId:user.id,agentId,limit:40}) : storedMessages;
     const namedBundle = !wantsResearch && !fileContext ? await resolveNamedBundleReview({message:newUserMessage.content,storedMessages:namedBundleMessages,db,workspaceId:workspace.id,userId:user.id,agentId}) : null;
-    const directPurchase = !wantsResearch && !fileContext ? (namedBundle || explicitSavedOfferReview(newUserMessage.content)) : null;
+    const namedSingle = !wantsResearch && !fileContext ? await resolveNamedSingleReview({message:newUserMessage.content,storedMessages:namedBundleMessages,db,workspaceId:workspace.id,userId:user.id,agentId}) : null;
+    const directPurchase = !wantsResearch && !fileContext ? (namedBundle || namedSingle || explicitSavedOfferReview(newUserMessage.content)) : null;
     const comparisonIds = !wantsResearch && !fileContext ? explicitOfferComparison(newUserMessage.content) : null;
     const directSearch = !wantsResearch && !fileContext && !comparisonIds ? explicitUsdProductSearch(newUserMessage.content) : null;
     const forcedRead = Boolean(comparisonIds || directSearch || directPurchase || directChange);
-    // Only the existing deterministic, read-only search path can skip the model.
-    // Purchase/review requests retain their existing higher-priority handling.
-    bypassSearchModel = Boolean(directSearch && !directChange && !directPurchase && !guardPurchaseClaims);
+    // Narrow deterministic search and exact named single-review requests skip
+    // the model; the latter still runs all mandate and explicit approval gates.
+    bypassSearchModel = Boolean((directSearch && !directChange && !directPurchase && !guardPurchaseClaims) || (namedSingle && !directChange && directPurchase === namedSingle));
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length + JSON.stringify({...fileContext,images:undefined}).length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
@@ -1704,6 +1705,10 @@ async function handleDesktopAiChatRequest(req, res, url, {
         streamCompletion = { ...completion, text: safePrefix.trim() ? safePrefix : 'I could not safely complete that workspace request. Nothing was changed.' };
         if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
           visibleReply = 'The analysis response could not be safely presented. No action was taken.';
+          await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
+        } else if (toolCall.kind === 'clarify_named_single') {
+          visibleReply = NAMED_SINGLE_CLARIFICATION;
+          streamCompletion = { ...completion, text: visibleReply };
           await writeSseEvent(res, 'delta', { text: visibleReply }, streamController.signal);
         } else if (toolCall.kind === 'clarify_named_bundle') {
           visibleReply = NAMED_BUNDLE_CLARIFICATION;
@@ -1862,6 +1867,8 @@ async function handleDesktopAiChatRequest(req, res, url, {
     let preparedWorkspaceProposal = null;
     if ((wantsResearch || fileContext) && toolCall.kind !== 'none') {
       visibleReply = 'The analysis response could not be safely presented. No action was taken.';
+    } else if (toolCall.kind === 'clarify_named_single') {
+      visibleReply = NAMED_SINGLE_CLARIFICATION;
     } else if (toolCall.kind === 'clarify_named_bundle') {
       visibleReply = NAMED_BUNDLE_CLARIFICATION;
     } else if (toolCall.kind === 'invalid') {
