@@ -3158,6 +3158,22 @@
   .product-card-buy-btn:hover{transform:none;box-shadow:none;filter:brightness(1.08);background:var(--agent-accent)}
   .product-card-action-btn{min-height:34px;background:transparent;color:var(--text-sec)!important;border-color:var(--border-strong)}
   .product-card-bag-btn{min-height:34px;min-width:34px}
+  /* Inline quantity review: follows the active agent and stays within the card. */
+  .products-card-grid:has(.product-quantity-form){align-items:start}
+  .product-quantity-form{display:grid;grid-template-columns:minmax(64px, .7fr) minmax(0, 1fr);gap:8px;align-items:end;margin-top:10px;padding:12px;border:1px solid color-mix(in srgb,var(--agent-accent) 28%,var(--border-strong));border-radius:10px;background:color-mix(in srgb,var(--agent-accent) 5%,var(--bg-card-inner));animation:quantityReveal .2s ease-out both;transform-origin:top}
+  .product-quantity-label{display:flex;min-width:0;flex-direction:column;gap:6px;color:var(--text-main);font-size:11px;font-weight:650;line-height:1.3}
+  .product-quantity-input{width:100%;min-width:0;height:38px;padding:0 9px;border:1px solid var(--border-strong);border-radius:8px;background:var(--bg-card);color:var(--text-main);font:600 14px var(--font);outline:none;color-scheme:dark}
+  .product-quantity-input:focus-visible{border-color:var(--agent-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--agent-accent) 25%,transparent)}
+  .product-quantity-submit{min-width:0;min-height:38px;padding:8px 6px;border:0;border-radius:8px;background:var(--agent-accent);color:#092317;font:650 10.5px var(--font);line-height:1.2;white-space:nowrap;cursor:pointer}
+  .product-quantity-submit:hover{filter:brightness(1.08)}
+  .product-quantity-cancel{grid-column:1 / -1;justify-self:start;min-height:32px;padding:4px 8px;margin-left:-8px;border:0;border-radius:6px;background:transparent;color:var(--text-sec);font:600 11px var(--font);cursor:pointer}
+  .product-quantity-cancel:hover{color:var(--text-main)}
+  .product-quantity-note,.product-quantity-error{grid-column:1 / -1;margin:0;color:var(--text-sec);font-size:11px;line-height:1.45}
+  .product-quantity-error:not(:empty){color:var(--text-main);font-weight:600}
+  .product-quantity-form button:focus-visible{outline:2px solid var(--agent-accent);outline-offset:2px}
+  :root[data-theme="light"] .product-quantity-input{color-scheme:light}
+  @keyframes quantityReveal{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+  @media(prefers-reduced-motion:reduce){.product-quantity-form{animation:none}}
   .product-card-badge{font-size:9px;max-width:calc(100% - 16px);box-sizing:border-box;line-height:1.3;background:#fff!important;color:#344338!important;border-color:#d8ded8!important;backdrop-filter:none}
   .product-card-media-placeholder{flex-direction:column;gap:10px;color:#69716c;font-size:11px}
   .product-card-media[data-image-loading="true"]::after{content:"Loading image…";position:absolute;bottom:12px;color:#69716c;font-size:11px}
@@ -5309,19 +5325,19 @@
     document.querySelectorAll('[data-product-quantity-form]').forEach(e => e.remove());
     form = document.createElement('div');
     form.dataset.productQuantityForm = '';
-    form.style.cssText = 'display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin-top:12px;';
+    form.className = 'product-quantity-form';
     const label = document.createElement('label');
-    label.textContent = 'Quantity (1–20)';
-    label.style.cssText = 'display:flex;flex-direction:column;gap:5px;font-size:13px';
+    label.textContent = 'Quantity';
+    label.className = 'product-quantity-label';
     const quantity = document.createElement('input');
     quantity.type = 'number'; quantity.min = '1'; quantity.max = '20'; quantity.step = '1';
-    quantity.required = true; quantity.inputMode = 'numeric'; quantity.autocomplete = 'off';
-    quantity.style.cssText = 'width:90px;box-sizing:border-box;padding:9px;font-size:16px';
+    quantity.required = true; quantity.inputMode = 'numeric'; quantity.autocomplete = 'off'; quantity.placeholder = '1–20'; quantity.setAttribute('aria-label', 'Quantity (1–20)');
+    quantity.className = 'product-quantity-input';
     label.append(quantity);
-    const submit = document.createElement('button'); submit.type = 'button'; submit.className = 'pill-btn'; submit.textContent = 'Prepare review';
-    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'pill-btn light'; cancel.textContent = 'Cancel';
-    const note = document.createElement('p'); note.textContent = 'Review only. No order or payment yet.'; note.style.cssText = 'flex-basis:100%;margin:0;font-size:12px';
-    const error = document.createElement('p'); error.setAttribute('role', 'status'); error.setAttribute('aria-live', 'polite'); error.style.cssText = 'flex-basis:100%;margin:0';
+    const submit = document.createElement('button'); submit.type = 'button'; submit.className = 'product-quantity-submit'; submit.textContent = 'Review'; submit.setAttribute('aria-label', 'Prepare purchase review');
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'product-quantity-cancel'; cancel.textContent = 'Cancel';
+    const note = document.createElement('p'); note.textContent = 'Review only. No order or payment yet.'; note.className = 'product-quantity-note';
+    const error = document.createElement('p'); error.setAttribute('role', 'status'); error.setAttribute('aria-live', 'polite'); error.className = 'product-quantity-error';
     cancel.addEventListener('click', () => { form.remove(); button.focus(); });
     const prepareReview = () => {
       const clean = quantity.value.trim();
