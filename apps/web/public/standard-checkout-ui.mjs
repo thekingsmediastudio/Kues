@@ -66,7 +66,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
   const statuses = {
     ready: "Ready for your PayPal approval",
     creating: "Preparing checkout",
-    pending: "Awaiting PayPal approval",
+    pending: "PayPal status not yet confirmed — recheck before another checkout",
     authorizing: "Verifying authorization — do not repeat checkout",
     authorized: "Sandbox hold authorized — not captured",
     voiding: "Voiding the hold",
@@ -254,6 +254,8 @@ export function installCheckoutUI({ getWorkspaceId }) {
     }
     if (
       [
+        "pending",
+        ...(item.status === "expired" && item.orderId ? ["expired"] : []),
         "authorizing",
         "uncertain",
         "authorized",
@@ -265,7 +267,17 @@ export function installCheckoutUI({ getWorkspaceId }) {
         if (scope !== getWorkspaceId()) return;
         actions.querySelectorAll("button").forEach((b) => (b.disabled = true));
         try {
-          await request("reconcile", item.mandateId);
+          const checked = await request("reconcile", item.mandateId);
+          if (checked.providerObservation) {
+            if (scope !== getWorkspaceId() || !card.isConnected) return;
+            state.textContent = ({
+              approved_no_authorization: "PayPal reports approval, but no authorization is confirmed. No payment was made. Do not start another checkout; contact support to resolve this order.",
+              approval_not_completed: "PayPal reports approval has not been completed. No authorization is confirmed. Do not start another checkout while this order is unresolved.",
+              unconfirmed: "PayPal status could not be confirmed. Do not start another checkout; contact support to resolve this order.",
+            })[checked.providerObservation] || "PayPal status could not be confirmed. Do not start another checkout.";
+            actions.querySelectorAll("button").forEach((b) => (b.disabled = false));
+            return;
+          }
           window.dispatchEvent(new CustomEvent("keus-checkout-updated",{detail:{mandateId:item.mandateId}}));
           await refresh({force: true});
         } catch (e) {

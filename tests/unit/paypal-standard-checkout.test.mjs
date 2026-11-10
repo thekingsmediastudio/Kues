@@ -618,3 +618,11 @@ test('batched checkout list fails closed on tampered lines or removed hash witho
   await assert.rejects(f.service().list(f.c),/purchase_items_changed/);assert.deepEqual(f.calls,[]);
  }
 });
+test('pending checkout can be safely rechecked after session change without authorizing or creating another order',async t=>{
+ const f=await fixture(t),state=await f.begin();f.approve();const newSession={...f.c,sessionToken:'new-session'};
+ await assert.rejects(f.service().returnContext(newSession,state),/state_invalid/);const observed=await f.service().reconcile(newSession,f.m.mandateId);assert.equal(observed.providerObservation,'approved_no_authorization');assert.equal(observed.status,'pending');assert.deepEqual(f.calls,['create','getOrder']);assert.equal((await f.db.execute('SELECT status FROM paypal_standard_checkouts')).rows[0].status,'pending');
+ await assert.rejects(f.service().reconcile({...newSession,userId:'foreign'},f.m.mandateId),/not_found/);assert.deepEqual(f.calls,['create','getOrder']);f.advance(21*60*1000);assert.equal((await f.service().list(newSession))[0].status,'expired');assert.equal((await f.service().reconcile(newSession,f.m.mandateId)).providerObservation,'approved_no_authorization');assert.deepEqual(f.calls,['create','getOrder','getOrder']);
+});
+test('pending recheck avoids false approval claims for unapproved, unexpected or malformed provider results',async t=>{
+ const f=await fixture(t);await f.begin();assert.equal((await f.service().reconcile(f.c,f.m.mandateId)).providerObservation,'approval_not_completed');f.order().status='COMPLETED';assert.equal((await f.service().reconcile(f.c,f.m.mandateId)).providerObservation,'unconfirmed');f.order().status='APPROVED';f.order().purchase_units[0].payments={authorizations:[{id:'unexpected'}]};assert.equal((await f.service().reconcile(f.c,f.m.mandateId)).providerObservation,'unconfirmed');f.order().purchase_units[0].amount.value='0.01';await assert.rejects(f.service().reconcile(f.c,f.m.mandateId),/order_mismatch/);assert.equal(f.calls.filter(x=>x==='authorize').length,0);assert.equal(f.calls.filter(x=>x==='create').length,1);
+});

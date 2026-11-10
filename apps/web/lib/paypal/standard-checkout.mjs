@@ -604,6 +604,18 @@ export function createStandardCheckoutService({
   async function reconcile(c, mandateId) {
     configured(env);
     const row = await rowFor(c, mandateId);
+    // An interrupted return may leave a provider-approved order pending in Keus.
+    // This branch only observes the existing order; it never creates or authorizes.
+    if (row.status === "pending" && row.order_id) {
+      const order = await provider.getOrder(row.order_id);
+      const unit = verifiedOrder(order, row);
+      const authorizations = unit.payments?.authorizations;
+      const noAuthorization = !authorizations || (Array.isArray(authorizations) && authorizations.length === 0);
+      const providerObservation = noAuthorization && order.status === "APPROVED" ? "approved_no_authorization"
+        : noAuthorization && ["CREATED", "PAYER_ACTION_REQUIRED"].includes(order.status) ? "approval_not_completed"
+        : "unconfirmed";
+      return { ...publicRow(row), providerObservation };
+    }
     if (
       ["authorizing", "voiding"].includes(row.status) &&
       now() - Date.parse(row.updated_at) < 120000
