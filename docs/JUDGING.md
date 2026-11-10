@@ -5,13 +5,13 @@ Everything below runs against the **PayPal sandbox only**. Capture is disabled s
 ## 1. Fastest look (one click, ~2 minutes)
 
 1. Open the hosted staging app: **https://keus-staging.onrender.com**
-2. Click **Sign in**, then **Demo fast lane** (one click, no email).
+2. Click **Sign in**, then **Launch Judge Workspace (1-Click)** in the "Hackathon demo fast lane" box (no email needed).
 3. You land in the workspace with a pre-created agent. Try prompts such as:
    - `Find a hardcover A5 notebook under $30 and compare the top three`
    - `Buy 2 of the second one`
 4. The agent searches, grounds its comparison in retrieved product data, and when you ask it to buy it produces a **purchase review** (amount, merchant reference, quantity, line totals) that waits for a human. Spending limits are enforced server-side in integer cents.
 
-The demo fast-lane identity is shared, so **PayPal checkout and wallet actions are intentionally disabled for it** (`403 checkout_personal_account_required`). To run the full PayPal flow, use a personal account as described next.
+The judge fast-lane identity is shared, so **PayPal checkout and wallet actions are intentionally disabled for it** (`403 checkout_personal_account_required`). To run the full PayPal flow, use a personal account as described next.
 
 ## 2. Full PayPal flow (~5 minutes)
 
@@ -42,7 +42,7 @@ Requirements: Node 24 (`.node-version`).
 npm ci
 cp .env.example .env.local   # fill in the values below
 npm run dev                  # http://localhost:3100/workspace
-npm test                     # 536 tests, no network required
+npm test                     # 537 tests, no network required
 ```
 
 Minimum configuration for an authenticated demo with real sandbox payments:
@@ -67,7 +67,7 @@ Migrations run automatically on startup (`0001` – `0016`). Never commit `.env.
 | Agent tools, purchase mandates, basket, grounded comparison | `apps/web/lib/ai-agent/` |
 | Provider-agnostic LLM layer and admin provider management | `apps/web/lib/ai-providers/` |
 | Product discovery (Channel3) | `apps/web/lib/channel3/` |
-| Tests | `tests/unit/*.test.mjs` (536 passing) |
+| Tests | `tests/unit/*.test.mjs` (537 passing) |
 
 ## 5. Safety properties judges can verify
 

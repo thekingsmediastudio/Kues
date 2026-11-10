@@ -227,3 +227,36 @@ test('allowlisted admin sign-in lands on onboarding and may re-run it to add an 
     await db.close();
   }
 });
+
+test('demo fast lane works against the real schema and provisions the judge workspace once', async () => {
+  const { createWorkspaceService } = await import('../../apps/web/lib/workspaces/service.mjs');
+  const db = await createDb();
+  const authService = createAuthService({ db, emailDelivery: { async sendMagicLink() {} } });
+  const workspaceService = createWorkspaceService({ db });
+  const server = createServer({ config: loadServerConfig({}), authService, workspaceService, db });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await fetch(`${base}/api/auth/demo-fastlane`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Origin: base },
+      });
+      assert.equal(res.status, 200, `attempt ${attempt}`);
+      const body = await res.json();
+      assert.equal(body.authenticated, true);
+      assert.equal(body.redirect, '/workspace');
+      assert.equal(body.user.email, 'judge@paypal.sandbox');
+    }
+    const users = await db.execute("SELECT id FROM users WHERE email_normalized = 'judge@paypal.sandbox'");
+    assert.equal(users.rows.length, 1);
+    const workspaceService2 = createWorkspaceService({ db });
+    const bootstrap = await workspaceService2.getBootstrap({ userId: users.rows[0].id });
+    assert.equal(bootstrap.agents.length, 1);
+    assert.equal(bootstrap.agents[0].name, 'Procure Scout');
+    const onboarding = await db.execute({ sql: 'SELECT status FROM workspace_onboarding WHERE workspace_id = ?', args: [bootstrap.workspace.id] });
+    assert.equal(onboarding.rows[0]?.status, 'completed');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

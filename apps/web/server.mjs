@@ -881,11 +881,11 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
     });
 
     if (workspaceService && db) {
+      // Shared judge workspace: provision its agent through the same onboarding path real accounts
+      // use, so the onboarding row matches the live schema (status/profile_json/completed_at).
       const bootstrap = await workspaceService.getBootstrap({ userId: sessionResult.user.id });
-      const wsId = bootstrap.workspace.id;
-
       if (!bootstrap.agents || bootstrap.agents.length === 0) {
-        await workspaceService.createAgent({
+        await workspaceService.completeOnboarding({
           userId: sessionResult.user.id,
           input: {
             name: 'Procure Scout',
@@ -900,16 +900,6 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
           },
         });
       }
-
-      await db.execute({
-        sql: `INSERT INTO workspace_onboarding (
-                workspace_id, completed, step, agent_name, agent_role, agent_avatar,
-                agent_color, approval_path, order_cap, daily_cap, apps_json, memory_pills_json, updated_at
-              ) VALUES (?, 1, 4, 'Procure Scout', 'Autonomous buyer', 'cart',
-                '#4c8dff', 'desktop', 150, 500, '["channel3","paypal"]', '[]', datetime('now')
-              ) ON CONFLICT(workspace_id) DO UPDATE SET completed = 1`,
-        args: [wsId],
-      });
     }
 
     sendJson(res, 200, {

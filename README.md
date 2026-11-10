@@ -4,7 +4,7 @@ Keus combines AI-assisted product discovery, purchase reviews and spending limit
 
 ## For PayPal AI Hackathon judges
 
-- **Hosted demo:** https://keus-staging.onrender.com — one-click **Demo fast lane** on the sign-in page for a look around; create a personal account (email code, Google or GitHub) to run the real PayPal sandbox checkout.
+- **Hosted demo:** https://keus-staging.onrender.com — one-click **Launch Judge Workspace** fast lane on the sign-in page for a look around; create a personal account (email code, Google or GitHub) to run the real PayPal sandbox checkout.
 - **Step-by-step judging guide, local setup and code map:** [docs/JUDGING.md](docs/JUDGING.md).
 - **Built during the submission period:** see [What changed since 1 October 2026](#what-changed-since-1-october-2026).
 
@@ -57,7 +57,7 @@ Use a public HTTPS origin for the PayPal return flow (localhost HTTP is accepted
 npm test
 ```
 
-Local verification: **536 passing tests** (`npm test`), including the standard-checkout suite covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
+Local verification: **537 passing tests** (`npm test`), including the standard-checkout suite covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
 
 Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). Since then the **deployed** application (Render, WorkOS authentication, Turso database) has been exercised end to end on 2026-11-10: sign-in, onboarding, agent purchase review, PayPal approval in a separate tab, the automatic return callback, server verification, authorization holds and voids — including concurrent reviews, expired approvals (surfaced as `purchase_approval_expired`), cross-account isolation (other users receive 404 on your mandate IDs) and a database backup/restore plus rollback/roll-forward deploy drill. Every sandbox authorization created during testing was voided. No capture or Vault calls occurred.
 
@@ -86,4 +86,4 @@ The following was built during the hackathon submission period (1 October – 12
 - **Authentication**: WorkOS email + password with verification codes, Google/GitHub sign-in, password reset, sign-up provisioning with a starter agent, one-click judge fast lane.
 - **Provider-agnostic AI layer** with admin-managed, encrypted provider keys (OpenAI-compatible and Anthropic protocols).
 - **Three-step onboarding**, workspace URL consolidation (`/workspace`), retirement of the separate account and mobile companion pages, accessibility and contrast fixes.
-- **Operations**: Render deployment with health surfaces, numbered migrations (`0001`–`0016`) with drift checks, encrypted Turso backup/restore, rollback drill, secret scans and key rotation, and a test suite that grew to 536 passing tests.
+- **Operations**: Render deployment with health surfaces, numbered migrations (`0001`–`0016`) with drift checks, encrypted Turso backup/restore, rollback drill, secret scans and key rotation, and a test suite that grew to 537 passing tests.
