@@ -3142,6 +3142,7 @@
   .products-card-grid{gap:12px}
   .product-card{border-radius:14px;background:var(--bg-card);box-shadow:none;transition:border-color .18s ease,box-shadow .18s ease;min-width:0}
   .product-card:hover{transform:none;border-color:var(--agent-accent);box-shadow:0 4px 16px #0002}
+  .product-card.is-in-bundle,.product-card:has(.product-quantity-form),:root[data-theme="light"] .product-card.is-in-bundle,:root[data-theme="light"] .product-card:has(.product-quantity-form){border-color:var(--agent-accent);box-shadow:inset 0 0 0 1px var(--agent-accent)}
   .product-card-media{height:180px;background:#f1f2f0;border-bottom:1px solid var(--border-strong)}
   .product-card-image{object-fit:contain;padding:18px;box-sizing:border-box}
   .product-card-media:hover .product-card-image{transform:scale(1.025)}
@@ -5740,6 +5741,7 @@
 
       const bagSpan = document.createElement('span');
       bagSpan.textContent = '+ Bag';
+      bagBtn.setAttribute('aria-pressed', 'false');
       bagBtn.append(bagSvg, bagSpan);
 
       bagBtn.addEventListener('click', (e) => {
@@ -5748,11 +5750,13 @@
         if (selectedBundleItems.has(key)) {
           selectedBundleItems.delete(key);
           bagBtn.classList.remove('is-in-bag');
+          bagBtn.setAttribute('aria-pressed', 'false');
           card.classList.remove('is-in-bundle');
           bagSpan.textContent = '+ Bag';
         } else {
           selectedBundleItems.set(key, { item, card, bagBtn, bagSpan });
           bagBtn.classList.add('is-in-bag');
+          bagBtn.setAttribute('aria-pressed', 'true');
           card.classList.add('is-in-bundle');
           bagSpan.textContent = 'In Bag';
         }
@@ -5856,6 +5860,7 @@
       e.preventDefault();
       selectedBundleItems.forEach(({ card: c, bagBtn: b, bagSpan: s }) => {
         b.classList.remove('is-in-bag');
+        b.setAttribute('aria-pressed', 'false');
         c.classList.remove('is-in-bundle');
         s.textContent = '+ Bag';
       });
