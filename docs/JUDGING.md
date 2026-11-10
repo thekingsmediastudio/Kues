@@ -2,6 +2,15 @@
 
 Everything below runs against the **PayPal sandbox only**. Capture is disabled server-side; holds (authorizations) are the only money movement, and you can void them yourself from the UI. No real goods are ordered.
 
+## 0. Ways into the workspace (pick one)
+
+| Method | Where | Gives you |
+|---|---|---|
+| **Launch Judge Workspace (1-Click)** | https://keus-staging.onrender.com/login | Shared demo workspace: chat, search, purchase reviews. PayPal checkout is disabled for this shared identity. |
+| **Create account** (email + verification code) | same page | Your own workspace with the full PayPal sandbox flow. |
+| **Sign in with Google / GitHub** | same page | Same as above, via WorkOS OAuth. |
+| **Run locally** | `npm run dev` → http://localhost:3100/workspace | Opens without sign-in when WorkOS is not configured; add sandbox PayPal keys to run checkout. See §3. |
+
 ## 1. Fastest look (one click, ~2 minutes)
 
 1. Open the hosted staging app: **https://keus-staging.onrender.com**
