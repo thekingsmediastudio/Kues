@@ -222,7 +222,7 @@ async function preparePendingBundleChange({ pendingApprovals, db, workspaceId, u
   pruneWorkspaceToolApprovals(pendingApprovals);
   const matches = [...pendingApprovals.values()].filter(a => (a.status === 'pending' || (a.status === 'completed' && a.decision === 'approve')) && a.type === 'purchase_product'
     && a.userId === String(userId) && a.workspaceId === String(workspaceId) && a.chatAgentId === String(agentId)
-    && a.payload?.isBundle === true);
+    && (change.singleQuantity !== undefined || a.payload?.isBundle === true));
   if (!db || matches.length !== 1) throw new WorkspaceToolError('workspace_tool_change_ambiguous');
   const action=matches[0];
   let items;
@@ -234,6 +234,12 @@ async function preparePendingBundleChange({ pendingApprovals, db, workspaceId, u
       return readPurchaseItems(tx,workspaceId,row);
     });
   } catch { throw new WorkspaceToolError('workspace_tool_change_ambiguous'); }
+  if (change.singleQuantity !== undefined) {
+    // A bare quantity can only refer to a unique one-item review. Never guess
+    // which item in a bundle or which of several reviews was intended.
+    if (!Array.isArray(items) || items.length !== 1 || !/^off_[a-f0-9]{32}$/.test(items[0].offerId || '')) throw new WorkspaceToolError('workspace_tool_change_ambiguous');
+    return prepareWorkspaceToolCall({kind:'tool',name:'purchase_product',arguments:{items:[{offerId:items[0].offerId,quantity:change.singleQuantity}]}},bootstrap);
+  }
   if (!Array.isArray(items) || items.length !== 2 || items.some(i=>!/^off_[a-f0-9]{32}$/.test(i.offerId || ''))
       || (change.firstKind === 'organizer' && !/\borganizer\b/i.test(items[0].title))
       || (change.firstKind === 'notebook' && !/\bnotebook\b/i.test(items[0].title))
@@ -265,7 +271,7 @@ function workspaceToolFailureMessage(error) {
     invalid_query: 'The search query is invalid. Please specify a product query.',
     workspace_tool_price_conflict: 'The requested price range could not be safely interpreted. Please restate the minimum and maximum prices in USD.',
     workspace_tool_exact_identifier_ambiguous: 'I found more than one possible exact product identifier. Please specify one code to search for.',
-    workspace_tool_change_ambiguous: 'I could not safely identify one current two-item review to change. Please specify the saved offers and quantities for a new review. No new review or payment was created.',
+    workspace_tool_change_ambiguous: 'I could not safely identify one current review and item to change. Please specify the saved offers and quantities for a new review. No new review or payment was created.',
   };
   return messages[code] || 'I could not safely interpret that workspace operation, so nothing was changed. Please try a single, specific request.';
 }
@@ -1627,7 +1633,7 @@ async function handleDesktopAiChatRequest(req, res, url, {
     const forcedRead = Boolean(comparisonIds || directSearch || directPurchase || directChange);
     // Narrow deterministic search and exact named single-review requests skip
     // the model; the latter still runs all mandate and explicit approval gates.
-    bypassSearchModel = Boolean((directSearch && !directChange && !directPurchase && !guardPurchaseClaims) || ((namedSingle || contextualReview || savedOfferReview) && !directChange && [namedSingle, contextualReview, savedOfferReview].includes(directPurchase)) || (namedComparison && !directChange && !directPurchase && !guardPurchaseClaims));
+    bypassSearchModel = Boolean(directChange || (directSearch && !directChange && !directPurchase && !guardPurchaseClaims) || ((namedSingle || contextualReview || savedOfferReview) && !directChange && [namedSingle, contextualReview, savedOfferReview].includes(directPurchase)) || (namedComparison && !directChange && !directPurchase && !guardPurchaseClaims));
 
     const messageCharacters = messages.reduce((sum, message) => sum + message.content.length, 0);
     const profileCharacters = String(agent.name || '').length + String(agent.role || '').length + String(agent.settings?.instructions || '').length + (wantsResearch ? 18000 : 0) + (fileContext ? (fileContext.images ? 24000*fileContext.images.length + JSON.stringify({...fileContext,images:undefined}).length : fileContext.reviewBatches ? 42000 : JSON.stringify(fileContext).length) + 1000 : 0) + 600 + JSON.stringify(checkoutContext).length;
