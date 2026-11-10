@@ -1330,3 +1330,5 @@ test('assistant payment claims cannot create payment controls or a verified reco
   assert.match(historySource, /role === 'assistant' && source === 'verified_checkout'/);
   assert.match(historySource, /verifiedCheckout: message\.verifiedCheckout/);
 });
+
+test('settings hints use readable secondary text in both themes',()=>{assert.match(desktopHtml,/\.settings-form-hint\{margin:0!important;color:var\(--text-sec\)!important/)});
