@@ -420,8 +420,9 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(login, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(login, /auth-theme-toggle/);
     const onboarding = await (await fetch(`${base}/onboarding`)).text();
-    assert.match(onboarding, /window\.location\.href='\/app'/);
-    assert.match(onboarding, /window\.location\.replace\('\/app'\)/);
+    assert.match(onboarding, /window\.location\.href='\/desktop-preview'/);
+    assert.match(onboarding, /window\.location\.replace\('\/desktop-preview'\)/);
+    assert.doesNotMatch(onboarding, /window\.location\.(?:href|replace)\(?'\/app'/, 'every onboarding exit lands on the preview');
     assert.match(onboarding, /data\.user\.theme/);
     assert.doesNotMatch(onboarding, /window\.location\.(?:href|replace)='\/desktop'/);
     for (const legacy of ['/desktop', '/desktop.html']) {
