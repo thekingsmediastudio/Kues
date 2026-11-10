@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {installCheckoutUI} from '../../apps/web/public/standard-checkout-ui.mjs';
+function harness(){
+ let scope='a',listeners={};const list={children:[],get childElementCount(){return this.children.length},replaceChildren(){this.children=[]}};const status={textContent:''};
+ const overlay={classList:{contains:()=>true}},pane={hidden:false},refresh={addEventListener:(_,f)=>listeners.click=f};
+ globalThis.document={getElementById:id=>({checkoutList:list,checkoutStatus:status,generalOverlayBackdrop:overlay,settingsPanePayments:pane,checkoutRefresh:refresh}[id])};
+ globalThis.window={addEventListener:(n,f)=>listeners[n]=f};
+ const ui=installCheckoutUI({getWorkspaceId:()=>scope});return{list,status,ui,listeners,setScope:s=>scope=s};
+}
+const response=()=>({ok:true,json:async()=>({checkouts:[]})});
+test('focus refreshes coalesce while request is in flight',async()=>{const h=harness();let n=0,resolve;globalThis.fetch=()=>{n++;return new Promise(r=>resolve=r)};let p=h.ui.refresh();h.listeners.focus();h.listeners.focus();assert.equal(n,1);resolve(response());await p;assert.equal(h.status.textContent,'Review a purchase in chat to prepare checkout.');});
+test('workspace switch clears prior workspace content and ignores older response',async()=>{const h=harness();let resolves=[];globalThis.fetch=()=>new Promise(r=>resolves.push(r));h.list.children=['private'];let p=h.ui.refresh();h.setScope('b');let q=h.ui.refresh();assert.equal(h.list.childElementCount,0);resolves[1](response());await q;resolves[0]({ok:true,json:async()=>({checkouts:[]})});await p;assert.equal(h.status.textContent,'Review a purchase in chat to prepare checkout.');});
+test('failed refresh retains same-workspace contents and warns they may be stale',async()=>{const h=harness();globalThis.fetch=async()=>response();await h.ui.refresh();h.list.children=['prior'];globalThis.fetch=async()=>{throw Error('network')};await h.ui.refresh();assert.equal(h.list.childElementCount,1);assert.equal(h.list.inert,true);assert.match(h.status.textContent,/out of date/);});
+test('a stalled request aborts and gives safe retry guidance',async()=>{const h=harness();const timer=globalThis.setTimeout;globalThis.setTimeout=(fn)=>timer(fn,1);globalThis.fetch=(_,opts)=>new Promise((_,reject)=>opts.signal.addEventListener('abort',()=>reject(Object.assign(Error('timeout'),{name:'AbortError'}))));try{await h.ui.refresh();assert.match(h.status.textContent,/taking too long/);assert.match(h.status.textContent,/Don’t start another checkout/)}finally{globalThis.setTimeout=timer}});
+test('forced post-action refresh supersedes an older in-flight response',async()=>{const h=harness();let calls=[];globalThis.fetch=(_,opts)=>new Promise((resolve,reject)=>{calls.push({resolve,signal:opts.signal});opts.signal.addEventListener('abort',()=>reject(Object.assign(Error('aborted'),{name:'AbortError'})))});const old=h.ui.refresh();const fresh=h.ui.refresh({force:true});assert.equal(calls.length,2);assert.equal(calls[0].signal.aborted,true);calls[1].resolve(response());await Promise.all([old,fresh]);assert.equal(h.status.textContent,'Review a purchase in chat to prepare checkout.');assert.equal(h.list.inert,false)});

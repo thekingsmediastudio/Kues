@@ -610,3 +610,11 @@ test('expiry display never hides an authorized or uncertain checkout',async t=>{
 test('shorter checkout expiry is reflected even while the review remains fresh',async t=>{
  const f=await fixture(t);await f.begin();await f.db.execute('UPDATE paypal_standard_checkouts SET expires_at=1');const entry=(await f.service().list(f.c))[0];assert.equal(entry.status,'expired');assert.equal(entry.orderId,'MOCK-ORDER');assert.equal((await f.service().result(f.c,f.m.mandateId)).status,'expired');assert.equal((await f.db.execute('SELECT status FROM paypal_standard_checkouts')).rows[0].status,'pending');assert.deepEqual(f.calls,['create']);
 });
+test('batched checkout list fails closed on tampered lines or removed hash without provider calls',async t=>{
+ for(const mode of ['same_total','missing_hash']){
+  const f=await fixture(t,{quantity:2});const before=await f.service().list(f.c);assert.equal(before[0].items[0].quantity,2);
+  if(mode==='same_total')await f.db.execute({sql:'UPDATE mandate_purchase_items SET quantity=1,unit_amount_minor=2000 WHERE mandate_id=?',args:[f.m.mandateId]});
+  else await f.db.execute({sql:'UPDATE mandates SET purchase_items_hash=NULL WHERE id=?',args:[f.m.mandateId]});
+  await assert.rejects(f.service().list(f.c),/purchase_items_changed/);assert.deepEqual(f.calls,[]);
+ }
+});

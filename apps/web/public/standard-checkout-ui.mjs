@@ -41,7 +41,7 @@ const copy = (code) =>
   })[code] ||
   "The checkout could not be confirmed. Refresh and recheck its status before trying again.";
 export function installCheckoutUI({ getWorkspaceId }) {
-  let version = 0;
+  let version = 0, renderedScope = null, inFlight = null, actionPending = 0;
   const approvalLinks = new Map();
   const list = document.getElementById("checkoutList"),
     status = document.getElementById("checkoutStatus");
@@ -51,6 +51,8 @@ export function installCheckoutUI({ getWorkspaceId }) {
       ?.classList.contains("open") &&
     !document.getElementById("settingsPanePayments")?.hidden;
   async function request(action, mandateId) {
+    actionPending++;
+    try {
     const r = await fetch("/api/commerce/paypal/checkout/" + action, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -59,6 +61,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
     const data = await r.json();
     if (!r.ok) throw Error(data.error);
     return data.checkout;
+    } finally { actionPending--; }
   }
   const statuses = {
     ready: "Ready for your PayPal approval",
@@ -74,19 +77,30 @@ export function installCheckoutUI({ getWorkspaceId }) {
     void_uncertain: "Void uncertain — recheck before retrying",
     expired: "Purchase review expired",
   };
-  async function refresh() {
+  async function refresh({force = false} = {}) {
     if (!list || !status) return;
-    const v = ++version,
-      scope = getWorkspaceId();
-    list.replaceChildren();
-    status.textContent = "Loading checkouts…";
+    const scope = getWorkspaceId();
+    if (!force && inFlight?.scope === scope) return inFlight.promise;
+    if (inFlight) inFlight.controller.abort();
+    const v = ++version;
+    if (scope !== renderedScope) {
+      list.replaceChildren();
+      renderedScope = scope;
+    }
+    // Cached cards are informational only until the server revalidates them.
+    list.inert = true;
+    status.textContent = list.childElementCount ? "Refreshing checkouts…" : "Loading checkouts…";
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    const run = async () => {
     try {
       const r = await fetch("/api/commerce/paypal/checkout", {
-          cache: "no-store",
+          cache: "no-store", signal: controller.signal,
         }),
         data = await r.json();
       if (v !== version || scope !== getWorkspaceId()) return;
       if (!r.ok) throw Error(data.error);
+      list.replaceChildren();
       status.textContent = data.checkouts?.length
         ? ""
         : "Review a purchase in chat to prepare checkout.";
@@ -98,10 +112,20 @@ export function installCheckoutUI({ getWorkspaceId }) {
       for (const key of approvalLinks.keys())
         if (!pendingKeys.has(key)) approvalLinks.delete(key);
       for (const item of data.checkouts || []) render(item, scope);
+      list.inert = false;
     } catch (e) {
       if (v === version && scope === getWorkspaceId())
-        status.textContent = copy(e.message);
+        status.textContent = e.name === "AbortError"
+          ? "Checkouts are taking too long to load. Try Refresh. Don’t start another checkout until its status is confirmed."
+          : "Could not refresh checkouts. Try Refresh. Existing information may be out of date.";
+    } finally {
+      clearTimeout(timeout);
+      if (inFlight?.version === v) inFlight = null;
     }
+    };
+    const promise = run();
+    inFlight = { scope, version: v, promise, controller };
+    return promise;
   }
   function render(item, scope) {
     const card = document.createElement("div");
@@ -243,7 +267,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
         try {
           await request("reconcile", item.mandateId);
           window.dispatchEvent(new CustomEvent("keus-checkout-updated",{detail:{mandateId:item.mandateId}}));
-          await refresh();
+          await refresh({force: true});
         } catch (e) {
           if (scope === getWorkspaceId()) state.textContent = copy(e.message);
           actions
@@ -258,7 +282,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
         try {
           await request("void", item.mandateId);
           window.dispatchEvent(new CustomEvent("keus-checkout-updated",{detail:{mandateId:item.mandateId}}));
-          await refresh();
+          await refresh({force: true});
         } catch (e) {
           if (scope === getWorkspaceId()) state.textContent = copy(e.message);
           actions
@@ -269,9 +293,9 @@ export function installCheckoutUI({ getWorkspaceId }) {
   }
   document
     .getElementById("checkoutRefresh")
-    ?.addEventListener("click", refresh);
+    ?.addEventListener("click", () => { if (!actionPending) void refresh({force: true}); });
   window.addEventListener("focus", () => {
-    if (active()) void refresh();
+    if (active() && !actionPending) void refresh();
   });
   return { refresh };
 }

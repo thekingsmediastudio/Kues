@@ -1412,3 +1412,23 @@ test('named latest-grid comparison is evidence-only in JSON and SSE and never ca
   })}finally{db.close()}
  }
 });
+
+test('contextual single-result follow-up uses verified offer without model in JSON and stream',async()=>{
+ const {createClient}=await import('@libsql/client');const {applyMigrations}=await import('../../apps/web/lib/db/migrate.mjs');const {discoverProducts}=await import('../../apps/web/lib/channel3/discovery.mjs');
+ for(const streaming of [false,true]){
+  const db=createClient({url:':memory:'});await applyMigrations(db);const workspaceId='workspace-'+admin.id;
+  await db.execute({sql:'INSERT INTO users (id,email_normalized,status) VALUES (?,?,?)',args:[admin.id,admin.email,'active']});await db.execute({sql:'INSERT INTO workspaces (id,owner_user_id,name,status) VALUES (?,?,?,?)',args:[workspaceId,admin.id,'Test','active']});await db.execute({sql:'INSERT INTO agents (workspace_id,id,name,role,avatar,status,settings_json) VALUES (?,?,?,?,?,?,?)',args:[workspaceId,'agent-1','Test','test','cart','active',JSON.stringify({orderCap:100,dailyCap:200})]});
+  const item={id:'one',title:'Spiral Bound Notebooks',amountMinor:125,currency:'USD',currencyVerified:true,availability:'in_stock',merchantName:'Dollartree',merchantDomain:'dollartree.com',url:'https://dollartree.com/one',evidenceHash:'sha256:'+'1'.repeat(64)};
+  const search=await discoverProducts({db,workspaceId,userId:admin.id,agentId:'agent-1',query:'notebook',channel3Client:{isConfigured:()=>true,searchProducts:async()=>({query:'notebook',count:1,products:[item],isLive:true,source:'channel3'})}});const id=search.products[0].offerId;
+  let modelCalls=0;const fail=async()=>{modelCalls++;throw new Error('must not need model')};const {dependencies,usageCalls}=testDependencies({stream:fail,complete:fail});dependencies.db=db;dependencies.aiChatHistoryService.getRecentMessages=async()=>[{role:'assistant',content:`:::products-grid\n**Offer ID:** \`${id}\`\n:::`}];
+  try{await withServer(dependencies,async base=>{const post=message=>fetch(base+'/api/chat',{method:'POST',headers:{Origin:base,Cookie:'kues_session=admin-session','Content-Type':'application/json',...(streaming?{Accept:'text/event-stream'}:{})},body:JSON.stringify({...messagePayload,message})});
+   let r=await post('can we buy 3 fo that product?');let raw=await r.text();assert.equal(r.status,200);assert.match(raw,/3\.75/);assert.match(raw,streaming?/tool_approval_required/:/pendingAction/);assert.equal(modelCalls,0);assert.equal(usageCalls.release.length,1);
+   const mandates=(await db.execute('SELECT id,status,amount_minor FROM mandates')).rows;assert.equal(mandates.length,1);assert.equal(mandates[0].status,'awaiting_approval');assert.equal(Number(mandates[0].amount_minor),375);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM paypal_standard_checkouts')).rows[0].n),0);
+   dependencies.aiChatHistoryService.getRecentMessages=async()=>[{role:'assistant',content:`:::products-grid\n**Offer ID:** \`${id}\`\n**Offer ID:** \`off_${'a'.repeat(32)}\`\n:::`}];
+   const no=await post('can we buy 3 of that product?');const text=await no.text();assert.match(text,/select one product/i);assert.doesNotMatch(text,/pendingAction|tool_approval_required/);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM mandates')).rows[0].n),1);assert.equal(modelCalls,0);
+   dependencies.aiChatHistoryService.getRecentMessages=async()=>[{role:'assistant',content:`:::products-grid\n**Offer ID:** \`${id}\`\n:::`}];
+   await db.execute({sql:'UPDATE product_offers SET evidence_ref=? WHERE id=?',args:['{}',id]});const legacy=await post('can we buy 3 fo that product?');const legacyText=await legacy.text();assert.doesNotMatch(legacyText,/pendingAction|tool_approval_required/);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM mandates')).rows[0].n),1);assert.equal(Number((await db.execute('SELECT COUNT(*) AS n FROM paypal_standard_checkouts')).rows[0].n),0);
+  })}finally{db.close()}
+ }
+});
+
