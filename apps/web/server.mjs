@@ -836,6 +836,33 @@ function isOnboardingReviewer(config, user) {
   return admins.includes(email);
 }
 
+/** Personal judge workspaces are available only while a code is configured and the window is open. */
+function judgeFastlaneActive(config) {
+  if (!config?.judgeAccessCode) return false;
+  if (config.judgeFastlaneUntil && Date.now() > config.judgeFastlaneUntil) return false;
+  return true;
+}
+function safeEqual(a, b) {
+  const x = Buffer.from(String(a)), y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+/** Small in-memory per-IP limiter for the code check: 10 attempts per 10 minutes. */
+const judgeFastlaneRateLimiter = (() => {
+  const hits = new Map();
+  return {
+    allow(key, now = Date.now()) {
+      const windowMs = 10 * 60 * 1000;
+      const recent = (hits.get(key) || []).filter((t) => now - t < windowMs);
+      if (recent.length >= 10) { hits.set(key, recent); return false; }
+      recent.push(now); hits.set(key, recent);
+      if (hits.size > 5000) hits.clear();
+      return true;
+    },
+    reset() { hits.clear(); },
+  };
+})();
+export const judgeFastlaneForTest = { active: judgeFastlaneActive, limiter: judgeFastlaneRateLimiter };
+
 function signInDestination(config, user, session = null) {
   if (isOnboardingReviewer(config, user)) return ONBOARDING_SIGN_IN_PATH;
   if (session?.isNewUser === true) return ONBOARDING_SIGN_IN_PATH;
@@ -912,6 +939,72 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
     return true;
   }
 
+  if (url.pathname === '/api/auth/judge-fastlane') {
+    if (req.method !== 'POST') {
+      res.setHeader('Allow', 'POST, OPTIONS');
+      sendJson(res, 405, { error: 'method_not_allowed' });
+      return true;
+    }
+    if (!judgeFastlaneActive(config)) {
+      sendJson(res, 404, { error: 'not_found' });
+      return true;
+    }
+    requireSameOrigin(req);
+    if (!authService || !workspaceService || !db) {
+      sendJson(res, 503, { error: 'auth_service_unavailable' });
+      return true;
+    }
+    const ip = String(req.socket.remoteAddress || 'unknown');
+    if (!judgeFastlaneRateLimiter.allow(ip)) {
+      sendJson(res, 429, { error: 'judge_fastlane_rate_limited', message: 'Too many attempts. Wait a few minutes and try again.' });
+      return true;
+    }
+    const body = await readJsonBody(req);
+    const supplied = String(body?.code || '').trim();
+    if (!supplied || !safeEqual(supplied, config.judgeAccessCode)) {
+      sendJson(res, 403, { error: 'judge_access_code_invalid', message: 'That judge access code is not valid.' });
+      return true;
+    }
+    const existing = await db.execute({
+      sql: "SELECT COUNT(*) AS n FROM auth_identities WHERE provider_subject LIKE 'sub_judge_personal_%'",
+      args: [],
+    });
+    if (Number(existing.rows[0]?.n || 0) >= config.judgeFastlaneMaxAccounts) {
+      sendJson(res, 409, { error: 'judge_fastlane_capacity_reached', message: 'All personal judge workspaces are in use. Create an account with your email instead.' });
+      return true;
+    }
+    const handle = crypto.randomBytes(5).toString('hex');
+    const sessionResult = await authService.createWorkOSSession({
+      providerSubject: `sub_judge_personal_${handle}`,
+      email: `judge-${handle}@judges.keus.sandbox`,
+      emailVerified: true,
+      displayName: `Judge ${handle.slice(0, 4).toUpperCase()}`,
+    });
+    // Same provisioning as a finished onboarding: starter agent, limits, onboarding marked complete.
+    await workspaceService.completeOnboarding({
+      userId: sessionResult.user.id,
+      input: {
+        name: 'Scout',
+        role: 'Web & commerce scout',
+        avatar: 'bulb',
+        color: '#32d583',
+        approvalPath: 'desktop',
+        orderCap: 85,
+        dailyCap: 250,
+        apps: ['channel3', 'paypal'],
+        memoryPills: ['Stay under order limit cap'],
+      },
+    });
+    sendJson(res, 200, {
+      authenticated: true,
+      redirect: POST_SIGN_IN_PATH,
+      user: sessionResult.user,
+    }, {
+      'Set-Cookie': [setSessionCookie(config, sessionResult.sessionToken), clearPendingAuthCookie(config)],
+    });
+    return true;
+  }
+
   if (url.pathname === '/api/auth/config' && req.method === 'GET') {
     sendJson(res, 200, {
       provider: config.authProvider,
@@ -923,6 +1016,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       googleEnabled,
       githubEnabled,
       otherMethodsEnabled: googleEnabled || githubEnabled,
+      judgeFastlaneEnabled: judgeFastlaneActive(config),
     });
     return true;
   }

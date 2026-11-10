@@ -142,6 +142,12 @@ html[data-theme="light"] .auth-main label{color:#344b3a}html[data-theme="light"]
 .judge-fastlane-desc{margin:4px 0 10px;color:#a4a5ad;font-size:11px;line-height:1.4}
 .judge-fastlane-btn{width:100%;min-height:38px;background:#32d583;color:#0b110e;font-size:12px;font-weight:700;cursor:pointer}
 .judge-fastlane-btn:hover{background:#41e492}
+.judge-personal{margin-top:12px;padding-top:12px;border-top:1px dashed rgba(50,213,131,.3)}
+.judge-personal-desc{margin:0 0 8px}
+.judge-personal-row{display:flex;gap:8px}
+.judge-personal-row input{flex:1;min-width:0;min-height:38px;padding:0 10px;border:1px solid var(--border-strong,rgba(255,255,255,.18));border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:12px}
+.judge-personal-row .judge-personal-btn{width:auto;flex:0 0 auto;padding:0 12px}
+@media (max-width:480px){.judge-personal-row{flex-direction:column}.judge-personal-row .judge-personal-btn{width:100%}}
 html[data-theme="light"] .judge-fastlane-box{border-color:rgba(50,150,82,.3);background:rgba(50,213,131,.09)}
 html[data-theme="light"] .judge-fastlane-head{color:#1e7b44}
 html[data-theme="light"] .judge-fastlane-desc{color:#4f6154}
@@ -205,6 +211,13 @@ html[data-theme="light"] .auth-main button:focus-visible,html[data-theme="light"
       <button type="button" class="primary judge-fastlane-btn" id="judgeFastlaneButton">
         Launch Judge Workspace (1-Click)
       </button>
+      <div class="judge-personal" id="judgePersonalBox" hidden>
+        <p class="judge-fastlane-desc judge-personal-desc">Have a judge access code? Get a private workspace with PayPal sandbox checkout enabled. No email needed.</p>
+        <div class="judge-personal-row">
+          <input id="judgeAccessCode" type="text" autocomplete="off" spellcheck="false" maxlength="64" placeholder="Judge access code" aria-label="Judge access code">
+          <button type="button" class="primary judge-fastlane-btn judge-personal-btn" id="judgePersonalButton">Open personal judge workspace</button>
+        </div>
+      </div>
     </div>
     <div class="divider">or standard account sign-in</div>
     <div class="account-mode" id="accountModeSwitch" role="group" aria-label="Choose sign-in or account creation">
@@ -304,6 +317,23 @@ const resetCodeStatus=document.getElementById('resetCodeStatus');
 const passwordResetSuccess=document.getElementById('passwordResetSuccess');
 const signedPanel=document.getElementById('signedPanel');
 const altMethods=document.getElementById('altMethods');
+const judgePersonalBox=document.getElementById('judgePersonalBox');
+const judgePersonalButton=document.getElementById('judgePersonalButton');
+const judgeAccessCodeInput=document.getElementById('judgeAccessCode');
+async function launchPersonalJudgeWorkspace(){
+  const code=(judgeAccessCodeInput.value||'').trim();
+  if(!code){setStatus(formStatus,'Enter the judge access code from the testing instructions.','error');judgeAccessCodeInput.focus();return;}
+  judgePersonalButton.disabled=true;setStatus(formStatus,'Creating your personal judge workspace...','');
+  try{
+    const res=await fetch('/api/auth/judge-fastlane',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+    const data=await readJson(res);
+    if(res.ok){window.location.href=destinationFor(data);return;}
+    setStatus(formStatus,data.message||data.error||'Could not create a judge workspace.','error');
+  }catch{setStatus(formStatus,'Judge workspace request failed. Please retry.','error');}
+  judgePersonalButton.disabled=false;
+}
+judgePersonalButton?.addEventListener('click',()=>{void launchPersonalJudgeWorkspace();});
+judgeAccessCodeInput?.addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();void launchPersonalJudgeWorkspace();}});
 const judgeFastlaneButton=document.getElementById('judgeFastlaneButton');
 judgeFastlaneButton?.addEventListener('click', async () => {
   judgeFastlaneButton.disabled = true;
@@ -584,6 +614,7 @@ async function loadAuthConfig(){
     authEnabled=response.ok&&data.emailPasswordEnabled===true;
     googleEnabled=authEnabled&&data.googleEnabled===true;
     githubEnabled=authEnabled&&data.githubEnabled===true;
+    if(judgePersonalBox)judgePersonalBox.hidden=!(response.ok&&data.judgeFastlaneEnabled===true);
     sendButton.disabled=!authEnabled;document.getElementById('googleButton').disabled=!googleEnabled;document.getElementById('githubButton').disabled=!githubEnabled;
     resendButton.disabled=!authEnabled||!activePassword;forgotPasswordButton.disabled=!authEnabled;resetFromCodeButton.disabled=!authEnabled;
     resetSendButton.disabled=!authEnabled;resetVerifyButton.disabled=!authEnabled;

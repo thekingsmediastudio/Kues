@@ -4,7 +4,7 @@ Keus combines AI-assisted product discovery, purchase reviews and spending limit
 
 ## For PayPal AI Hackathon judges
 
-- **Hosted demo:** https://keus-staging.onrender.com — one-click **Launch Judge Workspace** fast lane on the sign-in page for a look around; create a personal account (email code, Google or GitHub) to run the real PayPal sandbox checkout.
+- **Hosted demo:** https://keus-staging.onrender.com — one-click **Launch Judge Workspace** on the sign-in page for a look around; enter the **judge access code** (Devpost testing instructions) for a private workspace with PayPal sandbox checkout enabled, or create an account (email code, Google or GitHub).
 - **Step-by-step judging guide, local setup and code map:** [docs/JUDGING.md](docs/JUDGING.md).
 - **Built during the submission period:** see [What changed since 1 October 2026](#what-changed-since-1-october-2026).
 

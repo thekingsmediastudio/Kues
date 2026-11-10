@@ -568,3 +568,17 @@ test('staging user chat opt-in is disabled by default and requires admin chat fl
  const base={AI_PROVIDER_ADMIN_EMAILS:'owner@example.test',AI_PROVIDER_ENCRYPTION_KEY:Buffer.alloc(32,51).toString('base64'),AI_PROVIDER_CHAT_TEST_ENABLED:'1',AUTH_PROVIDER:'workos',WORKOS_API_KEY:'sk_test',WORKOS_CLIENT_ID:'client_1234',WORKOS_REDIRECT_URI:'http://localhost:3100/auth/callback',TURSO_DATABASE_URL:'file:./local.db'};
  assert.equal(loadServerConfig(base).aiProviderChatUsersEnabled,false);assert.equal(loadServerConfig({...base,AI_PROVIDER_CHAT_USERS_ENABLED:'1'}).aiProviderChatUsersEnabled,true);assert.throws(()=>loadServerConfig({...base,AI_PROVIDER_CHAT_USERS_ENABLED:'invalid'}));assert.throws(()=>loadServerConfig({...base,AI_PROVIDER_CHAT_TEST_ENABLED:'0',AI_PROVIDER_CHAT_USERS_ENABLED:'1'}));
 });
+
+test('judge fast lane config: disabled by default, validated when set', () => {
+  const off = loadServerConfig({});
+  assert.equal(off.judgeAccessCode, '');
+  assert.equal(off.judgeFastlaneMaxAccounts, 100);
+  assert.equal(off.judgeFastlaneUntil, null);
+  const on = loadServerConfig({ JUDGE_ACCESS_CODE: 'KEUS-JUDGE-2026', JUDGE_FASTLANE_MAX_ACCOUNTS: '25', JUDGE_FASTLANE_UNTIL: '2026-12-16T00:00:00Z' });
+  assert.equal(on.judgeAccessCode, 'KEUS-JUDGE-2026');
+  assert.equal(on.judgeFastlaneMaxAccounts, 25);
+  assert.equal(on.judgeFastlaneUntil, Date.parse('2026-12-16T00:00:00Z'));
+  assert.throws(() => loadServerConfig({ JUDGE_ACCESS_CODE: 'short' }), ConfigError);
+  assert.throws(() => loadServerConfig({ JUDGE_ACCESS_CODE: 'KEUS-JUDGE-2026', JUDGE_FASTLANE_MAX_ACCOUNTS: '0' }), ConfigError);
+  assert.throws(() => loadServerConfig({ JUDGE_ACCESS_CODE: 'KEUS-JUDGE-2026', JUDGE_FASTLANE_UNTIL: '2026-12-16' }), ConfigError);
+});

@@ -132,6 +132,20 @@ export function loadServerConfig(env = process.env) {
   const aiProviderChatUsersEnabled = userChatFlag === '1';
   if (aiProviderChatUsersEnabled && !aiProviderChatTestEnabled) issues.push('AI_PROVIDER_CHAT_USERS_ENABLED requires AI_PROVIDER_CHAT_TEST_ENABLED');
 
+  // Code-gated personal judge workspaces (hackathon judging). Unset = endpoint disabled.
+  const judgeAccessCode = String(env.JUDGE_ACCESS_CODE || '').trim();
+  if (judgeAccessCode && judgeAccessCode.length < 8) issues.push('JUDGE_ACCESS_CODE must be at least 8 characters');
+  const judgeMaxRaw = String(env.JUDGE_FASTLANE_MAX_ACCOUNTS || '').trim();
+  const judgeFastlaneMaxAccounts = judgeMaxRaw ? Number(judgeMaxRaw) : 100;
+  if (!Number.isSafeInteger(judgeFastlaneMaxAccounts) || judgeFastlaneMaxAccounts < 1 || judgeFastlaneMaxAccounts > 10000) {
+    issues.push('JUDGE_FASTLANE_MAX_ACCOUNTS must be an integer between 1 and 10000');
+  }
+  const judgeUntilRaw = String(env.JUDGE_FASTLANE_UNTIL || '').trim();
+  const judgeFastlaneUntil = judgeUntilRaw ? Date.parse(judgeUntilRaw) : null;
+  if (judgeUntilRaw && (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(judgeUntilRaw) || !Number.isFinite(judgeFastlaneUntil))) {
+    issues.push('JUDGE_FASTLANE_UNTIL must be an ISO-8601 timestamp with an explicit timezone');
+  }
+
   const databaseUrl = String(env.TURSO_DATABASE_URL || '').trim();
   const databaseToken = String(env.TURSO_AUTH_TOKEN || '').trim();
   const remoteDatabase = databaseUrl.startsWith('libsql://') || databaseUrl.startsWith('https://');
@@ -271,6 +285,9 @@ export function loadServerConfig(env = process.env) {
     aiProviderAdminEmails: Object.freeze(aiProviderAdminEmails),
     aiProviderChatTestEnabled,
     aiProviderChatUsersEnabled,
+    judgeAccessCode,
+    judgeFastlaneMaxAccounts,
+    judgeFastlaneUntil,
     webResearchEnabled,
     webResearchTavilyKeyless,
     groqTranscriptionEnabled,

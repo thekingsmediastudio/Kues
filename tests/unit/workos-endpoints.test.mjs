@@ -137,6 +137,7 @@ test('WorkOS social routes dispatch only enabled Google/GitHub providers', async
       provider: 'workos', enabled: true, emailEnabled: true, emailPasswordEnabled: true,
       emailAuthMethod: 'password', magicAuthEnabled: false, googleEnabled: true, githubEnabled: true,
       otherMethodsEnabled: true,
+      judgeFastlaneEnabled: false,
     });
     for (const provider of ['GoogleOAuth', 'GitHubOAuth']) {
       const response = await fetch(`${base}/auth/start?provider=${provider}&intent=sign-up`, { redirect: 'manual' });
@@ -447,6 +448,7 @@ test('auth config endpoint reports WorkOS activation without returning secrets',
       provider: 'workos', enabled: true, emailEnabled: true, emailPasswordEnabled: true,
       emailAuthMethod: 'password', magicAuthEnabled: false, googleEnabled: false, githubEnabled: false,
       otherMethodsEnabled: false,
+      judgeFastlaneEnabled: false,
     });
     assert.equal(response.headers.get('cache-control'), 'no-store');
   });

@@ -260,3 +260,75 @@ test('demo fast lane works against the real schema and provisions the judge work
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('personal judge fast lane: code-gated, isolated accounts with checkout allowed, capped and rate limited', async () => {
+  const { createWorkspaceService } = await import('../../apps/web/lib/workspaces/service.mjs');
+  const { judgeFastlaneForTest } = await import('../../apps/web/server.mjs');
+  async function boot(env) {
+    const db = await createDb();
+    const authService = createAuthService({ db, emailDelivery: { async sendMagicLink() {} } });
+    const workspaceService = createWorkspaceService({ db });
+    const server = createServer({ config: loadServerConfig(env), authService, workspaceService, db });
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    return { db, server, base: `http://127.0.0.1:${server.address().port}` };
+  }
+  const post = (base, body, headers = {}) => fetch(`${base}/api/auth/judge-fastlane`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Origin: base, ...headers }, body: JSON.stringify(body),
+  });
+
+  // Disabled when no code is configured: endpoint is invisible and config says so.
+  const off = await boot({});
+  try {
+    assert.equal((await post(off.base, { code: 'anything' })).status, 404);
+    const cfg = await (await fetch(`${off.base}/api/auth/config`)).json();
+    assert.equal(cfg.judgeFastlaneEnabled, false);
+  } finally { await new Promise((r) => off.server.close(r)); }
+
+  judgeFastlaneForTest.limiter.reset();
+  const on = await boot({ JUDGE_ACCESS_CODE: 'KEUS-JUDGE-TEST-2026', JUDGE_FASTLANE_MAX_ACCOUNTS: '2' });
+  try {
+    const cfg = await (await fetch(`${on.base}/api/auth/config`)).json();
+    assert.equal(cfg.judgeFastlaneEnabled, true);
+    assert.equal((await post(on.base, { code: 'wrong-code' })).status, 403);
+    assert.equal((await post(on.base, {})).status, 403);
+
+    const first = await post(on.base, { code: 'KEUS-JUDGE-TEST-2026' });
+    assert.equal(first.status, 200);
+    const firstBody = await first.json();
+    assert.equal(firstBody.authenticated, true);
+    assert.equal(firstBody.redirect, '/workspace');
+    assert.match(firstBody.user.email, /^judge-[0-9a-f]{10}@judges\.keus\.sandbox$/);
+    const firstCookie = first.headers.get('set-cookie').split(';', 1)[0];
+
+    const second = await post(on.base, { code: 'KEUS-JUDGE-TEST-2026' });
+    assert.equal(second.status, 200);
+    const secondBody = await second.json();
+    assert.notEqual(secondBody.user.id, firstBody.user.id, 'each click mints an isolated account');
+
+    // Not the shared judge identity, so the checkout surface is reachable (list is empty, not 403).
+    const checkout = await fetch(`${on.base}/api/commerce/paypal/checkout`, { headers: { Cookie: firstCookie } });
+    assert.notEqual(checkout.status, 403);
+    assert.notEqual((await checkout.json()).error, 'checkout_personal_account_required');
+
+    // Provisioned like a finished onboarding: starter agent present, onboarding complete, lands on workspace.
+    const ws = createWorkspaceService({ db: on.db });
+    const bootstrap = await ws.getBootstrap({ userId: firstBody.user.id });
+    assert.equal(bootstrap.agents.length, 1);
+    assert.equal(bootstrap.agents[0].name, 'Scout');
+    assert.equal(bootstrap.onboarding.status, 'completed');
+    const page = await fetch(`${on.base}/workspace`, { headers: { Cookie: firstCookie }, redirect: 'manual' });
+    assert.equal(page.status, 200);
+
+    // Cap reached → 409 with a human message; shared identity count is not affected.
+    const third = await post(on.base, { code: 'KEUS-JUDGE-TEST-2026' });
+    assert.equal(third.status, 409);
+    assert.equal((await third.json()).error, 'judge_fastlane_capacity_reached');
+
+    // Rate limit: 10 attempts per IP per 10 minutes (5 used above).
+    for (let i = 0; i < 5; i += 1) await post(on.base, { code: 'nope' });
+    assert.equal((await post(on.base, { code: 'nope' })).status, 429);
+  } finally {
+    judgeFastlaneForTest.limiter.reset();
+    await new Promise((r) => on.server.close(r));
+  }
+});
