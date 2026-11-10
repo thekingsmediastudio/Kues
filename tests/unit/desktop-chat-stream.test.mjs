@@ -1332,3 +1332,5 @@ test('assistant payment claims cannot create payment controls or a verified reco
 });
 
 test('settings hints use readable secondary text in both themes',()=>{assert.match(desktopHtml,/\.settings-form-hint\{margin:0!important;color:var\(--text-sec\)!important/)});
+
+test('conversation and account controls use group and disclosure semantics',()=>{assert.match(desktopHtml,/<div class="header-actions" role="group" aria-label="Conversation controls">/);assert.match(desktopHtml,/<div class="account-menu" id="accountMenu" role="group" aria-label="Account options" hidden>/);assert.match(desktopHtml,/id="accountMenuToggle" type="button" aria-expanded="false" aria-controls="accountMenu"/)});
