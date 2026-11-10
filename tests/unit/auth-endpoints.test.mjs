@@ -143,3 +143,80 @@ test('first sign-in over HTTP provisions a starter agent and points the browser 
     await db.close();
   }
 });
+
+test('allowlisted admin sign-in lands on onboarding and may re-run it to add an agent; everyone else lands on the preview', async () => {
+  const { createWorkspaceService } = await import('../../apps/web/lib/workspaces/service.mjs');
+  const db = await createDb();
+  const delivered = [];
+  const authService = createAuthService({ db, emailDelivery: { async sendMagicLink(message) { delivered.push(message); } } });
+  const workspaceService = createWorkspaceService({ db });
+  const config = loadServerConfig({
+    AI_PROVIDER_ADMIN_EMAILS: 'admin@example.test',
+    AI_PROVIDER_ENCRYPTION_KEY: 'a'.repeat(64),
+    AUTH_PROVIDER: 'workos',
+    WORKOS_API_KEY: 'sk_test_key',
+    WORKOS_CLIENT_ID: 'client_1234',
+    WORKOS_REDIRECT_URI: 'http://localhost:3100/auth/callback',
+    TURSO_DATABASE_URL: 'file:./local.db',
+  });
+  // Magic-link routes are retired under workos; exercise the destination logic through a brevo-style config too.
+  const plainConfig = loadServerConfig({});
+  const serverFor = (cfg) => createServer({ config: cfg, db, authService, workspaceService });
+  const signIn = async (base, email) => {
+    delivered.length = 0;
+    await fetch(`${base}/api/auth/email/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const consume = await fetch(`${base}/api/auth/email/consume`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: delivered[0].token }) });
+    assert.equal(consume.status, 200);
+    return { body: await consume.json(), cookie: consume.headers.get('set-cookie').split(';', 1)[0] };
+  };
+  const plain = serverFor(plainConfig);
+  await new Promise((resolve) => plain.listen(0, '127.0.0.1', resolve));
+  const plainBase = `http://127.0.0.1:${plain.address().port}`;
+  try {
+    const regular = await signIn(plainBase, 'member@example.test');
+    assert.equal(regular.body.redirect, '/desktop-preview');
+    const admin = await signIn(plainBase, 'admin@example.test');
+    assert.equal(admin.body.redirect, '/desktop-preview', 'without an allowlist nobody is a reviewer');
+  } finally {
+    await new Promise((resolve) => plain.close(resolve));
+  }
+  // Destination with the allowlist active, checked through the shared helper via the bootstrap flag and sign-in response.
+  const { signInDestinationForTest } = await import('../../apps/web/server.mjs').then((m) => ({ signInDestinationForTest: m.signInDestinationForTest }));
+  assert.equal(signInDestinationForTest(config, { email: 'Admin@Example.test' }), '/onboarding');
+  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }), '/desktop-preview');
+  assert.equal(signInDestinationForTest(config, null), '/desktop-preview');
+  const configured = serverFor(config);
+  await new Promise((resolve) => configured.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${configured.address().port}`;
+  try {
+    // Sessions created above remain valid; reuse the admin cookie against the allowlisted server.
+    const adminSession = await authService.createWorkOSSession({ providerSubject: 'admin_ws', email: 'admin@example.test', emailVerified: true });
+    const cookie = `kues_session=${adminSession.sessionToken}`;
+    const headers = { Cookie: cookie, Origin: base, 'Content-Type': 'application/json' };
+    const before = await (await fetch(`${base}/api/workspace/bootstrap`, { headers: { Cookie: cookie } })).json();
+    assert.equal(before.onboardingRerunAllowed, true);
+    assert.equal(before.agents.length, 1, 'the earlier HTTP sign-in already provisioned Scout for this account');
+    assert.equal(before.onboarding.status, 'not_started');
+    const input = { name: 'Scout', role: 'Web & commerce scout', color: '#32d583', avatar: 'bulb', approvalPath: 'desktop', orderCap: 85, dailyCap: 250, apps: [], memoryPills: [] };
+    const first = await fetch(`${base}/api/onboarding/complete`, { method: 'POST', headers, body: JSON.stringify(input) });
+    assert.equal(first.status, 200);
+    const completed = await first.json();
+    assert.equal(completed.onboarding.status, 'completed');
+    assert.equal(completed.agents.length, 1, 'first completion customizes the starter agent in place');
+    assert.equal(completed.agents[0].id, before.agents[0].id);
+    // Second pass (what the page does once setup is complete): add a distinct agent, never overwrite.
+    const added = await fetch(`${base}/api/workspace/agents`, { method: 'POST', headers, body: JSON.stringify({ ...input, name: 'Reviewer Bot' }) });
+    assert.equal(added.status, 201);
+    const addedBody = await added.json();
+    assert.equal(addedBody.agents.length, 2);
+    assert.deepEqual(addedBody.agents.map((a) => a.name).sort(), ['Reviewer Bot', 'Scout']);
+    const conflict = await fetch(`${base}/api/workspace/agents`, { method: 'POST', headers, body: JSON.stringify(input) });
+    assert.equal(conflict.status, 409);
+    assert.equal((await conflict.json()).error, 'agent_name_conflict');
+    const member = await (await fetch(`${base}/api/workspace/bootstrap`, { headers: { Cookie: `kues_session=${(await authService.createWorkOSSession({ providerSubject: 'member_ws', email: 'member2@example.test', emailVerified: true })).sessionToken}` } })).json();
+    assert.equal(member.onboardingRerunAllowed, false);
+  } finally {
+    await new Promise((resolve) => configured.close(resolve));
+    await db.close();
+  }
+});

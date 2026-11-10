@@ -819,6 +819,27 @@ function readHtml(filePath) {
 
 /** Every sign-in lands on the desktop preview for now; onboarding stays available at /onboarding. */
 const POST_SIGN_IN_PATH = '/desktop-preview';
+/** Allowlisted admin accounts land on onboarding instead, so the setup flow can be reviewed end to end. */
+const ADMIN_SIGN_IN_PATH = '/onboarding';
+
+function normalizedEmail(value) {
+  return String(value || '').trim().normalize('NFKC').toLowerCase();
+}
+
+function isOnboardingReviewer(config, user) {
+  const email = normalizedEmail(user?.email);
+  if (!email) return false;
+  const admins = [
+    ...(Array.isArray(config?.aiProviderAdminEmails) ? config.aiProviderAdminEmails : []),
+    ...(Array.isArray(config?.apiHubAdminEmails) ? config.apiHubAdminEmails : []),
+  ];
+  return admins.includes(email);
+}
+
+function signInDestination(config, user) {
+  return isOnboardingReviewer(config, user) ? ADMIN_SIGN_IN_PATH : POST_SIGN_IN_PATH;
+}
+export const signInDestinationForTest = signInDestination;
 
 /**
  * Accounts that sign up but never finish onboarding still get a starter agent, so the preview is
@@ -891,7 +912,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
 
     sendJson(res, 200, {
       authenticated: true,
-      redirect: POST_SIGN_IN_PATH,
+      redirect: signInDestination(config, sessionResult.user),
       user: sessionResult.user,
     }, {
       'Set-Cookie': [setSessionCookie(config, sessionResult.sessionToken), clearPendingAuthCookie(config)],
@@ -966,7 +987,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
             authenticated: true,
             isNewUser: result.isNewUser === true,
             needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-            redirect: POST_SIGN_IN_PATH,
+            redirect: signInDestination(config, result.user),
             user: result.user,
           }, {
             'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
@@ -989,7 +1010,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
             authenticated: true,
             isNewUser: result.isNewUser === true,
             needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-            redirect: POST_SIGN_IN_PATH,
+            redirect: signInDestination(config, result.user),
             user: result.user,
           }, {
             'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
@@ -1014,7 +1035,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
           authenticated: true,
           isNewUser: result.isNewUser === true,
           needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-          redirect: POST_SIGN_IN_PATH,
+          redirect: signInDestination(config, result.user),
           user: result.user,
         }, {
           'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
@@ -1079,7 +1100,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       authenticated: true,
       isNewUser: result.isNewUser === true,
       needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-      redirect: POST_SIGN_IN_PATH,
+      redirect: signInDestination(config, result.user),
       user: result.user,
     }, {
       'Set-Cookie': setSessionCookie(config, result.sessionToken),
@@ -2344,7 +2365,8 @@ async function handleWorkspaceRequest(req, res, url, { config, authService, work
   try {
     if (bootstrapRoute) {
       const bootstrap = await workspaceService.getBootstrap({ userId: user.id });
-      sendJson(res, 200, bootstrap);
+      // Admin reviewers may walk through onboarding again; a completed workspace then adds a new agent.
+      sendJson(res, 200, { ...bootstrap, onboardingRerunAllowed: isOnboardingReviewer(config, user) });
       return true;
     }
     const input = await readJsonBody(req, 16 * 1024);
@@ -3425,7 +3447,7 @@ export function createServer({
           });
           await ensureStarterAgentAfterSignIn(workspaceService, result);
           res.writeHead(302, {
-            Location: POST_SIGN_IN_PATH,
+            Location: signInDestination(activeConfig, result.user),
             'Cache-Control': 'no-store',
             'Set-Cookie': [clearWorkOSStateCookie(activeConfig), clearPendingAuthCookie(activeConfig), setSessionCookie(activeConfig, result.sessionToken)],
           });
