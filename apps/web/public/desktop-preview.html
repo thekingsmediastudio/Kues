@@ -6439,9 +6439,11 @@
         return;
       }
       if (!response.ok) {
-        const copy = response.status === 410
-          ? 'This approval expired. Ask the agent to prepare the change again.'
-          : 'I could not confirm this approval. Refresh the conversation and try again.';
+        const copy = data.error === 'blocked_conditions_unverified'
+          ? 'Purchase blocked because policy conditions cannot be verified. Contact your workspace administrator or decline this review.'
+          : response.status === 410
+            ? 'This approval expired. Ask the agent to prepare the change again.'
+            : 'I could not confirm this approval. Refresh the conversation and try again.';
         if (status) status.textContent = copy;
         card.dataset.submitting = 'false';
         controls.forEach((button) => { button.disabled = false; });

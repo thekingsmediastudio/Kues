@@ -740,3 +740,23 @@ test('unknown and legacy currency provenance cannot become a saved-offer review'
 });
 
 test('manual purchase details require an explicitly stated currency',async()=>{const {db,wsId,userId,agentId}=await setupTestDatabase();try{const product={title:'Manual',merchantDomain:'shop.example',amountMinor:100,evidenceHash:'test'};await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product}),/currency must be explicitly supplied/i);await assert.rejects(createPurchaseMandate({db,workspaceId:wsId,userId,agentId,items:[product]}),/currency must be explicitly supplied/i);assert.equal((await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product:{...product,currency:'USD'}})).allowed,true);}finally{db.close()}});
+test('nonempty or invalid blocked conditions fail closed in scoped spend policy',async()=>{
+ const {db,wsId,userId,agentId}=await setupTestDatabase(),base={db,workspaceId:wsId,userId,agentId};await evaluateSpendPolicy({...base,merchantDomain:'shop.example',amountMinor:100});
+ for(const json of ['["unrecognized condition"]','{}','null']){
+  await db.execute({sql:'UPDATE spend_policies SET blocked_conditions_json=? WHERE workspace_id=? AND agent_id=?',args:[json,wsId,agentId]});
+  const outcome=await evaluateSpendPolicy({...base,merchantDomain:'shop.example',amountMinor:100});assert.equal(outcome.allowed,false);assert.equal(outcome.decisionCode,'blocked_conditions_unverified');
+ }
+});
+test('condition added after review blocks approval but still permits decline',async()=>{
+ const {db,wsId,userId,agentId}=await setupTestDatabase(),product={title:'Fixture',merchantDomain:'shop.example',amountMinor:100,currency:'USD',evidenceHash:'sha256:'+'a'.repeat(64)};
+ const review=await createPurchaseMandate({db,workspaceId:wsId,userId,agentId,product});assert.equal(review.allowed,true);
+ await db.execute({sql:"UPDATE spend_policies SET blocked_conditions_json='[\"unknown\"]' WHERE workspace_id=? AND agent_id=?",args:[wsId,agentId]});
+ await assert.rejects(authorizePurchaseMandate({db,workspaceId:wsId,userId,mandateId:review.mandateId,decision:'approve'}),/blocked_conditions_unverified|cannot yet be verified/);
+ const row=(await db.execute({sql:'SELECT status FROM mandates WHERE id=?',args:[review.mandateId]})).rows[0];assert.equal(row.status,'awaiting_approval');
+ const rejected=await authorizePurchaseMandate({db,workspaceId:wsId,userId,mandateId:review.mandateId,decision:'reject'});assert.equal(rejected.status,'rejected');
+});
+test('workspace blocked conditions cannot be bypassed by an agent policy',async()=>{
+ const {db,wsId,userId,agentId}=await setupTestDatabase(),base={db,workspaceId:wsId,userId,agentId};await evaluateSpendPolicy({...base,merchantDomain:'shop.example',amountMinor:100});
+ await db.execute({sql:"INSERT INTO spend_policies(id,workspace_id,agent_id,max_per_order_minor,max_per_run_minor,daily_budget_minor,currency,allowed_domains_json,blocked_payees_json,blocked_conditions_json,active) VALUES(?,?,NULL,10000,10000,10000,'USD','[]','[]','[\"unknown\"]',1)",args:['pol_workspace_guard',wsId]});
+ const result=await evaluateSpendPolicy({...base,merchantDomain:'shop.example',amountMinor:100});assert.equal(result.allowed,false);assert.equal(result.decisionCode,'blocked_conditions_unverified');
+});

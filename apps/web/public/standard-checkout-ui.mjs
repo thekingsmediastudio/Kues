@@ -29,6 +29,7 @@ const copy = (code) =>
     checkout_personal_account_required:
       "Sign in to your own Keus account, not the shared demo account.",
     spend_limit_exceeded: "This purchase exceeds the current spending limits.",
+    blocked_conditions_unverified: "Purchase blocked because policy conditions cannot be verified. Contact your workspace administrator.",
     purchase_currency_unverified: 'This older review has unverified currency. Search again and request a fresh review.',
     purchase_approval_expired:
       "This purchase review expired. Ask the agent to prepare a fresh one.",

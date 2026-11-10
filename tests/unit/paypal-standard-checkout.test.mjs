@@ -631,3 +631,11 @@ test('provider order 404 is reported unavailable without claiming cancellation o
  await assert.rejects(client.getOrder('MOCK-ORDER'),/paypal_order_unavailable/);assert.equal(calls.length,2);assert.equal(calls[1].method,'GET');assert.match(calls[1].url,/\/v2\/checkout\/orders\/MOCK-ORDER$/);
  const f=await fixture(t);await f.begin();f.provider.getOrder=async()=>{throw Error('paypal_order_unavailable')};await assert.rejects(f.service().reconcile(f.c,f.m.mandateId),/paypal_order_unavailable/);assert.equal((await f.db.execute('SELECT status FROM paypal_standard_checkouts')).rows[0].status,'pending');assert.deepEqual(f.calls,['create']);
 });
+test('unsupported policy conditions block checkout and authorization, but do not prevent voiding an existing hold',async t=>{
+ for(const when of ['before','after']){
+  const f=await fixture(t);let state;if(when==='after'){state=await f.begin();f.approve()}
+  await f.db.execute({sql:"UPDATE spend_policies SET blocked_conditions_json='[\"unrecognized\"]' WHERE workspace_id=?",args:[f.c.workspaceId]});
+  await assert.rejects(when==='before'?f.begin():f.service().complete(f.c,state),/blocked_conditions_unverified/);assert.equal(f.calls.includes('authorize'),false);if(when==='before')assert.equal(f.calls.includes('create'),false);
+ }
+ const f=await fixture(t),state=await f.begin();f.approve();await f.service().complete(f.c,state);await f.db.execute({sql:"UPDATE spend_policies SET blocked_conditions_json='[\"unrecognized\"]' WHERE workspace_id=?",args:[f.c.workspaceId]});assert.equal((await f.service().list(f.c))[0].status,'authorized');assert.equal((await f.service().voidHold(f.c,f.m.mandateId)).status,'voided');assert.equal(f.calls.filter(c=>c==='void').length,1);
+});

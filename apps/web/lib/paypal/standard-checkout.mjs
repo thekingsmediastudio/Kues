@@ -1,3 +1,4 @@
+import {hasUnverifiedBlockedConditions} from '../channel3/blocked-conditions.mjs';
 import {hasExplicitCurrency} from '../channel3/currency-evidence.mjs';
 import {readPurchaseItems,validatePurchaseItemRows,paypalLineItems} from '../commerce/purchase-items.mjs';
 import crypto from "node:crypto";
@@ -276,6 +277,7 @@ export function createStandardCheckoutService({
     });
     let max = order,
       budget = daily;
+    if (await hasUnverifiedBlockedConditions(tx, c.workspaceId, m.agent_id)) fail("blocked_conditions_unverified", 409);
     for (const policy of p.rows) {
       max = Math.min(
         max,

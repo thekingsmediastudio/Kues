@@ -1,3 +1,4 @@
+import {hasUnverifiedBlockedConditions} from './blocked-conditions.mjs';
 import { hasExplicitCurrency } from './currency-evidence.mjs';
 import {purchaseQuantity,quantityLine,purchaseItemsHash} from '../commerce/purchase-items.mjs';
 import crypto from 'node:crypto';
@@ -190,7 +191,11 @@ async function evaluateSpendPolicyInTransaction({
     let decisionCode = 'approved';
     let failureReason = null;
 
-    if (policyRow.currency !== normalizedCurrency) {
+    if (await hasUnverifiedBlockedConditions(tx, workspaceId, agentId)) {
+      allowed = 0;
+      decisionCode = 'blocked_conditions_unverified';
+      failureReason = 'Purchase blocked: configured policy conditions cannot yet be verified. Contact your workspace administrator.';
+    } else if (policyRow.currency !== normalizedCurrency) {
       allowed = 0;
       decisionCode = 'currency_mismatch';
       failureReason = `Currency ${normalizedCurrency} does not match policy currency ${policyRow.currency}`;
@@ -727,6 +732,12 @@ export async function authorizePurchaseMandate({
     }
 
     const isApproval = decision === 'approve';
+    if (isApproval) {
+      const run = await tx.execute({sql:'SELECT agent_id FROM runs WHERE workspace_id=? AND id=?',args:[workspaceId,mandate.run_id]});
+      if (await hasUnverifiedBlockedConditions(tx, workspaceId, run.rows[0]?.agent_id)) {
+        throw new MandatePolicyError('blocked_conditions_unverified', 409, 'Purchase blocked: configured policy conditions cannot yet be verified. Contact your workspace administrator.');
+      }
+    }
     const newStatus = isApproval ? 'authorized' : 'rejected';
     const approvalStatus = isApproval ? 'verified' : 'rejected';
 

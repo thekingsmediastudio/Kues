@@ -602,6 +602,12 @@ async function handleWorkspaceToolApprovalRequest(req, res, {
     }
     sendJson(res, 200, result);
   } catch (error) {
+    if (error instanceof MandatePolicyError && error.code === 'blocked_conditions_unverified') {
+      approval.status = 'pending';
+      delete approval.decision;
+      sendJson(res, 409, { error: 'blocked_conditions_unverified' });
+      return;
+    }
     const stale = error instanceof WorkspaceError && error.code === 'workspace_tool_proposal_stale';
     const duplicate = error instanceof WorkspaceError && error.code === 'agent_name_conflict';
     const message = stale
