@@ -156,6 +156,10 @@ export function installCheckoutUI({ getWorkspaceId }) {
       const lines=document.createElement('div');lines.style.cssText='margin:10px 0;font-size:13px;overflow-wrap:anywhere';
       for(const line of item.items){const entry=document.createElement('p');entry.textContent=`${line.title} · ${line.quantity} × ${(line.unitAmountMinor/100).toFixed(2)} ${line.currency} = ${(line.lineTotalMinor/100).toFixed(2)} ${line.currency}`;lines.append(entry);}
       const note=document.createElement('p');note.textContent='Item subtotal only; shipping and tax are not included. To change quantities, ask the agent for a fresh purchase review.';lines.append(note);card.insertBefore(lines,state);
+    }else{
+      // Amount-only records predate itemized reviews. Show the reviewed total
+      // as recorded; never invent a quantity or unit-price breakdown.
+      const legacy=document.createElement('p');legacy.style.cssText='margin:10px 0;font-size:13px;overflow-wrap:anywhere';legacy.textContent='Amount-only review: no quantity breakdown was recorded for this older review. New purchases need a fresh review.';card.insertBefore(legacy,state);
     }
 
     list.append(card);

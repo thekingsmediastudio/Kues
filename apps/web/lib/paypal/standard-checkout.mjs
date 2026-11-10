@@ -231,16 +231,11 @@ export function createStandardCheckoutService({
     return m;
   }
   async function safety(tx, c, m, { fresh = true } = {}) {
-    // Only reviews created after explicit-currency validation carry this
-    // server-written marker. Read/void/reconcile paths do not call safety.
-    const proofs = await tx.execute({sql:"SELECT details_json FROM run_events WHERE workspace_id=? AND run_id=? AND event_type='purchase_currency_checked_v1'",args:[c.workspaceId,m.run_id]});
-    const verified = proofs.rows.some(row => { try { const proof=JSON.parse(row.details_json); return proof.mandateId===m.id && proof.currency===m.currency && proof.itemsHash===m.purchase_items_hash && Boolean(m.purchase_items_hash); } catch { return false; } });
-    if (!verified || !m.purchaseItems.length) fail('purchase_currency_unverified', 409);
-    for (const item of m.purchaseItems) {
-      if (!item.offerId) continue; // Manual currency was explicit in the fresh review.
-      const found = await tx.execute({sql:'SELECT currency,evidence_ref FROM product_offers WHERE workspace_id=? AND id=?',args:[c.workspaceId,item.offerId]});
-      if (!found.rows[0] || found.rows[0].currency !== item.currency || !hasExplicitCurrency(found.rows[0].evidence_ref, item.currency)) fail('purchase_currency_unverified', 409);
-    }
+    // Consent and freshness are checked first so an amount-only review from
+    // before itemized reviews reports its real state (expired/unapproved)
+    // instead of a currency error it could never satisfy. Nothing below is
+    // weakened: an unexpired review still needs the server-written currency
+    // marker. Read/void/reconcile paths do not call safety.
     if (
       m.status !== "authorized" ||
       m.approval_status !== "verified" ||
@@ -250,6 +245,15 @@ export function createStandardCheckoutService({
       fail("purchase_approval_required", 409);
     if (fresh && Date.parse(m.expires_at) <= now())
       fail("purchase_approval_expired", 410);
+    // Only reviews created after explicit-currency validation carry this marker.
+    const proofs = await tx.execute({sql:"SELECT details_json FROM run_events WHERE workspace_id=? AND run_id=? AND event_type='purchase_currency_checked_v1'",args:[c.workspaceId,m.run_id]});
+    const verified = proofs.rows.some(row => { try { const proof=JSON.parse(row.details_json); return proof.mandateId===m.id && proof.currency===m.currency && proof.itemsHash===m.purchase_items_hash && Boolean(m.purchase_items_hash); } catch { return false; } });
+    if (!verified || !m.purchaseItems.length) fail('purchase_currency_unverified', 409);
+    for (const item of m.purchaseItems) {
+      if (!item.offerId) continue; // Manual currency was explicit in the fresh review.
+      const found = await tx.execute({sql:'SELECT currency,evidence_ref FROM product_offers WHERE workspace_id=? AND id=?',args:[c.workspaceId,item.offerId]});
+      if (!found.rows[0] || found.rows[0].currency !== item.currency || !hasExplicitCurrency(found.rows[0].evidence_ref, item.currency)) fail('purchase_currency_unverified', 409);
+    }
     if (
       m.currency !== "USD" ||
       !Number.isSafeInteger(m.amount_minor) ||
