@@ -38,6 +38,8 @@ const copy = (code) =>
       "PayPal verification is still processing. Wait a moment and recheck.",
     paypal_authorization_unconfirmed:
       "No authorization could be confirmed. Do not start a replacement checkout until this status is resolved.",
+    paypal_order_unavailable:
+      "PayPal could not find this order. Its status remains unconfirmed; do not start another checkout. Contact support to resolve it.",
   })[code] ||
   "The checkout could not be confirmed. Refresh and recheck its status before trying again.";
 export function installCheckoutUI({ getWorkspaceId }) {

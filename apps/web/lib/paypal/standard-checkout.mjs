@@ -54,7 +54,9 @@ export function createCheckoutClient({
     }
     if (!r.ok)
       fail(
-        r.status === 401
+        r.status === 404 && options.method === "GET" && /^\/v2\/checkout\/orders\/[^/]+$/.test(path)
+          ? "paypal_order_unavailable"
+          : r.status === 401
           ? "paypal_credentials_rejected"
           : r.status === 403
             ? "paypal_permission_denied"
