@@ -7,7 +7,7 @@ Everything below runs against the **PayPal sandbox only**. Capture is disabled s
 | Method | Where | Gives you |
 |---|---|---|
 | **Launch Judge Workspace (1-Click)** | https://keus-staging.onrender.com/login | Shared demo workspace: chat, search, purchase reviews. PayPal checkout is disabled for this shared identity. |
-| **Personal judge workspace (access code)** | same page, under the 1-click button | Your own private workspace, **PayPal sandbox checkout enabled**, no email or sign-up. Paste the judge access code from the Devpost testing instructions. |
+| **Personal judge workspace (access code)** | same page, under the 1-click button | Your own private workspace, **PayPal sandbox checkout enabled**, no email or sign-up. Paste the judge access code from the Devpost testing instructions. **To come back later**, enter the same code plus your workspace ID (shown on first landing and in Settings → Account). |
 | **Create account** (email + verification code) | same page | Your own workspace with the full PayPal sandbox flow. |
 | **Sign in with Google / GitHub** | same page | Same as above, via WorkOS OAuth. |
 | **Run locally** | `npm run dev` → http://localhost:3100/workspace | Opens without sign-in when WorkOS is not configured; add sandbox PayPal keys to run checkout. See §3. |
@@ -27,7 +27,7 @@ The judge fast-lane identity is shared, so **PayPal checkout and wallet actions 
 
 ### 2a. Get a personal Keus workspace
 
-**Fastest:** on the sign-in page, paste the **judge access code** (in the Devpost testing instructions) under the 1-click button and press **Open personal judge workspace**. You get a private account with the starter agent and spending limits already set up, and PayPal checkout enabled. Each click creates a new isolated workspace, so two judges never share state.
+**Fastest:** on the sign-in page, paste the **judge access code** (in the Devpost testing instructions) under the 1-click button and press **Open personal judge workspace**. You get a private account with the starter agent and spending limits already set up, and PayPal checkout enabled. Each click without a workspace ID creates a new isolated workspace, so two judges never share state; note the 10-character workspace ID shown on landing (it is also the local part of the account email, `judge-<id>@judges.keus.sandbox`) and enter it with the code to return to the same workspace from any browser.
 
 **Or:** on the sign-in page choose **Create account** with any email you control. You will receive a verification code by email (sent through WorkOS); enter it and you are signed in. Google and GitHub sign-in are also available. Brand-new accounts walk through a 3-step onboarding (agent → spending limits → review); **Skip** is fine.
 

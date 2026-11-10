@@ -296,9 +296,23 @@ test('personal judge fast lane: code-gated, isolated accounts with checkout allo
     assert.equal(first.status, 200);
     const firstBody = await first.json();
     assert.equal(firstBody.authenticated, true);
-    assert.equal(firstBody.redirect, '/workspace');
-    assert.match(firstBody.user.email, /^judge-[0-9a-f]{10}@judges\.keus\.sandbox$/);
+    assert.match(firstBody.judgeWorkspaceId, /^[0-9a-f]{10}$/);
+    assert.equal(firstBody.redirect, `/workspace?judge=${firstBody.judgeWorkspaceId}`);
+    assert.equal(firstBody.user.email, `judge-${firstBody.judgeWorkspaceId}@judges.keus.sandbox`);
     const firstCookie = first.headers.get('set-cookie').split(';', 1)[0];
+
+    // Returning with code + workspace ID signs back into the same account (no new account minted).
+    const back = await post(on.base, { code: 'KEUS-JUDGE-TEST-2026', workspaceId: firstBody.judgeWorkspaceId.toUpperCase() });
+    assert.equal(back.status, 200);
+    const backBody = await back.json();
+    assert.equal(backBody.resumed, true);
+    assert.equal(backBody.user.id, firstBody.user.id);
+    assert.equal(backBody.redirect, '/workspace');
+    const unknown = await post(on.base, { code: 'KEUS-JUDGE-TEST-2026', workspaceId: '0123456789' });
+    assert.equal(unknown.status, 404);
+    assert.equal((await unknown.json()).error, 'judge_workspace_not_found');
+    // Workspace ID without the code never works.
+    assert.equal((await post(on.base, { code: 'wrong', workspaceId: firstBody.judgeWorkspaceId })).status, 403);
 
     const second = await post(on.base, { code: 'KEUS-JUDGE-TEST-2026' });
     assert.equal(second.status, 200);
@@ -324,8 +338,8 @@ test('personal judge fast lane: code-gated, isolated accounts with checkout allo
     assert.equal(third.status, 409);
     assert.equal((await third.json()).error, 'judge_fastlane_capacity_reached');
 
-    // Rate limit: 10 attempts per IP per 10 minutes (5 used above).
-    for (let i = 0; i < 5; i += 1) await post(on.base, { code: 'nope' });
+    // Rate limit: 10 attempts per IP per 10 minutes (8 used above).
+    for (let i = 0; i < 2; i += 1) await post(on.base, { code: 'nope' });
     assert.equal((await post(on.base, { code: 'nope' })).status, 429);
   } finally {
     judgeFastlaneForTest.limiter.reset();

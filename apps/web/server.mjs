@@ -965,6 +965,38 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       sendJson(res, 403, { error: 'judge_access_code_invalid', message: 'That judge access code is not valid.' });
       return true;
     }
+    // Returning judge: code + workspace ID signs back into the same isolated account.
+    const requestedId = String(body?.workspaceId || '').trim().toLowerCase();
+    if (requestedId) {
+      if (!/^[0-9a-f]{10}$/.test(requestedId)) {
+        sendJson(res, 404, { error: 'judge_workspace_not_found', message: 'No judge workspace with that ID. Leave it blank to create a new one.' });
+        return true;
+      }
+      const known = await db.execute({
+        sql: "SELECT user_id FROM auth_identities WHERE provider = 'workos' AND provider_subject = ? LIMIT 1",
+        args: [`sub_judge_personal_${requestedId}`],
+      });
+      if (!known.rows.length) {
+        sendJson(res, 404, { error: 'judge_workspace_not_found', message: 'No judge workspace with that ID. Leave it blank to create a new one.' });
+        return true;
+      }
+      const resumed = await authService.createWorkOSSession({
+        providerSubject: `sub_judge_personal_${requestedId}`,
+        email: `judge-${requestedId}@judges.keus.sandbox`,
+        emailVerified: true,
+        displayName: `Judge ${requestedId.slice(0, 4).toUpperCase()}`,
+      });
+      sendJson(res, 200, {
+        authenticated: true,
+        resumed: true,
+        judgeWorkspaceId: requestedId,
+        redirect: POST_SIGN_IN_PATH,
+        user: resumed.user,
+      }, {
+        'Set-Cookie': [setSessionCookie(config, resumed.sessionToken), clearPendingAuthCookie(config)],
+      });
+      return true;
+    }
     const existing = await db.execute({
       sql: "SELECT COUNT(*) AS n FROM auth_identities WHERE provider_subject LIKE 'sub_judge_personal_%'",
       args: [],
@@ -997,7 +1029,9 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
     });
     sendJson(res, 200, {
       authenticated: true,
-      redirect: POST_SIGN_IN_PATH,
+      resumed: false,
+      judgeWorkspaceId: handle,
+      redirect: `${POST_SIGN_IN_PATH}?judge=${handle}`,
       user: sessionResult.user,
     }, {
       'Set-Cookie': [setSessionCookie(config, sessionResult.sessionToken), clearPendingAuthCookie(config)],

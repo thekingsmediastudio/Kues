@@ -8468,5 +8468,31 @@ void window.keusCheckoutReturn.resume();
 
 </script>
 
+<script>
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const id = String(params.get('judge') || '').toLowerCase();
+  if (!/^[0-9a-f]{10}$/.test(id)) return;
+  params.delete('judge');
+  const clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+  window.history.replaceState(null, '', clean);
+  const bar = document.createElement('div');
+  bar.id = 'judgeWorkspaceBanner';
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,640px);display:flex;gap:10px;align-items:center;padding:10px 14px;border:1px solid rgba(50,213,131,.45);border-radius:12px;background:#0f1512;color:#e8efe9;font:500 12px/1.45 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.45)';
+  const text = document.createElement('span');
+  text.innerHTML = 'Your personal judge workspace ID is <code style="font:600 12px ui-monospace,monospace;color:#32d583">' + id + '</code>. To return later, enter it with the access code on the sign-in page. It is also shown in Settings &rarr; Account.';
+  const copy = document.createElement('button');
+  copy.type = 'button'; copy.textContent = 'Copy ID';
+  copy.style.cssText = 'flex:0 0 auto;min-height:30px;padding:0 10px;border:1px solid rgba(50,213,131,.5);border-radius:8px;background:rgba(50,213,131,.12);color:#32d583;font:650 11px system-ui,sans-serif;cursor:pointer';
+  copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(id); copy.textContent = 'Copied'; } catch { copy.textContent = id; } });
+  const close = document.createElement('button');
+  close.type = 'button'; close.setAttribute('aria-label', 'Dismiss'); close.textContent = '\u00d7';
+  close.style.cssText = 'flex:0 0 auto;min-width:30px;min-height:30px;border:0;border-radius:8px;background:transparent;color:#9aa49d;font-size:18px;cursor:pointer';
+  close.addEventListener('click', () => bar.remove());
+  bar.append(text, copy, close);
+  document.body.append(bar);
+})();
+</script>
 </body>
 </html>

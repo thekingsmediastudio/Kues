@@ -147,6 +147,8 @@ html[data-theme="light"] .auth-main label{color:#344b3a}html[data-theme="light"]
 .judge-personal-row{display:flex;gap:8px}
 .judge-personal-row input{flex:1;min-width:0;min-height:38px;padding:0 10px;border:1px solid var(--border-strong,rgba(255,255,255,.18));border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:12px}
 .judge-personal-row .judge-personal-btn{width:auto;flex:0 0 auto;padding:0 12px}
+.judge-personal-return{margin-top:8px}
+.judge-personal-return input{font-size:11px}
 @media (max-width:480px){.judge-personal-row{flex-direction:column}.judge-personal-row .judge-personal-btn{width:100%}}
 html[data-theme="light"] .judge-fastlane-box{border-color:rgba(50,150,82,.3);background:rgba(50,213,131,.09)}
 html[data-theme="light"] .judge-fastlane-head{color:#1e7b44}
@@ -216,6 +218,9 @@ html[data-theme="light"] .auth-main button:focus-visible,html[data-theme="light"
         <div class="judge-personal-row">
           <input id="judgeAccessCode" type="text" autocomplete="off" spellcheck="false" maxlength="64" placeholder="Judge access code" aria-label="Judge access code">
           <button type="button" class="primary judge-fastlane-btn judge-personal-btn" id="judgePersonalButton">Open personal judge workspace</button>
+        </div>
+        <div class="judge-personal-row judge-personal-return">
+          <input id="judgeWorkspaceId" type="text" autocomplete="off" spellcheck="false" maxlength="10" placeholder="Workspace ID (only if returning, e.g. 549c9db0d8)" aria-label="Judge workspace ID, only if returning">
         </div>
       </div>
     </div>
@@ -320,12 +325,14 @@ const altMethods=document.getElementById('altMethods');
 const judgePersonalBox=document.getElementById('judgePersonalBox');
 const judgePersonalButton=document.getElementById('judgePersonalButton');
 const judgeAccessCodeInput=document.getElementById('judgeAccessCode');
+const judgeWorkspaceIdInput=document.getElementById('judgeWorkspaceId');
 async function launchPersonalJudgeWorkspace(){
   const code=(judgeAccessCodeInput.value||'').trim();
+  const workspaceId=(judgeWorkspaceIdInput?.value||'').trim().toLowerCase();
   if(!code){setStatus(formStatus,'Enter the judge access code from the testing instructions.','error');judgeAccessCodeInput.focus();return;}
-  judgePersonalButton.disabled=true;setStatus(formStatus,'Creating your personal judge workspace...','');
+  judgePersonalButton.disabled=true;setStatus(formStatus,workspaceId?'Returning to your judge workspace...':'Creating your personal judge workspace...','');
   try{
-    const res=await fetch('/api/auth/judge-fastlane',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
+    const res=await fetch('/api/auth/judge-fastlane',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(workspaceId?{code,workspaceId}:{code})});
     const data=await readJson(res);
     if(res.ok){window.location.href=destinationFor(data);return;}
     setStatus(formStatus,data.message||data.error||'Could not create a judge workspace.','error');
@@ -334,6 +341,7 @@ async function launchPersonalJudgeWorkspace(){
 }
 judgePersonalButton?.addEventListener('click',()=>{void launchPersonalJudgeWorkspace();});
 judgeAccessCodeInput?.addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();void launchPersonalJudgeWorkspace();}});
+judgeWorkspaceIdInput?.addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();void launchPersonalJudgeWorkspace();}});
 const judgeFastlaneButton=document.getElementById('judgeFastlaneButton');
 judgeFastlaneButton?.addEventListener('click', async () => {
   judgeFastlaneButton.disabled = true;
