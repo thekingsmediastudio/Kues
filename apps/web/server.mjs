@@ -3823,7 +3823,7 @@ if (isMain) {
       });
     } catch (error) {
       console.error(`Keus startup failed: ${error.message}`);
-      await db?.close().catch(() => {});
+      try { await db?.close(); } catch {}
       process.exitCode = 1;
     }
   }
