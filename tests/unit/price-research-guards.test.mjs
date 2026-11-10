@@ -37,6 +37,8 @@ test('deterministic product fallback only handles narrow per-item USD search gra
  assert.deepEqual(explicitUsdProductSearch('Find up to 3 real ruled notebooks priced under 5 USD each. Show prices.'),{kind:'search_products',query:'ruled notebooks',limit:3,filters:{max_price:5,price_max_exclusive:true,enforce_usd_price:true}});
  const expected={kind:'search_products',query:'notebooks',limit:3,filters:{max_price:5,price_max_exclusive:true,enforce_usd_price:true}};
  assert.deepEqual(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each and show their price and merchant.'),expected);
+ assert.deepEqual(explicitUsdProductSearch('Find up to 1 notebook under 5 USD each and show its price and merchant.'),{kind:'search_products',query:'notebook',limit:1,filters:{max_price:5,price_max_exclusive:true,enforce_usd_price:true}});
+ assert.equal(explicitUsdProductSearch('Find up to 1 notebook under 5 USD each and show its price and merchant. Buy it.'),null);
  assert.deepEqual(explicitUsdProductSearch('Find up to 3 notebooks priced under 5 USD each.'),expected);
  assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each and buy them.'),null);
  assert.equal(explicitUsdProductSearch('Find up to 3 notebooks under 5 USD each. Buy them.'),null);

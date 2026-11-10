@@ -438,7 +438,7 @@ export function applyExplicitUsdItemCeiling(preparedSearch, userMessage) {
 // Other phrasings remain with the normal model/tool validation path.
 export function explicitUsdProductSearch(message) {
   const text = String(message || '').normalize('NFKC').trim();
-  const m = /^(?:please\s+)?find\s+up to\s+(\d{1,2})\s+(?:real\s+)?([a-z0-9][a-z0-9 -]{1,80}?)\s+priced\s+(under|below|less than|at most|no more than|up to)\s+(\d+(?:\.\d{1,2})?)\s+USD\s+each(?:[.!?]|$)/i.exec(text) || /^(?:please\s+)?find\s+up to\s+(\d{1,2})\s+(?:real\s+)?([a-z0-9][a-z0-9 -]{1,80}?)\s+(under|below|less than|at most|no more than|up to)\s+(\d+(?:\.\d{1,2})?)\s+USD\s+each(?:\s+and\s+show\s+(?:their\s+)?(?:prices?(?:\s+and\s+merchants?)?|merchants?\s+and\s+prices?))?[.!?]?\s*$/i.exec(text);
+  const m = /^(?:please\s+)?find\s+up to\s+(\d{1,2})\s+(?:real\s+)?([a-z0-9][a-z0-9 -]{1,80}?)\s+priced\s+(under|below|less than|at most|no more than|up to)\s+(\d+(?:\.\d{1,2})?)\s+USD\s+each(?:[.!?]|$)/i.exec(text) || /^(?:please\s+)?find\s+up to\s+(\d{1,2})\s+(?:real\s+)?([a-z0-9][a-z0-9 -]{1,80}?)\s+(under|below|less than|at most|no more than|up to)\s+(\d+(?:\.\d{1,2})?)\s+USD\s+each(?:\s+and\s+show\s+(?:(?:their|its)\s+)?(?:prices?(?:\s+and\s+merchants?)?|merchants?\s+and\s+prices?))?[.!?]?\s*$/i.exec(text);
   if (!m || /\b(?:then|and)\s+(?:buy|purchase|order|checkout)\b/i.test(text)) return null;
   const limit=Number(m[1]), max=Number(m[4]);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 || !Number.isFinite(max) || max <= 0 || max > 1_000_000) return null;
