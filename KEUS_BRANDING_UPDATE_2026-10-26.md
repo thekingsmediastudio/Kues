@@ -1,4 +1,4 @@
-# Keus active-branding update — 2026-10-26
+# Keus active-branding update, 2026-10-26
 
 Active app pages now display Keus rather than the previous CueClaw name. The desktop, onboarding, phone, sign-in, auth verification, and private WorkOS setup pages use Keus branding and the new local SVG icon; current service health and email-delivery metadata also identify Keus. The existing WorkOS/email-code behavior and preview-only boundaries were preserved.
 

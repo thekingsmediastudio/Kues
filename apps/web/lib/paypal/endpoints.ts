@@ -61,7 +61,7 @@ export async function createSetupToken(params: {
     body: JSON.stringify({
       payment_source: {
         paypal: {
-          description: 'Keus — human-mandated agent purchasing',
+          description: 'Keus: human-mandated agent purchasing',
           usage_pattern: 'IMMEDIATE',
           usage_type: 'MERCHANT',
           customer_type: 'CONSUMER',

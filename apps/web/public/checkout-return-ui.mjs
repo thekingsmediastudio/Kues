@@ -3,9 +3,9 @@ const valid = (id) =>
 export function checkoutNotice(status) {
   return (
     {
-      authorized: "Sandbox authorization successful — funds were not captured.",
-      voided: "Sandbox hold voided — funds were not captured.",
-      cancelled: "Checkout cancelled — no authorization was requested.",
+      authorized: "Sandbox authorization successful. Funds were not captured.",
+      voided: "Sandbox hold voided. Funds were not captured.",
+      cancelled: "Checkout cancelled. No authorization was requested.",
       pending:
         "PayPal authorization is not confirmed. Open PayPal checkout to check the purchase before trying again.",
       expired:

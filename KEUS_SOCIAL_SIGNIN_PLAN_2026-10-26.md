@@ -1,4 +1,4 @@
-# Keus Google and GitHub sign-in rollout plan — 2026-10-26
+# Keus Google and GitHub sign-in rollout plan, 2026-10-26
 
 ## Current state
 

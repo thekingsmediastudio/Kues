@@ -157,7 +157,7 @@ export function requestedResearchPublishers(query) {
 export function researchReferenceCandidates(query) {
   if (!prefersPrimarySources(query)) return [];
   return [...new Set([...query.matchAll(/\bRFC\s*(\d{1,5})\b/gi)].map(m=>Number(m[1])).filter(n=>n>0))]
-    .slice(0, 2).map(number=>({url:`https://www.rfc-editor.org/rfc/rfc${number}.txt`,title:`RFC ${number} — RFC Editor`,content:''}));
+    .slice(0, 2).map(number=>({url:`https://www.rfc-editor.org/rfc/rfc${number}.txt`,title:`RFC ${number}, RFC Editor`,content:''}));
 }
 export function normalizeResearchCoverage(answer) {
   return String(answer||'').split(/\n\s*\n/).map(paragraph=>{
@@ -278,7 +278,7 @@ export function createWebResearch({ enabled = false, apiKey = '', keyless = fals
 }
 export function researchSourcesMarkdown(research, query = '') {
   const escape = value => value.replace(/[\\`*_{}\[\]()#+.!|>~-]/g, '\\$&');
-  return '\n\n### Sources\n' + (research.sources.length ? research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}) — ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n') : 'No eligible sources could be included; other listings may exist.')
+  return '\n\n### Sources\n' + (research.sources.length ? research.sources.map(s => `- [${s.id}] [${escape(s.title)}](${s.url.replace(/[<>\s()]/g, c => encodeURIComponent(c))}): ${s.pageRead ? 'page excerpt read' : 'search excerpt only; page could not be read'}`).join('\n') : 'No eligible sources could be included; other listings may exist.')
     + (research.sourceSelectionNotice ? `\n\n${research.sourceSelectionNotice}` : '')
     + (isShoppingResearch(query) ? '\n\nRelevance and requested specifications are not verified. Search results may not match the requested model or GPU; check each listing.' : '')
     + '\n\nReading coverage: bounded page/search excerpts only, not a full-page review.'

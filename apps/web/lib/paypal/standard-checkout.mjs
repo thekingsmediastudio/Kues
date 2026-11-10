@@ -109,7 +109,7 @@ export function createCheckoutClient({
               reference_id: id,
               custom_id: id,
               description:
-                "Keus sandbox authorization demo — no seller order or shipment",
+                "Keus sandbox authorization demo. No seller order or shipment",
               ...(items.length?{items:paypalLineItems(items)}:{}),
               amount: {
                 currency_code: "USD",

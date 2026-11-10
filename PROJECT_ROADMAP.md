@@ -1,4 +1,4 @@
-# Keus Main Project — Desktop-First Roadmap
+# Keus Main Project: Desktop-First Roadmap
 
 **Status (reviewed 2026-10-27):** Keus staging at `https://keus-staging.onrender.com` is live on health version **2.2.3** with WorkOS email/password enabled and normal Magic Auth sign-in disabled. The recovery-code source/UI was merged to the fixed `thekingsmediastudio/Kues/main` branch as `40cdc3cf9be431f14bdbee9c4dca44c923ec11dd`; password-auth commit `33499ecf3150451c1b447b1fb81bf2f66397d284` and checksum-safe migration correction `5e2339bf359d2482a4833c7591629f0e8f563b4a` remain in history. Health/config/login and recovery route validation probes passed. No verification or recovery email has been sent because owner-controlled inbox confirmation is pending. Local checks pass **89/89 tests**, `npm audit --omit=dev` reports **0 vulnerabilities**, and JavaScript syntax checks pass. The temporary browser credential-entry setup was removed. Google/GitHub remain disabled; remote Turso is configured for staging.
 
@@ -19,7 +19,7 @@
 - Competition-period staging allowance is 7,000,000 AI tokens per verified account per UTC day, aggregated across that account’s authorized workspaces; different users sharing one workspace have separate buckets. PayPal is the selected future subscription provider. SaaS billing remains separate from agent purchase payments; checkout/webhooks are not implemented.
 - Do not introduce a shared password for existing users. Existing email-code accounts set a private password using a six-digit recovery code in the separate Forgot password form; no reset link or shared default password is used.
 
-## Repository audit — working-copy status
+## Repository audit: working-copy status
 
 The 2026-10-26 review repairs are implemented and locally verified in the extracted working copy: input validation, receipt authenticity, policy/skill binding, production desktop page access, strict origin handling, explicit static routes, onboarding persistence, and sample-data labels. This is not a production release. Older milestone totals are historical; the current source test suite is rerun before publication and its latest result is recorded in this roadmap and `RENDER_DEPLOYMENT.md`.
 
@@ -34,14 +34,14 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 
 ## Ordered implementation steps and gates
 
-### 0. Lock the desktop-only scope — **Agreed**
+### 0. Lock the desktop-only scope: **Agreed**
 - Keep mobile companion and F3 Android control deferred.
 - Treat the existing desktop mockup as the visual/product reference, not proof that integrations work.
 - Keep sandbox and demo boundaries visible in UX and logs.
 
 **Gate:** No new mobile/ADB work is added to the main implementation plan.
 
-### 1. Backend seam and configuration — **Base complete**
+### 1. Backend seam and configuration: **Base complete**
 - Added `apps/web/lib/config.mjs` with server-only configuration parsing, paired PayPal credential validation, Sandbox-only enforcement, and explicit non-wildcard CORS origin validation.
 - Refactored `apps/web/server.mjs` to expose a testable `createServer`, return JSON for API misses, remove the mobile route from the advertised health surface, and restrict page delivery to explicit routes/assets.
 - Updated `.env.example` for desktop WebAuthn, optional CORS origins, Sandbox test payee, and deferred/unused partner integrations.
@@ -50,7 +50,7 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 
 **Gate:** Passed locally with no credentials; secrets are not returned by health/config; desktop and onboarding routes return 200; `/api/health` returns 200; unknown API routes return JSON 404; wildcard CORS and live PayPal mode are rejected.
 
-### 2. Persistence and core domain — **Local adapter/migrations/token quota base complete**
+### 2. Persistence and core domain: **Local adapter/migrations/token quota base complete**
 - Drafted `apps/web/migrations/0001_core.sql` with Turso/SQLite-compatible tables for users, linked auth identities/sessions/passkeys, workspaces/agents/spend policies, plan entitlements/subscriptions, token usage and reservations, product offers/evidence, runs/decisions/mandates/approvals, separate SaaS billing records and Sandbox agent-payment records, and receipts.
 - Added `@libsql/client`, a server-only client factory (`apps/web/lib/db/client.mjs`), and `npm run db:migrate` (`scripts/migrate.mjs`). The runner records migration checksums and fails on edits to already-applied migrations.
 - Added `reserveTokens`, `settleTokenReservation`, and `releaseTokenReservation` with write transactions, idempotency, expiry/release handling, bounded lock retries, conditional quota updates, and multi-client contention coverage.
@@ -62,7 +62,7 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 
 **Gate:** Local migration, repeat-run/drift detection, quota reservation/settlement/release, idempotent retries, and multi-client contention tests pass. The remote Turso database is configured for staging; production persistence testing is outside this release.
 
-### 3. Online account access and desktop workspace — **WorkOS email/password deployed; live inbox verification pending**
+### 3. Online account access and desktop workspace: **WorkOS email/password deployed; live inbox verification pending**
 - `apps/web/lib/auth/service.mjs` retains normalized identities, Keus-local hashed session tokens, session lookup/revocation, and account/workspace ownership. Durable throttling for WorkOS verification/reset requests remains in place.
 - WorkOS owns passwords and verifies email. Keus signup collects email and password, creates the WorkOS user, and requires WorkOS email-code verification before issuing a Keus session.
 - Password sign-in uses WorkOS password authentication. Pending verification data is held in a short-lived HttpOnly cookie; passwords are never persisted in Keus or returned to the browser.
@@ -79,7 +79,7 @@ The 2026-10-26 review repairs are implemented and locally verified in the extrac
 ### 4. Live Channel3 product discovery
 - Implement a server-side Channel3 client, with credentials held only on the server.
 - Normalize listing, seller, price, currency, availability, and source evidence. Keep source attribution visible.
-- Treat Workers AI, if used, only as a minimal synthetic prompt/product-fact helper—not as source-of-truth for price, seller, policy, or approval.
+- Treat Workers AI, if used, only as a minimal synthetic prompt/product-fact helper, not as source-of-truth for price, seller, policy, or approval.
 
 **Gate:** Live results are distinguishable from fixtures; unavailable service fails honestly; evidence can be tied to a run.
 

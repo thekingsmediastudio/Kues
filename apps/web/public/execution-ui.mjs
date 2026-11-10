@@ -96,7 +96,7 @@ export function createExecutionUI(adapter) {
       ? `Review ${job.digest.slice(0, 12)}\n${job.review.inputs.map((f) => `${f.name} ← ${f.path} (${f.size} bytes)`).join("\n") || "No input files."}`
       : "";
     if (prepared) code.value = job.review.code;
-    status.textContent = `${job.state}${job.result ? ` · exit ${job.result.exitCode}` : ""}${job.cleanupPending ? " · cleanup not yet confirmed" : ""}${job.error ? " — " + copy(job.error) : ""}`;
+    status.textContent = `${job.state}${job.result ? ` · exit ${job.result.exitCode}` : ""}${job.cleanupPending ? " · cleanup not yet confirmed" : ""}${job.error ? ". " + copy(job.error) : ""}`;
     output.hidden = !job.result;
     if (job.result)
       output.textContent = `${job.result.stdout || "(no stdout)"}${job.result.stderr ? "\n\nSTDERR\n" + job.result.stderr : ""}${job.result.truncated ? "\n\n[Output truncated]" : ""}`;

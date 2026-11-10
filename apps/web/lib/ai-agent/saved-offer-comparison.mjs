@@ -41,7 +41,7 @@ export async function compareSavedOffers({ db, workspaceId, userId, agentId, ids
     const amount = Number(row.amount_minor);
     const validPrice = hasExplicitCurrency(row.evidence_ref, row.currency) && row.currency === 'USD' && Number.isSafeInteger(amount) && amount > 0;
     const source = safeSourceLink(row.source_url);
-    lines.push(`- **${escapeMarkdown(row.title || 'Untitled')}** — ${validPrice ? `$${(amount / 100).toFixed(2)} USD` : 'Price unavailable or unverified'}; merchant: ${escapeMarkdown(row.merchant_name || 'unknown')} (${escapeMarkdown(row.merchant_domain || 'unknown')}); recorded: ${escapeMarkdown(row.observed_at || 'unknown')}; availability: ${escapeMarkdown(row.availability || 'unknown')}; source: ${row.mode === 'live_search' ? 'saved live-search result' : 'sample or preview'}; offer: \`${row.id}\`; ${source ? `[View source](${source})` : 'source link unavailable'}.`);
+    lines.push(`- **${escapeMarkdown(row.title || 'Untitled')}**: ${validPrice ? `$${(amount / 100).toFixed(2)} USD` : 'Price unavailable or unverified'}; merchant: ${escapeMarkdown(row.merchant_name || 'unknown')} (${escapeMarkdown(row.merchant_domain || 'unknown')}); recorded: ${escapeMarkdown(row.observed_at || 'unknown')}; availability: ${escapeMarkdown(row.availability || 'unknown')}; source: ${row.mode === 'live_search' ? 'saved live-search result' : 'sample or preview'}; offer: \`${row.id}\`; ${source ? `[View source](${source})` : 'source link unavailable'}.`);
   }
   lines.push('', 'Prices and availability may have changed; verify with the seller before a decision. Shipping and taxes are not verified.', 'No purchase, order, mandate, or payment hold was created.');
   return lines.join('\n');

@@ -1,4 +1,4 @@
-# Keus — guide for PayPal AI Hackathon judges
+# Keus: guide for PayPal AI Hackathon judges
 
 Everything below runs against the **PayPal sandbox only**. Capture is disabled server-side; holds (authorizations) are the only money movement, and you can void them yourself from the UI. No real goods are ordered.
 
@@ -39,10 +39,10 @@ Any PayPal sandbox **personal** account works. If you do not have one: log in at
 
 1. Ask the agent to find a product and then **buy it** (optionally with a quantity, e.g. "buy 3").
 2. In the purchase review card click **Review checkout**. This records your consent in Keus only; nothing is sent to PayPal yet.
-3. Open **PayPal checkout** in the right-hand panel and click **Get PayPal approval link**. Keus creates an `AUTHORIZE`-intent PayPal order (Orders v2) from the reviewed mandate — never from client-supplied amounts.
+3. Open **PayPal checkout** in the right-hand panel and click **Get PayPal approval link**. Keus creates an `AUTHORIZE`-intent PayPal order (Orders v2) from the reviewed mandate, never from client-supplied amounts.
 4. Open the link, log in with the sandbox buyer and approve that one purchase.
-5. PayPal returns to Keus. The server re-verifies the order: amount, currency, merchant reference, quantity breakdown, user/session binding and the *current* spending limits — then requests the authorization hold. The return page drops you back in the originating agent conversation, which now contains a verified checkout message; the agent receives that result as server-side context on its next turn.
-6. Inspect the hold in **PayPal checkout** and click **Void sandbox hold** to release it. Use **Recheck PayPal status** (reconcile) if a result is ever uncertain — the app never invents success and never silently replaces a hold.
+5. PayPal returns to Keus. The server re-verifies the order: amount, currency, merchant reference, quantity breakdown, user/session binding and the *current* spending limits, then requests the authorization hold. The return page drops you back in the originating agent conversation, which now contains a verified checkout message; the agent receives that result as server-side context on its next turn.
+6. Inspect the hold in **PayPal checkout** and click **Void sandbox hold** to release it. Use **Recheck PayPal status** (reconcile) if a result is ever uncertain; the app never invents success and never silently replaces a hold.
 
 What to notice: cancellation and unconfirmed results are never labelled successful; a reload mid-flow recovers state; changing quantity or limits requires a fresh review; the legacy `/paypal/capture` style routes reject requests (`payment_capture_disabled`).
 
@@ -64,7 +64,7 @@ Minimum configuration for an authenticated demo with real sandbox payments:
 | PayPal sandbox business app | `PAYPAL_ENV=sandbox`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` |
 | Authentication (WorkOS) | `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_REDIRECT_URI` |
 | Database | local SQLite by default; or `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN` |
-| Product discovery (Channel3) | `CHANNEL3_API_KEY` — without it the catalog falls back to a built-in sample set so the flow still runs |
+| Product discovery (Channel3) | `CHANNEL3_API_KEY`; without it the catalog falls back to a built-in sample set so the flow still runs |
 | LLM provider | configured in-app by an admin listed in `AI_PROVIDER_ADMIN_EMAILS` (OpenAI-compatible chat/responses or Anthropic Messages protocols); `AI_PROVIDER_ENCRYPTION_KEY` encrypts stored keys |
 
 Migrations run automatically on startup (`0001` – `0016`). Never commit `.env.local`; it is git-ignored.
@@ -85,7 +85,7 @@ Migrations run automatically on startup (`0001` – `0016`). Never commit `.env.
 
 - Server computes every total; the PayPal order carries matching item quantities and breakdown, and authorization verifies them against the stored mandate.
 - Every checkout action is bound to the signed-in user, workspace and session; other users get `404` on your mandate IDs.
-- Missing credentials or provider failures fail **closed** — there is no simulated-success path.
+- Missing credentials or provider failures fail **closed**; there is no simulated-success path.
 - Secrets are only ever read server-side; the browser never receives PayPal credentials.
 - Hosted on Render (`render.yaml`); encrypted backup and restore of the Turso database, rollback and roll-forward deploys have been rehearsed.
 

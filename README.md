@@ -1,11 +1,16 @@
-# Keus — human-approved shopping with PayPal sandbox checkout
+# Keus: human-approved shopping with PayPal sandbox checkout
 
 Keus combines AI-assisted product discovery, purchase reviews and spending limits with **per-purchase PayPal sandbox approval**. A saved wallet or PayPal Vault grant is not required.
 
+![How Keus works: you chat with the Scout agent, which searches Channel3; the Keus server enforces the policy gate, creates an AUTHORIZE-only PayPal order, you approve on PayPal, and the server re-verifies before holding, never capturing](docs/images/how-keus-works.png)
+
+Architecture, purchase sequence, checkout state machine and trust model, as Mermaid diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## For PayPal AI Hackathon judges
 
-- **Hosted demo:** https://keus-staging.onrender.com — one-click **Launch Judge Workspace** on the sign-in page for a look around; enter the **judge access code** (Devpost testing instructions) for a private workspace with PayPal sandbox checkout enabled, or create an account (email code, Google or GitHub).
+- **Hosted demo:** https://keus-staging.onrender.com. Use the one-click **Launch Judge Workspace** on the sign-in page for a look around; enter the **judge access code** (Devpost testing instructions) for a private workspace with PayPal sandbox checkout enabled, or create an account (email code, Google or GitHub).
 - **Step-by-step judging guide, local setup and code map:** [docs/JUDGING.md](docs/JUDGING.md).
+- **How it is built:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (system overview, sequence diagram, state machine, trust model, repository map).
 - **Built during the submission period:** see [What changed since 1 October 2026](#what-changed-since-1-october-2026).
 
 ## Current payment flow
@@ -46,8 +51,8 @@ Open `/workspace` on the configured server (default port 3100). Configure the ex
 For payments configure only server-side sandbox credentials:
 
 - `PAYPAL_ENV=sandbox`
-- `PAYPAL_CLIENT_ID` — the sandbox business app Client ID
-- `PAYPAL_CLIENT_SECRET` — that app's secret
+- `PAYPAL_CLIENT_ID`: the sandbox business app Client ID
+- `PAYPAL_CLIENT_SECRET`: that app's secret
 
 Use a public HTTPS origin for the PayPal return flow (localhost HTTP is accepted for local fixtures). Never commit credentials, use live credentials, or paste secrets into chat. Vault IDs, buyer emails, passkeys and saved-wallet setup are not prerequisites for standard checkout.
 
@@ -57,20 +62,20 @@ Use a public HTTPS origin for the PayPal return flow (localhost HTTP is accepted
 npm test
 ```
 
-Local verification: **537 passing tests** (`npm test`), including the standard-checkout suite covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
+Local verification: **539 passing tests** (`npm test`), including the standard-checkout suite covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
 
-Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). Since then the **deployed** application (Render, WorkOS authentication, Turso database) has been exercised end to end on 2026-11-10: sign-in, onboarding, agent purchase review, PayPal approval in a separate tab, the automatic return callback, server verification, authorization holds and voids — including concurrent reviews, expired approvals (surfaced as `purchase_approval_expired`), cross-account isolation (other users receive 404 on your mandate IDs) and a database backup/restore plus rollback/roll-forward deploy drill. Every sandbox authorization created during testing was voided. No capture or Vault calls occurred.
+Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). Since then the **deployed** application (Render, WorkOS authentication, Turso database) has been exercised end to end on 2026-11-10: sign-in, onboarding, agent purchase review, PayPal approval in a separate tab, the automatic return callback, server verification, authorization holds and voids, including concurrent reviews, expired approvals (surfaced as `purchase_approval_expired`), cross-account isolation (other users receive 404 on your mandate IDs) and a database backup/restore plus rollback/roll-forward deploy drill. Every sandbox authorization created during testing was voided. No capture or Vault calls occurred.
 
 If authorization is uncertain, use **Recheck PayPal status**, not a replacement purchase. Reconciliation reads provider state without requesting another authorization. Unresolved states remain reserved against the spending budget. A process interruption during order creation, a provider-expired hold, or an unconfirmed authorization with no retrievable provider result may need operator investigation; the application does not invent success or silently release that reservation.
 
 ## Payment interfaces
 
-- `GET /api/commerce/paypal/checkout` — user/workspace-scoped checkout history.
-- `POST /api/commerce/paypal/checkout/begin` — creates an unapproved AUTHORIZE order from a reviewed mandate, never client-supplied amounts.
-- `GET /api/commerce/paypal/checkout/return` — no-store return page; strips callback query parameters and submits verification with the signed-in session.
-- `POST .../complete`, `.../cancel` — session-bound callback completion/cancellation.
-- `POST .../reconcile`, `.../void` — provider verification or explicit void of this user's hold.
-- `POST .../return-context`, `.../result` — session-bound callback destination and user/workspace-owned result, with agent identity resolved from the stored purchase rather than client-supplied redirects.
+- `GET /api/commerce/paypal/checkout`: user/workspace-scoped checkout history.
+- `POST /api/commerce/paypal/checkout/begin`: creates an unapproved AUTHORIZE order from a reviewed mandate, never client-supplied amounts.
+- `GET /api/commerce/paypal/checkout/return`: no-store return page; strips callback query parameters and submits verification with the signed-in session.
+- `POST .../complete`, `.../cancel`: session-bound callback completion/cancellation.
+- `POST .../reconcile`, `.../void`: provider verification or explicit void of this user's hold.
+- `POST .../return-context`, `.../result`: session-bound callback destination and user/workspace-owned result, with agent identity resolved from the stored purchase rather than client-supplied redirects.
 
 Legacy `/paypal/authorize`, `/paypal/capture`, `/paypal/refund`, `/paypal/void`, and mandate passkey payment-execution routes reject requests. The saved-wallet and old rail implementations are retained outside the active payment path. Their presence is not a claim of real merchant-order support.
 
@@ -86,4 +91,4 @@ The following was built during the hackathon submission period (1 October – 12
 - **Authentication**: WorkOS email + password with verification codes, Google/GitHub sign-in, password reset, sign-up provisioning with a starter agent, one-click judge fast lane.
 - **Provider-agnostic AI layer** with admin-managed, encrypted provider keys (OpenAI-compatible and Anthropic protocols).
 - **Three-step onboarding**, workspace URL consolidation (`/workspace`), retirement of the separate account and mobile companion pages, accessibility and contrast fixes.
-- **Operations**: Render deployment with health surfaces, numbered migrations (`0001`–`0016`) with drift checks, encrypted Turso backup/restore, rollback drill, secret scans and key rotation, and a test suite that grew to 537 passing tests.
+- **Operations**: Render deployment with health surfaces, numbered migrations (`0001`–`0016`) with drift checks, encrypted Turso backup/restore, rollback drill, secret scans and key rotation, and a test suite that grew to 539 passing tests.

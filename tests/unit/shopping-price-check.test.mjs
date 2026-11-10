@@ -22,11 +22,11 @@ test('only individual Jiji listing explicit current-labeled price fields qualify
 test('budget checks use source evidence not LLM claims; equality and inclusive vs exclusive differ',()=>{
  const research={retrievedAt:'2026-11-06T12:00:00Z',sources:[source('Price: ₦990,000'),source('Price: ₦1,100,000'),source('Price: ₦1,000,000'),source('Price unknown')]};
  const q='/research Find laptops at or below 1,000,000 NGN';const text=researchSourcesMarkdown(research,q);
- assert.match(text,/\[1\] Reported price ₦990,000 — within stated item-price limit/);
- assert.match(text,/\[2\] Reported price ₦1,100,000 — over stated item-price limit/);
- assert.match(text,/\[3\] Reported price ₦1,000,000 — within stated item-price limit/);
+ assert.match(text,/\[1\] Reported price ₦990,000, within stated item-price limit/);
+ assert.match(text,/\[2\] Reported price ₦1,100,000, over stated item-price limit/);
+ assert.match(text,/\[3\] Reported price ₦1,000,000, within stated item-price limit/);
  assert.match(text,/\[4\] Price or listing evidence ambiguous/);
- assert.match(shoppingPriceEvidence(research,'/research laptops under ₦1,000,000'),/\[3\] Reported price ₦1,000,000 — over/);
+ assert.match(shoppingPriceEvidence(research,'/research laptops under ₦1,000,000'),/\[3\] Reported price ₦1,000,000, over/);
  assert.match(shoppingPriceEvidence(research,'/research site:jiji.ng/ikeja laptop'),/budget limit not unambiguously stated/);
  assert.doesNotMatch(researchAnswerForDisplay('₦1,100,000 is inside the budget',q),/₦1,100,000/);
  assert.match(text,/delivery and other fees are not verified/);

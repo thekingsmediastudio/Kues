@@ -59,7 +59,7 @@ export async function reviewShoppingBasket({
   let total = 0;
   const warnings = [];
   const lines = [
-    "## Basket review — not an order",
+    "## Basket review, not an order",
     "",
     "| Item | Qty | Unit price | Subtotal |",
     "| --- | ---: | ---: | ---: |",

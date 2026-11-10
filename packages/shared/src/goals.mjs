@@ -6,7 +6,7 @@ import { inspectWithSentinel } from './sentinel.mjs';
  *
  * Lets a user set a 1-line ongoing goal (e.g. "Watch Rode Wireless GO II; if <= $85, place
  * a PayPal AUTHORIZE hold and ping my phone for passkey approval").
- * Never auto-captures funds—always stops at HOLD_AWAITING_PASSKEY.
+ * Never auto-captures funds; always stops at HOLD_AWAITING_PASSKEY.
  */
 export function createWatchGoal({
   title,

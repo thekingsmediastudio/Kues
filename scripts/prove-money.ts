@@ -1,5 +1,5 @@
 /**
- * Gate G0 — Executable Proof of Money (docs/05_MILESTONES.md)
+ * Gate G0: Executable Proof of Money (docs/05_MILESTONES.md)
  *
  * When PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_VAULT_ID are set:
  *   1. Authenticates against https://api-m.sandbox.paypal.com/v1/oauth2/token

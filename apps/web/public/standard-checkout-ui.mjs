@@ -2,7 +2,7 @@
 // imply the PayPal order was cancelled or that a hold was voided.
 export function expiredCheckoutStatus(item) {
   return item?.status === 'expired' && item?.orderId
-    ? 'Approval window expired — PayPal status unconfirmed'
+    ? 'Approval window expired. PayPal status unconfirmed'
     : 'Purchase review expired';
 }
 
@@ -69,15 +69,15 @@ export function installCheckoutUI({ getWorkspaceId }) {
   const statuses = {
     ready: "Ready for your PayPal approval",
     creating: "Preparing checkout",
-    pending: "PayPal status not yet confirmed — recheck before another checkout",
-    authorizing: "Verifying authorization — do not repeat checkout",
-    authorized: "Sandbox hold authorized — not captured",
+    pending: "PayPal status not yet confirmed. Recheck before another checkout",
+    authorizing: "Verifying authorization. Do not repeat checkout",
+    authorized: "Sandbox hold authorized, not captured",
     voiding: "Voiding the hold",
     voided: "Sandbox hold voided",
-    cancelled: "Cancelled — no authorization",
-    failed: "Checkout setup failed — no confirmed hold",
-    uncertain: "Authorization uncertain — recheck before any new checkout",
-    void_uncertain: "Void uncertain — recheck before retrying",
+    cancelled: "Cancelled. No authorization",
+    failed: "Checkout setup failed. No confirmed hold",
+    uncertain: "Authorization uncertain. Recheck before any new checkout",
+    void_uncertain: "Void uncertain. Recheck before retrying",
     expired: "Purchase review expired",
   };
   async function refresh({force = false} = {}) {
@@ -247,7 +247,7 @@ export function installCheckoutUI({ getWorkspaceId }) {
             showLink(url);
             beginButton.textContent = "Show PayPal approval link";
             state.textContent =
-              "Awaiting your approval on PayPal — no authorization is confirmed yet.";
+              "Awaiting your approval on PayPal. No authorization is confirmed yet.";
           } catch (e) {
             if (scope === getWorkspaceId() && card.isConnected)
               state.textContent = copy(e.message);

@@ -1,4 +1,4 @@
-# Keus WorkOS email/password authentication — 2026-10-27
+# Keus WorkOS email/password authentication, 2026-10-27
 
 ## Scope and recovery decision
 

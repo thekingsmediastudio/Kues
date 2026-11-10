@@ -104,7 +104,7 @@ test('keyless Jiji Omen fallback searches targeted hints only and preserves budg
     {url:'https://evil.example/ikeja/computers-and-laptops/omen.html',title:'HP Omen',content:'RTX 2070'}]})};
   }return {status:403,contentType:'text/plain',body:''};
  }});
- const r=await service.run({agent,query,userId:'u'});assert.equal(calls.length,2);assert.equal(calls[1].query,'HP Omen RTX 2070 32GB price Lagos Nigeria site:jiji.ng');assert.deepEqual(calls[1].include_domains,['jiji.ng']);assert.equal(r.sources.length,1);assert.match(r.sources[0].url,/jiji.ng\/ikeja/);assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/);assert.match(researchSourcesMarkdown(r,query),/₦990,000 — within stated item-price limit/);
+ const r=await service.run({agent,query,userId:'u'});assert.equal(calls.length,2);assert.equal(calls[1].query,'HP Omen RTX 2070 32GB price Lagos Nigeria site:jiji.ng');assert.deepEqual(calls[1].include_domains,['jiji.ng']);assert.equal(r.sources.length,1);assert.match(r.sources[0].url,/jiji.ng\/ikeja/);assert.match(r.sourceSelectionNotice,/no matching offer is confirmed/);assert.match(researchSourcesMarkdown(r,query),/₦990,000, within stated item-price limit/);
 });
 
 test('no fallback on first match, paid key mode, or non-targeted shopping; fallback errors preserve original sources',async()=>{
@@ -145,7 +145,7 @@ test('generalized fallback preserves exact location and never claims unchecked r
   if(url.hostname==='api.tavily.com'){search++;if(search===1)return{status:200,body:JSON.stringify({results:[{title:'HP Omen',url:'https://jiji.ng/lekki/computers-and-laptops/omen.html',content:'Other'}]})};
    assert.equal(JSON.parse(options.body).query,'Dell Alienware RTX 3060 16GB price lekki Lagos Nigeria site:jiji.ng');return{status:200,body:JSON.stringify({results:[{title:'Dell Alienware',url:'https://jiji.ng/lekki/computers-and-laptops/alien.html',content:'RTX 3060. Price: ₦900,000'},{title:'Dell Alienware',url:'https://jiji.ng/ikeja/computers-and-laptops/alien.html',content:'RTX 3060'}]})};}
   return{status:403,contentType:'text/plain',body:''};
- }});const r=await service.run({agent,query:q,userId:'u'});assert.equal(search,2);assert.equal(r.sources.length,1);const output=researchSourcesMarkdown(r,q);assert.match(output,/₦900,000 — within stated item-price limit/);assert.match(output,/Requested GPU RTX 3060: mentioned in search excerpt/);assert.match(output,/Other specifications are not checked/);assert.match(output,/no matching offer is confirmed/i);
+ }});const r=await service.run({agent,query:q,userId:'u'});assert.equal(search,2);assert.equal(r.sources.length,1);const output=researchSourcesMarkdown(r,q);assert.match(output,/₦900,000, within stated item-price limit/);assert.match(output,/Requested GPU RTX 3060: mentioned in search excerpt/);assert.match(output,/Other specifications are not checked/);assert.match(output,/no matching offer is confirmed/i);
 });
 
 

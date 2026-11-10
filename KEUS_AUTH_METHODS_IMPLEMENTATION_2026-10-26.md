@@ -1,4 +1,4 @@
-# Keus sign-in and sign-up foundation — 2026-10-26
+# Keus sign-in and sign-up foundation, 2026-10-26
 
 > **Historical implementation record.** The Magic Auth/passwordless design and temporary browser key-entry setup described below were superseded by the 2026-10-27 email/password implementation. The temporary setup form and route were removed before publication. Current behavior and release verification are documented in `AUTH_SETUP.md` and `RENDER_DEPLOYMENT.md`; never use the historical key-entry instructions below.
 
@@ -30,11 +30,11 @@ Detailed setup instructions: `AUTH_SETUP.md`. Example variables: `.env.example`.
 - Provider authorization URL behavior was tested against the installed WorkOS SDK. No live Google/GitHub OAuth flow was performed.
 - On 2026-10-26, the user reported successful WorkOS test-mode email-code login and that Create account successfully registered an account, but did not show a clear next screen. First-time account detection and the onboarding redirect were then implemented. The redirect fix is covered by server/service tests; it has not yet been retested by the user in a restarted preview or deployed service.
 
-## Historical preview test-setup note — 2026-10-26
+## Historical preview test-setup note, 2026-10-26
 
 A temporary WorkOS test-credential form existed in an earlier isolated preview and was used during the 2026-10-26 test-mode email-code check. The form and server endpoint were removed in the 2026-10-27 password-auth change; the former public HTML path now contains only an inert retirement notice. Do not re-enable that credential-entry route or treat the old CORS notes as current setup instructions.
 
-## Registration handoff and free-hosting preparation — 2026-10-26
+## Registration handoff and free-hosting preparation, 2026-10-26
 
 The user reported a successful registration that appeared to stop without a next step. Keus now returns an `isNewUser` flag from local identity provisioning; newly created email or social identities go to `/onboarding`, existing identities go to `/app`, and production onboarding access is session-protected. Render Free + Turso Free is the proposed public demo/staging stack. The deployment blueprint and setup notes are prepared, but no Git repository, Render service, or Turso database is connected or deployed. Render Free is not appropriate for production; it sleeps while idle and has ephemeral local storage.
 
@@ -43,7 +43,7 @@ The user reported a successful registration that appeared to stop without a next
 - `render.yaml` parsed successfully; service name is `keus-staging`.
 - The registration redirect still needs a fresh-inbox test after restarting the preview or on the hosted staging service.
 
-## Account provisioning and cloud onboarding update — 2026-10-26
+## Account provisioning and cloud onboarding update, 2026-10-26
 
 Verified sign-in now provisions one default workspace and owner membership in the same shared Turso database, then routes accounts whose workspace setup is incomplete to `/onboarding`. The authenticated onboarding API persists the completed setup and paused preview agent; desktop reloads that data through `/api/workspace/bootstrap`. See `KEUS_SIGNUP_PROVISIONING_IMPLEMENTATION_2026-10-26.md` for schema/API details and current limitations.
 

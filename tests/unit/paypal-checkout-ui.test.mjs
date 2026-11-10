@@ -33,6 +33,6 @@ test("checkout UI does not require automatic popups or persist approval links in
 
 
 test('expired checkout distinguishes an unconfirmed provider order from an unstarted review',()=>{
- assert.equal(expiredCheckoutStatus({status:'expired',orderId:'ORDER'}),'Approval window expired — PayPal status unconfirmed');
+ assert.equal(expiredCheckoutStatus({status:'expired',orderId:'ORDER'}),'Approval window expired. PayPal status unconfirmed');
  assert.equal(expiredCheckoutStatus({status:'expired',orderId:null}),'Purchase review expired');
 });

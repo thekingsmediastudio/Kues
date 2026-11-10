@@ -375,7 +375,7 @@ async function executePurchaseProductTool(toolCall, { db, workspaceId, userId, a
 
     if (!mandateResult.allowed) {
       const blockedLines = [
-        '⚠️ **Purchase Blocked by Spend Policy**',
+        '**Purchase blocked by spend policy**',
         '',
         mandateResult.failureReason,
         '',
@@ -407,7 +407,7 @@ async function executePurchaseProductTool(toolCall, { db, workspaceId, userId, a
       mandateResult.items.forEach((item, idx) => {
         fields.push({
           label: `Item ${idx + 1}`,
-          value: `${item.quantity} × $${(item.unitAmountMinor / 100).toFixed(2)} = $${(item.lineTotalMinor / 100).toFixed(2)} ${item.currency} — ${item.title}`,
+          value: `${item.quantity} × $${(item.unitAmountMinor / 100).toFixed(2)} = $${(item.lineTotalMinor / 100).toFixed(2)} ${item.currency}: ${item.title}`,
         });
       });
       fields.push({ label: 'Bundle Total', value: priceText });

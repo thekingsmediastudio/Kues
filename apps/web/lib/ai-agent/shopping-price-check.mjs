@@ -48,10 +48,10 @@ export function shoppingPriceEvidence(research, query) {
   const ceiling=parseNairaCeiling(query);
   const rows=(Array.isArray(research?.sources)?research.sources:[]).map((source,i)=>{
     const price=reportedJijiPrice(source);
-    if (price===null) return `- [${i+1}] Price or listing evidence ambiguous — verify on the seller page.`;
+    if (price===null) return `- [${i+1}] Price or listing evidence ambiguous. Verify on the seller page.`;
     const priceText=(price/100).toLocaleString('en-NG',{minimumFractionDigits:price%100?2:0,maximumFractionDigits:2});
     const fit=ceiling ? ((ceiling.inclusive ? price<=ceiling.kobo : price<ceiling.kobo) ? 'within stated item-price limit' : 'over stated item-price limit') : 'budget limit not unambiguously stated in this request';
-    return `- [${i+1}] Reported price ₦${priceText} — ${fit}.`;
+    return `- [${i+1}] Reported price ₦${priceText}, ${fit}.`;
   });
   return '\n\n### Price checks (unverified evidence)\n'+(rows.join('\n') || 'No listing evidence was returned.')+'\n\nThese are mechanical comparisons of explicitly labeled prices in bounded source text, not verified offers. Prices may be stale; stock, seller details, delivery and other fees are not verified. A price-only fit does not establish that the total cost fits.';
 }

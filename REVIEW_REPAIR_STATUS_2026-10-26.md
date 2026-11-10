@@ -1,10 +1,10 @@
-# Review repair status — 2026-10-26
+# Review repair status, 2026-10-26
 
 > **Historical review record.** The passwordless WorkOS statements below describe the 2026-10-26 source state and are superseded by the 2026-10-27 email/password implementation. See `AUTH_SETUP.md` and `RENDER_DEPLOYMENT.md` for current behavior and staging status; the temporary development credential-entry page mentioned in older review checks has been removed.
 
 This note records changes and checks made to the extracted working copy after the read-only review. The Google Drive source archive remains unchanged.
 
-## Later staging release status — 2026-10-26
+## Later staging release status, 2026-10-26
 
 This later release supersedes earlier statements below that no deployment had occurred. The sign-up/account-provisioning flow and per-account daily token ledger are deployed to `https://keus-staging.onrender.com` at health version **2.2.1**. Health returns 200; unauthenticated workspace-bootstrap and same-origin onboarding requests return the expected 401. Email sign-in is enabled; Google/GitHub remain disabled. No authenticated signup, direct live data read-back, production AI-call path, or live commerce/payment flow has been verified. The owner should test with their own staging account; no account or verification email was created or sent on their behalf. See `RENDER_DEPLOYMENT.md` and `KEUS_SIGNUP_PROVISIONING_IMPLEMENTATION_2026-10-26.md` for release details.
 
@@ -45,7 +45,7 @@ This later release supersedes earlier statements below that no deployment had oc
 
 - Original Drive ZIP SHA-256: `e909abf9edf36fd92246fa9c8ab4ccc54cc7a41db66359729fbcc8ecf77f265b`.
 - The repaired source archive is stored alongside the original in `CueClaw — Project Backup & Assets — 2026-10-24` as `CueClaw_Project_Backup_2026-10-26_REPAIRED_FINAL.zip`; its separate `.sha256.txt` checksum is in the same folder. Do not replace the original archive.
-## Keus UI simplification pass — 2026-10-26
+## Keus UI simplification pass, 2026-10-26
 
 The workspace screens were simplified and the user-facing brand spelling aligned to Keus. Decorative window dots were removed; the sidebar now has a clear Settings control; the demo status is informational rather than an unexpected attack-test button; the duplicate microphone control (which opened a call preview rather than recording) was removed. Teammate selection now supports keyboard input and exposes selected state. A phone-view shortcut appears on narrow screens, and the sample web/phone preview stacks instead of squeezing into tiny columns.
 
@@ -63,7 +63,7 @@ Verification for this pass:
 
 Browser review script and evidence: `cueclaw-review/qa/ui-simplification-review.py`, `ui-simplification-results.json`, and the `ui-refresh-*.png` screenshots. The app remains a prototype; this pass does not claim live integrations or production deployment.
 
-## Screenshot-driven layout and icon follow-up — 2026-10-26
+## Screenshot-driven layout and icon follow-up, 2026-10-26
 
 A second pass addresses the supplied screenshots. The desktop header no longer competes with redundant status/focus controls at intermediate widths; approval cards now expose two short, readable primary controls and place optional demo actions under a collapsed “More preview options” disclosure; approval details reflow from two columns to one at small widths; app configuration uses a four-square Apps glyph rather than a puzzle piece, and payment details use a card glyph. All actions remain local demo/preview behavior.
 
@@ -83,7 +83,7 @@ The earlier UI-refresh ZIP remains a preserved first-pass snapshot; the screensh
 - To meet the workspace storage quota, redundant local UI ZIP copies were removed after confirming their Drive uploads. Their local SHA-256 sidecars, project source, and QA evidence remain; no historical backup was deleted from Drive.
 - Latest full-source slider/responsive package: `Keus_UI_Slider_Responsive_Refresh_2026-10-26_v3.zip`, 6,246,029 bytes, SHA-256 `2d354758f86d9976b2b05c2dd2f18ca6217c29ba97cbd657b9b01b1177911c5d`; uploaded and verified in the existing Drive folder (archive ID `1fiP_uFSc6cmhXQYtNEqU-WNVJr8YnMKF`, checksum ID `1KQZA4ekujpQqGfeHfJzUa4W1hp8vKwtM`). The local ZIP was removed after upload; source, QA, and checksum sidecar remain in the workspace.
 
-## Slider and responsive interaction refresh — 2026-10-26
+## Slider and responsive interaction refresh, 2026-10-26
 
 The spend-cap sliders now share a clearer interaction style: color-coded gold/blue progress tracks, larger high-contrast thumb targets, current-value chips, min/max scales, and synchronized `aria-valuetext`. The controls continue to support keyboard adjustment, touch dragging, and existing local preview updates. The onboarding cap controls use the same system.
 
@@ -98,7 +98,7 @@ Verification:
 - Inline JavaScript syntax: **6/6 passed** from current desktop, onboarding, login, auth-verify, pocket, and development setup pages.
 - Evidence: `cueclaw-review/qa/slider-responsive-results.json`, `slider-*.png`, and `slider-responsive-review.py`.
 
-## Keus sign-in foundation — 2026-10-26
+## Keus sign-in foundation, 2026-10-26
 
 The website pass begins at sign-in. `apps/web/public/login.html` now has a desktop split welcome/sign-in layout with a clear example-team preview, and a focused form-first mobile layout. Styling is self-contained and responsive. Existing email-code, verification, cooldown, session, and WorkOS provider behavior is preserved. The local preview now states plainly when sign-in is not enabled and confirms no code was sent; provider buttons remain disabled unless configured. No authentication is simulated or claimed as live.
 
@@ -115,7 +115,7 @@ Verification:
 
 Historical note from the original sign-in foundation pass: the next website stage was onboarding, and real sign-in still required WorkOS/email-delivery setup. That setup and the account-provisioning flow were completed and deployed later; the current staging status is summarized at the top of this file.
 
-## Active Keus branding update — 2026-10-26
+## Active Keus branding update, 2026-10-26
 
 The active website surfaces now use Keus branding and a new local Keus SVG icon/wordmark. Health metadata, email labels/tags, setup metadata, and visible copy were updated. Old CueClaw image URLs redirect to the Keus assets; browser state and local-database migration/fallback preserve existing data. Compatibility-only identifiers remain where needed for old storage, routes, database files, and setup headers. The preserved historical backup and older brand kit were not overwritten.
 
@@ -123,7 +123,7 @@ The active website surfaces now use Keus branding and a new local Keus SVG icon/
 - Details: `KEUS_BRANDING_UPDATE_2026-10-26.md`.
 - Historical note from the branding-update checkpoint: no live auth provider, email delivery, or production deployment was configured or claimed at that time. The later staging rollout is recorded at the top of this file; there is still no claim of a production deployment or live commerce/payment integration.
 
-## Sign-in and sign-up methods — 2026-10-26
+## Sign-in and sign-up methods, 2026-10-26
 
 The `/login` surface now has distinct **Sign in** and **Create account** modes. Email remains a six-digit WorkOS Magic Auth flow. Separate Google and GitHub buttons call provider-specific OAuth routes; the existing state-cookie/callback/session path is retained and unsupported provider values are rejected. The first verified identity creates a local Keus user or links to the matching existing verified email. Google/GitHub buttons default disabled and only enable when each matching WorkOS Dashboard connection and server-side feature flag are configured. The isolated browser preview continues to suppress OAuth because its callback cannot reach the local preview server. The user selected **open self-service registration** rather than invite-only; keep new-user sign-up enabled in WorkOS.
 
@@ -135,7 +135,7 @@ The `/login` surface now has distinct **Sign in** and **Create account** modes. 
 
 User-reported verification update (2026-10-26): test-mode WorkOS email-code login succeeded end-to-end in the port-3100 preview using an inbox under the user's control. This confirms the test-mode email login path only; production email delivery, the separate open-sign-up account-creation path, and Google/GitHub OAuth remain unverified. Social OAuth still needs enabled WorkOS providers, server-side flags, and a reachable registered callback. Do not represent the test-mode result as production authentication.
 
-## Registration handoff repair and free-hosting plan — 2026-10-26
+## Registration handoff repair and free-hosting plan, 2026-10-26
 
 The user reported that email registration created an account but appeared to do nothing afterward. Keus identity provisioning now returns `isNewUser`. First-time email and social accounts are directed to `/onboarding`; existing accounts continue to `/app`. The onboarding route is included in the production session guard and is available in the sign-in-only preview. The behavior is covered by unit tests and is deployed on staging; an owner-run authenticated browser signup and persisted-data read-back still remain to be tested.
 

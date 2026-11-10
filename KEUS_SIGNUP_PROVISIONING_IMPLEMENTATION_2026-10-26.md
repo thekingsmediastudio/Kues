@@ -1,4 +1,4 @@
-# Keus account provisioning and onboarding persistence — 2026-10-26
+# Keus account provisioning and onboarding persistence, 2026-10-26
 
 ## Implemented in this source tree
 

@@ -17,8 +17,8 @@
 
 The Render Blueprint (`render.yaml`) includes two API Hub settings:
 
-- `API_HUB_ADMIN_EMAILS` — enter the exact verified WorkOS email address that should manage the hub. This is a private environment value.
-- `API_HUB_ENCRYPTION_KEY` — Render generates a 256-bit value for this setting. Preserve it securely. If it is lost or changed, stored provider credentials cannot be decrypted; re-enter those credentials or restore the original key.
+- `API_HUB_ADMIN_EMAILS`: enter the exact verified WorkOS email address that should manage the hub. This is a private environment value.
+- `API_HUB_ENCRYPTION_KEY`: Render generates a 256-bit value for this setting. Preserve it securely. If it is lost or changed, stored provider credentials cannot be decrypted; re-enter those credentials or restore the original key.
 
 The hub also requires the existing WorkOS staging and Turso environment values described in `RENDER_DEPLOYMENT.md`. Do not put these values in Git, source files, chat, or browser code. Do not deploy the temporary helper bridges as public services.
 

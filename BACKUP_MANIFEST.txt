@@ -1,4 +1,4 @@
-Keus Project Snapshot — 2026-10-26 (API Hub build)
+Keus Project Snapshot, 2026-10-26 (API Hub build)
 
 Contents: current repaired source tree, apps, shared packages, migrations, scripts, unit tests, documentation, Render Free + Turso Free staging blueprint, Node 24.22.1 version pin, .env.example, and current QA references. Includes the owner-only Keus API Hub: generic HTTPS connector registry, AES-256-GCM-encrypted provider credentials/fixed headers, hashed and operation-scoped agent keys, read/write confirmation, SSRF-aware destination checks, redacted responses, metadata-only audit records, and editable connector settings that retain or replace credentials without revealing them. First-time WorkOS accounts route to onboarding. The base Keus staging service is live; end-to-end Hub access is pending correction of the WorkOS admin-email allowlist.
 

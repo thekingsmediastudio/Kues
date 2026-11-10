@@ -339,7 +339,7 @@ export function documentCoverageMarkdown(context) {
               ? "All extracted text supplied"
               : c.mode === "requested_pages"
                 ? "Requested-page excerpts supplied"
-                : "Relevant excerpts supplied—not a full review";
+                : "Relevant excerpts supplied, not a full review";
         const name = String(f.name).replace(/[\[\]_*`<>\\\r\n]/g, "");
         return `- ${name}: ${mode}. ${c.selectedSections ?? "?"} of ${c.totalSections ?? "?"} extracted sections.${f.totalPages ? ` Original: ${f.totalPages} pages.` : ""}${f.truncated ? " Extraction was limited; remaining content was not read." : ""}${f.missingPages?.length ? ` No readable text/extraction failed on pages ${f.missingPages.join(", ")}.` : ""}`;
       })

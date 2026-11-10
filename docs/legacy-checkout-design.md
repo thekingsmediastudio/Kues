@@ -1,4 +1,4 @@
-# Historical checkout design — not the current product
+# Historical checkout design, not the current product
 
 The document below is preserved for reference, not as a description of working capabilities. Its autonomous rails, saved-wallet requirement, automatic holds, simulated fallback, passkey payment execution, capture endpoints, and judge fast-lane wallet claims do not describe the current checkout. See the root README for the active flow.
 
