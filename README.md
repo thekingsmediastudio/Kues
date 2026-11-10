@@ -2,6 +2,12 @@
 
 Keus combines AI-assisted product discovery, purchase reviews and spending limits with **per-purchase PayPal sandbox approval**. A saved wallet or PayPal Vault grant is not required.
 
+## For PayPal AI Hackathon judges
+
+- **Hosted demo:** https://keus-staging.onrender.com — one-click **Demo fast lane** on the sign-in page for a look around; create a personal account (email code, Google or GitHub) to run the real PayPal sandbox checkout.
+- **Step-by-step judging guide, local setup and code map:** [docs/JUDGING.md](docs/JUDGING.md).
+- **Built during the submission period:** see [What changed since 1 October 2026](#what-changed-since-1-october-2026).
+
 ## Current payment flow
 
 1. Ask your shopping agent to find and review a product.
@@ -22,7 +28,7 @@ Ask for a quantity in chat, for example **“Buy 3 of that notebook.”** Purcha
 
 The server calculates totals in integer cents and applies spending limits to the full subtotal. The PayPal order carries matching item quantities, unit amounts and item-total breakdown; authorization verifies these values. Price, quantity and line totals are persisted and bound to the purchase review. Changing quantity requires a fresh review and approval, not editing an already-reviewed hold. Receipt messages and the agent's verified checkout context include the quantities. Shipping and tax are not invented or included.
 
-Older mandates without quantity metadata still use their existing amount verification; the UI does not invent a breakdown for them. The new itemized PayPal payload is locally tested with provider mocks; it has not yet been exercised against real PayPal or deployed.
+Older mandates without quantity metadata still use their existing amount verification; the UI does not invent a breakdown for them. The itemized PayPal payload is covered by provider-mock tests and was exercised against the real sandbox on the deployed app (for example a 3 × $1.25 USD bundle authorized and voided).
 
 ## Development
 
@@ -51,9 +57,9 @@ Use a public HTTPS origin for the PayPal return flow (localhost HTTP is accepted
 npm test
 ```
 
-Local verification: **364 passing tests**, including 14 standard-checkout tests covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
+Local verification: **536 passing tests** (`npm test`), including the standard-checkout suite covering provider verification, ownership/session binding, expiry, spending-limit changes, duplicate requests, uncertain-result reconciliation, voiding, sandbox gates and HTTP CSRF checks. Desktop browser checks at 1440px and 390px exercise chat review, the separate approval tab, authorization, reload recovery, cancellation and voiding with a **mock provider**, real application HTTP and SQLite.
 
-Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). This used the real standard-checkout service with a local test identity/database and manual approval verification in the original helper tab. No capture or Vault calls occurred. **Deployed Keus authentication and the automatic PayPal return callback remain externally unverified.** The local browser checks use mocks and are separate from this real provider evidence. Nothing here claims deployment.
+Actual PayPal sandbox testing on 2026-11-02 confirmed order creation, buyer approval, a $10.00 USD authorization (HTTP 201), authorization lookup and successful void (HTTP 200). Since then the **deployed** application (Render, WorkOS authentication, Turso database) has been exercised end to end on 2026-11-10: sign-in, onboarding, agent purchase review, PayPal approval in a separate tab, the automatic return callback, server verification, authorization holds and voids — including concurrent reviews, expired approvals (surfaced as `purchase_approval_expired`), cross-account isolation (other users receive 404 on your mandate IDs) and a database backup/restore plus rollback/roll-forward deploy drill. Every sandbox authorization created during testing was voided. No capture or Vault calls occurred.
 
 If authorization is uncertain, use **Recheck PayPal status**, not a replacement purchase. Reconciliation reads provider state without requesting another authorization. Unresolved states remain reserved against the spending budget. A process interruption during order creation, a provider-expired hold, or an unconfirmed authorization with no retrievable provider result may need operator investigation; the application does not invent success or silently release that reservation.
 
@@ -69,3 +75,15 @@ If authorization is uncertain, use **Recheck PayPal status**, not a replacement 
 Legacy `/paypal/authorize`, `/paypal/capture`, `/paypal/refund`, `/paypal/void`, and mandate passkey payment-execution routes reject requests. The saved-wallet and old rail implementations are retained outside the active payment path. Their presence is not a claim of real merchant-order support.
 
 [Historical design, explicitly not current behavior](docs/legacy-checkout-design.md). License: MIT.
+
+## What changed since 1 October 2026
+
+The following was built during the hackathon submission period (1 October – 12 November 2026):
+
+- **Per-purchase PayPal sandbox checkout** replaced the saved-wallet/Vault design: `AUTHORIZE`-intent Orders v2 flow, server-side verification of amount, currency, merchant reference, quantity breakdown, session binding and live spending limits; reconcile and void; capture disabled; legacy execution routes now reject requests (`docs/legacy-checkout-design.md` documents what was retired).
+- **Agent purchase reviews with quantities and bundles** (up to ten lines, integer-cent totals), itemized PayPal payloads, checkout batching and fail-closed currency handling.
+- **Grounded product comparison** and search fixes on top of Channel3 discovery.
+- **Authentication**: WorkOS email + password with verification codes, Google/GitHub sign-in, password reset, sign-up provisioning with a starter agent, one-click judge fast lane.
+- **Provider-agnostic AI layer** with admin-managed, encrypted provider keys (OpenAI-compatible and Anthropic protocols).
+- **Three-step onboarding**, workspace URL consolidation (`/workspace`), retirement of the separate account and mobile companion pages, accessibility and contrast fixes.
+- **Operations**: Render deployment with health surfaces, numbered migrations (`0001`–`0016`) with drift checks, encrypted Turso backup/restore, rollback drill, secret scans and key rotation, and a test suite that grew to 536 passing tests.
