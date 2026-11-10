@@ -72,7 +72,7 @@ test('WorkOS browser flow uses HttpOnly state cookie, validates callback, and is
       redirect: 'manual',
     });
     assert.equal(callback.status, 302);
-    assert.equal(callback.headers.get('location'), '/desktop-preview');
+    assert.equal(callback.headers.get('location'), '/workspace');
     assert.deepEqual(completed, {
       code: 'authorization-code',
       ipAddress: '127.0.0.1',
@@ -431,11 +431,11 @@ test('sign-in-only preview keeps the public landing available and does not expos
     assert.equal((await fetch(`${base}/__dev/workos-setup`)).status, 404);
     assert.equal((await fetch(`${base}/api/dev/workos-setup`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${base}/onboarding`)).status, 200);
-    assert.equal((await fetch(`${base}/desktop-preview`)).status, 200);
+    assert.equal((await fetch(`${base}/workspace`)).status, 200);
     for (const legacy of ['/desktop', '/app']) {
       const oldPreview = await fetch(`${base}${legacy}`, { redirect: 'manual' });
       assert.equal(oldPreview.status, 302, legacy);
-      assert.equal(oldPreview.headers.get('location'), '/desktop-preview');
+      assert.equal(oldPreview.headers.get('location'), '/workspace');
     }
   });
 });
@@ -485,7 +485,7 @@ test('demo-fastlane creates judge session and redirects to the desktop preview w
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.authenticated, true);
-    assert.equal(data.redirect, '/desktop-preview');
+    assert.equal(data.redirect, '/workspace');
     assert.equal(created?.email, 'judge@paypal.sandbox');
 
     const cookie = res.headers.get('set-cookie');

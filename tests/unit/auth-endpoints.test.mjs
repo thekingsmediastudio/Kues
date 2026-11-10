@@ -178,20 +178,20 @@ test('allowlisted admin sign-in lands on onboarding and may re-run it to add an 
     assert.equal(regular.body.redirect, '/onboarding', 'a brand-new account is taken through onboarding once');
     const returning = await signIn(plainBase, 'member@example.test');
     assert.equal(returning.body.isNewUser, false);
-    assert.equal(returning.body.redirect, '/desktop-preview', 'returning accounts land in the workspace even if onboarding was skipped');
+    assert.equal(returning.body.redirect, '/workspace', 'returning accounts land in the workspace even if onboarding was skipped');
     const admin = await signIn(plainBase, 'admin@example.test');
     assert.equal(admin.body.redirect, '/onboarding', 'new account; without an allowlist nobody is a reviewer');
-    assert.equal((await signIn(plainBase, 'admin@example.test')).body.redirect, '/desktop-preview');
+    assert.equal((await signIn(plainBase, 'admin@example.test')).body.redirect, '/workspace');
   } finally {
     await new Promise((resolve) => plain.close(resolve));
   }
   // Destination with the allowlist active, checked through the shared helper via the bootstrap flag and sign-in response.
   const { signInDestinationForTest } = await import('../../apps/web/server.mjs').then((m) => ({ signInDestinationForTest: m.signInDestinationForTest }));
   assert.equal(signInDestinationForTest(config, { email: 'Admin@Example.test' }), '/onboarding');
-  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }), '/desktop-preview');
+  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }), '/workspace');
   assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }, { isNewUser: true }), '/onboarding');
-  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }, { isNewUser: false, needsOnboarding: true }), '/desktop-preview', 'skipped onboarding is not re-forced');
-  assert.equal(signInDestinationForTest(config, null), '/desktop-preview');
+  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }, { isNewUser: false, needsOnboarding: true }), '/workspace', 'skipped onboarding is not re-forced');
+  assert.equal(signInDestinationForTest(config, null), '/workspace');
   const configured = serverFor(config);
   await new Promise((resolve) => configured.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${configured.address().port}`;

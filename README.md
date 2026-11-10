@@ -35,7 +35,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `/desktop-preview` on the configured server (default port 3100). Configure the existing database, authentication and AI-provider services for a functional authenticated shopping demo. The desktop uses WorkOS authentication and libSQL/Turso storage; product discovery configuration remains separate from payment configuration. The server applies numbered database migrations on startup; back up an existing database before deploying migrations, including `0016_purchase_quantities.sql` (adds quantity metadata while preserving older mandates).
+Open `/workspace` on the configured server (default port 3100). Configure the existing database, authentication and AI-provider services for a functional authenticated shopping demo. The desktop uses WorkOS authentication and libSQL/Turso storage; product discovery configuration remains separate from payment configuration. The server applies numbered database migrations on startup; back up an existing database before deploying migrations, including `0016_purchase_quantities.sql` (adds quantity metadata while preserving older mandates).
 
 For payments configure only server-side sandbox credentials:
 

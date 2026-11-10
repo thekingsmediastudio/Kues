@@ -21,7 +21,7 @@
   if(!response.ok){const errors={link_already_used:'This sign-in link has already been used.',invalid_or_expired_link:'This sign-in link is invalid or has expired.'};throw new Error(errors[data.error]||'We could not verify this link.')}
   const needsOnboarding=data.needsOnboarding===true||data.isNewUser===true;
   message.textContent=needsOnboarding?'Account ready. Opening your Keus workspace…':'Signed in. Opening your Keus workspace…';
-  const destination=typeof data.redirect==='string'&&data.redirect.startsWith('/')&&!data.redirect.startsWith('//')?data.redirect:'/desktop-preview';
+  const destination=typeof data.redirect==='string'&&data.redirect.startsWith('/')&&!data.redirect.startsWith('//')?data.redirect:'/workspace';
   setTimeout(()=>location.assign(destination),500);
  }catch(error){message.textContent=error.message||'We could not verify this link.';message.classList.add('error')}
 })();

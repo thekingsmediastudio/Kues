@@ -100,7 +100,7 @@ const LEGACY_BRAND_REDIRECTS = new Map([
   ['/cueclaw-icon.png', '/keus-logo.svg'],
   ['/cueclaw-logo.png', '/keus-icon.svg'],
 ]);
-const PROTECTED_AUTH_PATHS = new Set(['/app', '/dashboard', '/desktop-preview', '/desktop', '/desktop.html', '/onboarding']);
+const PROTECTED_AUTH_PATHS = new Set(['/workspace', '/app', '/dashboard', '/desktop-preview', '/desktop', '/desktop.html', '/onboarding']);
 
 class RequestError extends Error {
   constructor(code, status) {
@@ -816,11 +816,11 @@ function readHtml(filePath) {
 }
 
 /** Returning accounts land in the workspace. */
-const POST_SIGN_IN_PATH = '/desktop-preview';
+const POST_SIGN_IN_PATH = '/workspace';
 /** Brand-new accounts (first session ever) and allowlisted reviewer accounts land on onboarding. */
 const ONBOARDING_SIGN_IN_PATH = '/onboarding';
 /** Legacy page aliases that now resolve to the workspace. */
-const WORKSPACE_ALIAS_PATHS = new Set(['/app', '/dashboard', '/desktop', '/desktop.html']);
+const WORKSPACE_ALIAS_PATHS = new Set(['/desktop-preview', '/app', '/dashboard', '/desktop', '/desktop.html']);
 
 function normalizedEmail(value) {
   return String(value || '').trim().normalize('NFKC').toLowerCase();
@@ -3471,7 +3471,7 @@ export function createServer({
           ok: true,
           service: 'keus-web',
           version: '2.4.0',
-          surfaces: ['marketing:/', 'dashboard:/app', 'desktop-preview:/desktop-preview', 'onboarding:/onboarding'],
+          surfaces: ['marketing:/', 'workspace:/workspace', 'onboarding:/onboarding'],
         };
         if (req.method === 'HEAD') {
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -3589,7 +3589,7 @@ export function createServer({
         return;
       }
 
-      if (signInOnlyPreview && !['/', '/login', '/app', '/dashboard', '/desktop-preview', '/desktop', '/desktop.html', '/onboarding', '/keus-icon.svg', '/keus-logo.svg'].includes(url.pathname)) {
+      if (signInOnlyPreview && !['/', '/login', '/workspace', '/app', '/dashboard', '/desktop-preview', '/desktop', '/desktop.html', '/onboarding', '/keus-icon.svg', '/keus-logo.svg'].includes(url.pathname)) {
         res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end('Not found in sign-in preview');
         return;
@@ -3724,7 +3724,8 @@ export function createServer({
       }
 
       if (WORKSPACE_ALIAS_PATHS.has(url.pathname)) {
-        redirect(res, POST_SIGN_IN_PATH);
+        // Keep the query string: PayPal checkout returns issued before the rename still carry ?checkout=.
+        redirect(res, POST_SIGN_IN_PATH + (url.search || ''));
         return;
       }
 
@@ -3742,7 +3743,7 @@ export function createServer({
       }
 
       const pageRoutes = new Map([
-        ['/', landingHtmlPath], ['/desktop-preview', desktopPreviewHtmlPath],
+        ['/', landingHtmlPath], ['/workspace', desktopPreviewHtmlPath],
         ['/onboarding', onboardingHtmlPath], ['/onboarding.html', onboardingHtmlPath], ['/login', loginHtmlPath],
         ['/auth/verify', authVerifyHtmlPath],
       ]);
@@ -3764,8 +3765,8 @@ export function createServer({
           }
           if (signedIn) {
             html = html
-              .replace('id="headerAccountLink" href="/login">Sign in', 'id="headerAccountLink" href="/desktop-preview">Open workspace')
-              .replace('id="footerAccountLink" href="/login">Sign in', 'id="footerAccountLink" href="/desktop-preview">Open workspace');
+              .replace('id="headerAccountLink" href="/login">Sign in', 'id="headerAccountLink" href="/workspace">Open workspace')
+              .replace('id="footerAccountLink" href="/login">Sign in', 'id="footerAccountLink" href="/workspace">Open workspace');
           }
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
