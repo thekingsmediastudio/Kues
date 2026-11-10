@@ -25,7 +25,7 @@ Architecture, purchase sequence, checkout state machine and trust model, as Merm
 
 **Sandbox only. Capture is disabled server-side. No real product seller order, shipment, card issuance or merchant fulfillment occurs.** The payment recipient is the app's sandbox business account, not the catalog merchant. Shipping information is not requested by checkout.
 
-The shared demo identity cannot execute checkout: use your own Keus account and a PayPal sandbox buyer. Missing credentials and provider failures never fall back to simulated success in this flow.
+Demo identities (the 1-click workspaces) cannot execute checkout: use the access-code judge workspace or your own Keus account with a PayPal sandbox buyer. Missing credentials and provider failures never fall back to simulated success in this flow.
 
 ## Purchase quantities
 

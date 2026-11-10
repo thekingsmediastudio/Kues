@@ -140,6 +140,13 @@ export function loadServerConfig(env = process.env) {
   if (!Number.isSafeInteger(judgeFastlaneMaxAccounts) || judgeFastlaneMaxAccounts < 1 || judgeFastlaneMaxAccounts > 10000) {
     issues.push('JUDGE_FASTLANE_MAX_ACCOUNTS must be an integer between 1 and 10000');
   }
+  // Public 1-click demo workspaces: each click gets a private throwaway identity. When the daily
+  // ceiling is reached the endpoint degrades to the single shared demo identity instead of refusing.
+  const demoCapRaw = String(env.DEMO_FASTLANE_DAILY_CAP || '').trim();
+  const demoFastlaneDailyCap = demoCapRaw ? Number(demoCapRaw) : 300;
+  if (!Number.isSafeInteger(demoFastlaneDailyCap) || demoFastlaneDailyCap < 0 || demoFastlaneDailyCap > 100000) {
+    issues.push('DEMO_FASTLANE_DAILY_CAP must be an integer between 0 and 100000');
+  }
   const judgeUntilRaw = String(env.JUDGE_FASTLANE_UNTIL || '').trim();
   const judgeFastlaneUntil = judgeUntilRaw ? Date.parse(judgeUntilRaw) : null;
   if (judgeUntilRaw && (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(judgeUntilRaw) || !Number.isFinite(judgeFastlaneUntil))) {
@@ -288,6 +295,7 @@ export function loadServerConfig(env = process.env) {
     judgeAccessCode,
     judgeFastlaneMaxAccounts,
     judgeFastlaneUntil,
+    demoFastlaneDailyCap,
     webResearchEnabled,
     webResearchTavilyKeyless,
     groqTranscriptionEnabled,

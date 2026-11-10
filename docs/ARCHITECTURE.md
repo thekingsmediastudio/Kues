@@ -168,7 +168,7 @@ Guarantees enforced in code and covered by tests (`npm test`, 539 passing):
 | Mandate challenge hash binds workspace, run, amount, currency, merchant and the `sha256:` evidence hash of the reviewed offer | `lib/channel3/mandate-service.mjs`, `packages/shared/src/mandate.mjs` |
 | Capture disabled; legacy authorize/capture/refund routes reject | `lib/paypal/endpoints.mjs` |
 | Fail closed: missing credentials or provider errors never become simulated success | checkout suite in `tests/unit` |
-| Shared judge identity cannot check out (`403 checkout_personal_account_required`) | `lib/auth`, `lib/paypal/standard-checkout.mjs` |
+| Demo identities (1-click, private per visit, plus the legacy shared one) cannot check out (`403 checkout_personal_account_required`) | `lib/auth`, `lib/paypal/standard-checkout.mjs` |
 
 ## 5. Repository map
 

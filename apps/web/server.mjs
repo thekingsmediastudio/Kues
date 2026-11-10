@@ -846,22 +846,55 @@ function safeEqual(a, b) {
   const x = Buffer.from(String(a)), y = Buffer.from(String(b));
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
-/** Small in-memory per-IP limiter for the code check: 10 attempts per 10 minutes. */
-const judgeFastlaneRateLimiter = (() => {
+/**
+ * Client address for rate limiting. Behind the hosting proxy every socket shares the proxy's address,
+ * so the proxy-appended last hop of X-Forwarded-For identifies the visitor; the raw socket is the
+ * fallback for direct connections (tests, local runs).
+ */
+function clientAddress(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',').map((v) => v.trim()).filter(Boolean);
+  if (forwarded.length) return forwarded[forwarded.length - 1].slice(0, 64);
+  return String(req.socket.remoteAddress || 'unknown');
+}
+/** Small in-memory per-address limiter: `limit` hits per 10 minutes. */
+function createWindowLimiter(limit) {
   const hits = new Map();
   return {
     allow(key, now = Date.now()) {
       const windowMs = 10 * 60 * 1000;
       const recent = (hits.get(key) || []).filter((t) => now - t < windowMs);
-      if (recent.length >= 10) { hits.set(key, recent); return false; }
+      if (recent.length >= limit) { hits.set(key, recent); return false; }
       recent.push(now); hits.set(key, recent);
       if (hits.size > 5000) hits.clear();
       return true;
     },
     reset() { hits.clear(); },
   };
-})();
-export const judgeFastlaneForTest = { active: judgeFastlaneActive, limiter: judgeFastlaneRateLimiter };
+}
+/** Code check: 10 attempts per 10 minutes per visitor. */
+const judgeFastlaneRateLimiter = createWindowLimiter(10);
+/** Public 1-click demo: 6 new private workspaces per 10 minutes per visitor. */
+const demoFastlaneRateLimiter = createWindowLimiter(6);
+export const judgeFastlaneForTest = { active: judgeFastlaneActive, limiter: judgeFastlaneRateLimiter, demoLimiter: demoFastlaneRateLimiter, clientAddress };
+
+/**
+ * Demo identities never reach PayPal. The legacy shared identity keeps the bare prefix; every
+ * private 1-click workspace uses `${prefix}_<10 hex>`. Both match the guard below.
+ */
+const DEMO_SUBJECT_PREFIX = 'sub_paypal_hackathon_judge';
+const DEMO_IDENTITY_GUARD_SQL = 'SELECT id FROM auth_identities WHERE user_id=? AND (provider_subject=? OR provider_subject LIKE ?) LIMIT 1';
+const demoIdentityGuardArgs = (userId) => [userId, DEMO_SUBJECT_PREFIX, `${DEMO_SUBJECT_PREFIX}_%`];
+const DEMO_STARTER_AGENT = Object.freeze({
+  name: 'Procure Scout',
+  role: 'Autonomous buyer',
+  avatar: 'cart',
+  color: '#4c8dff',
+  approvalPath: 'desktop',
+  orderCap: 150,
+  dailyCap: 500,
+  apps: ['channel3', 'paypal'],
+  memoryPills: ['Stay under order limit cap'],
+});
 
 function signInDestination(config, user, session = null) {
   if (isOnboardingReviewer(config, user)) return ONBOARDING_SIGN_IN_PATH;
@@ -899,38 +932,56 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       sendJson(res, 503, { error: 'auth_service_unavailable' });
       return true;
     }
+    if (!demoFastlaneRateLimiter.allow(clientAddress(req))) {
+      sendJson(res, 429, { error: 'demo_fastlane_rate_limited', message: 'Too many demo workspaces from this network. Wait a few minutes and try again.' });
+      return true;
+    }
 
-    const sessionResult = await authService.createWorkOSSession({
-      providerSubject: 'sub_paypal_hackathon_judge',
-      email: 'judge@paypal.sandbox',
-      emailVerified: true,
-      displayName: 'PayPal Hackathon Judge',
-    });
+    // Private demo workspace per click: visitors never see each other's conversations and cannot
+    // alter what a later visitor finds. If the daily ceiling is reached, fall back to the single
+    // shared demo identity rather than turning judges away. Neither identity can reach PayPal.
+    let privateDemo = Boolean(workspaceService && db && config.demoFastlaneDailyCap > 0);
+    if (privateDemo) {
+      const recent = await db.execute({
+        sql: "SELECT COUNT(*) AS n FROM auth_identities WHERE provider_subject LIKE ? AND created_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')",
+        args: [`${DEMO_SUBJECT_PREFIX}_%`],
+      });
+      if (Number(recent.rows[0]?.n || 0) >= config.demoFastlaneDailyCap) privateDemo = false;
+    }
 
-    if (workspaceService && db) {
-      // Shared judge workspace: provision its agent through the same onboarding path real accounts
-      // use, so the onboarding row matches the live schema (status/profile_json/completed_at).
-      const bootstrap = await workspaceService.getBootstrap({ userId: sessionResult.user.id });
-      if (!bootstrap.agents || bootstrap.agents.length === 0) {
-        await workspaceService.completeOnboarding({
-          userId: sessionResult.user.id,
-          input: {
-            name: 'Procure Scout',
-            role: 'Autonomous buyer',
-            avatar: 'cart',
-            color: '#4c8dff',
-            approvalPath: 'desktop',
-            orderCap: 150,
-            dailyCap: 500,
-            apps: ['channel3', 'paypal'],
-            memoryPills: ['Stay under order limit cap'],
-          },
-        });
+    let sessionResult;
+    let demoWorkspaceId = null;
+    if (privateDemo) {
+      demoWorkspaceId = crypto.randomBytes(5).toString('hex');
+      sessionResult = await authService.createWorkOSSession({
+        providerSubject: `${DEMO_SUBJECT_PREFIX}_${demoWorkspaceId}`,
+        email: `demo-${demoWorkspaceId}@judges.keus.sandbox`,
+        emailVerified: true,
+        displayName: 'PayPal Hackathon Judge',
+      });
+      // Same provisioning as a finished onboarding, so the workspace is ready on first paint.
+      await workspaceService.completeOnboarding({ userId: sessionResult.user.id, input: { ...DEMO_STARTER_AGENT, apps: [...DEMO_STARTER_AGENT.apps], memoryPills: [...DEMO_STARTER_AGENT.memoryPills] } });
+    } else {
+      sessionResult = await authService.createWorkOSSession({
+        providerSubject: DEMO_SUBJECT_PREFIX,
+        email: 'judge@paypal.sandbox',
+        emailVerified: true,
+        displayName: 'PayPal Hackathon Judge',
+      });
+      if (workspaceService && db) {
+        // Shared judge workspace: provision its agent through the same onboarding path real accounts
+        // use, so the onboarding row matches the live schema (status/profile_json/completed_at).
+        const bootstrap = await workspaceService.getBootstrap({ userId: sessionResult.user.id });
+        if (!bootstrap.agents || bootstrap.agents.length === 0) {
+          await workspaceService.completeOnboarding({ userId: sessionResult.user.id, input: { ...DEMO_STARTER_AGENT, apps: [...DEMO_STARTER_AGENT.apps], memoryPills: [...DEMO_STARTER_AGENT.memoryPills] } });
+        }
       }
     }
 
     sendJson(res, 200, {
       authenticated: true,
+      privateDemo,
+      demoWorkspaceId,
       redirect: signInDestination(config, sessionResult.user),
       user: sessionResult.user,
     }, {
@@ -954,7 +1005,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       sendJson(res, 503, { error: 'auth_service_unavailable' });
       return true;
     }
-    const ip = String(req.socket.remoteAddress || 'unknown');
+    const ip = clientAddress(req);
     if (!judgeFastlaneRateLimiter.allow(ip)) {
       sendJson(res, 429, { error: 'judge_fastlane_rate_limited', message: 'Too many attempts. Wait a few minutes and try again.' });
       return true;
@@ -2876,7 +2927,7 @@ async function handleCommerceRequest(req, res, url, {
     res.setHeader('Cache-Control','no-store');
     try {
       if (bootstrap.workspace.status !== 'active') throw new CheckoutError('workspace_inactive',403);
-      const demo=await db.execute({sql:'SELECT id FROM auth_identities WHERE user_id=? AND provider_subject=? LIMIT 1',args:[user.id,'sub_paypal_hackathon_judge']});
+      const demo=await db.execute({sql:DEMO_IDENTITY_GUARD_SQL,args:demoIdentityGuardArgs(user.id)});
       if(demo.rows.length)throw new CheckoutError('checkout_personal_account_required',403);
       const service=createStandardCheckoutService({db});const context={workspaceId,userId:user.id,sessionToken};
       if(req.method==='GET'&&url.pathname==='/api/commerce/paypal/checkout'){sendJson(res,200,{ok:true,checkouts:await service.list(context)});return true;}
@@ -3237,7 +3288,7 @@ async function handleCommerceRequest(req, res, url, {
   }
 
   if (url.pathname === '/api/commerce/paypal/wallet' || url.pathname.startsWith('/api/commerce/paypal/wallet/')) {
-    const demoIdentity = await db.execute({sql: 'SELECT id FROM auth_identities WHERE user_id=? AND provider_subject=? LIMIT 1', args:[user.id,'sub_paypal_hackathon_judge']});
+    const demoIdentity = await db.execute({sql: DEMO_IDENTITY_GUARD_SQL, args: demoIdentityGuardArgs(user.id)});
     if (demoIdentity.rows.length) { sendJson(res,403,{error:'wallet_personal_account_required'}); return true; }
     const walletService = createWalletLinkService({ db });
     const context = { workspaceId, userId: user.id, sessionToken };

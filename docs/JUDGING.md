@@ -6,7 +6,7 @@ Everything below runs against the **PayPal sandbox only**. Capture is disabled s
 
 | Method | Where | Gives you |
 |---|---|---|
-| **Launch Judge Workspace (1-Click)** | https://keus-staging.onrender.com/login | Shared demo workspace: chat, search, purchase reviews. PayPal checkout is disabled for this shared identity. |
+| **Launch Judge Workspace (1-Click)** | https://keus-staging.onrender.com/login | A private demo workspace just for you (fresh on every click): chat, search, purchase reviews. PayPal checkout is disabled for demo identities. |
 | **Personal judge workspace (access code)** | same page, under the 1-click button | Your own private workspace, **PayPal sandbox checkout enabled**, no email or sign-up. Paste the judge access code from the Devpost testing instructions. **To come back later**, enter the same code plus your workspace ID (shown on first landing and in Settings → Account). |
 | **Create account** (email + verification code) | same page | Your own workspace with the full PayPal sandbox flow. |
 | **Sign in with Google / GitHub** | same page | Same as above, via WorkOS OAuth. |
@@ -93,6 +93,6 @@ Migrations run automatically on startup (`0001` – `0016`). Never commit `.env.
 
 - Sandbox only; the payee is the app's own sandbox business account, not the catalog merchant. No shipment, no card issuance, no merchant fulfilment.
 - Capture is disabled; refunds are therefore out of scope.
-- The shared 1-click identity cannot check out (by design); use the access-code workspace or your own account for payments.
+- 1-click demo identities cannot check out (by design); use the access-code workspace or your own account for payments. Each click creates a private throwaway workspace; nothing you type is visible to other visitors.
 - Personal judge workspaces are capped in number and switched off after judging ends.
 - Hardware/mobile-specific surfaces were removed before submission; the product is the desktop web workspace.

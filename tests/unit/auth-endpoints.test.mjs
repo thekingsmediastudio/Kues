@@ -228,34 +228,91 @@ test('allowlisted admin sign-in lands on onboarding and may re-run it to add an 
   }
 });
 
-test('demo fast lane works against the real schema and provisions the judge workspace once', async () => {
+test('demo fast lane: private workspace per click, no PayPal, rate limited per visitor, shared fallback at the daily cap', async () => {
   const { createWorkspaceService } = await import('../../apps/web/lib/workspaces/service.mjs');
-  const db = await createDb();
-  const authService = createAuthService({ db, emailDelivery: { async sendMagicLink() {} } });
-  const workspaceService = createWorkspaceService({ db });
-  const server = createServer({ config: loadServerConfig({}), authService, workspaceService, db });
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
-  const base = `http://127.0.0.1:${server.address().port}`;
+  const { judgeFastlaneForTest } = await import('../../apps/web/server.mjs');
+  async function boot(env = {}) {
+    const db = await createDb();
+    const authService = createAuthService({ db, emailDelivery: { async sendMagicLink() {} } });
+    const workspaceService = createWorkspaceService({ db });
+    const server = createServer({ config: loadServerConfig(env), authService, workspaceService, db });
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+    return { db, server, base: `http://127.0.0.1:${server.address().port}`, workspaceService };
+  }
+  const click = (base, headers = {}) => fetch(`${base}/api/auth/demo-fastlane`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: base, ...headers },
+  });
+
+  judgeFastlaneForTest.demoLimiter.reset();
+  let { db, server, base, workspaceService } = await boot();
   try {
+    const bodies = [];
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const res = await fetch(`${base}/api/auth/demo-fastlane`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Origin: base },
-      });
+      const res = await click(base, { 'X-Forwarded-For': '203.0.113.10' });
       assert.equal(res.status, 200, `attempt ${attempt}`);
       const body = await res.json();
       assert.equal(body.authenticated, true);
       assert.equal(body.redirect, '/workspace');
+      assert.equal(body.privateDemo, true);
+      assert.match(body.demoWorkspaceId, /^[0-9a-f]{10}$/);
+      assert.match(body.user.email, /^demo-[0-9a-f]{10}@judges\.keus\.sandbox$/);
+      assert.equal(body.user.displayName ?? body.user.display_name ?? body.user.name, 'PayPal Hackathon Judge');
+      body.cookie = res.headers.get('set-cookie').match(/kues_session=([^;]+)/)[1];
+      bodies.push(body);
+    }
+    // Two clicks, two isolated users, each with its own provisioned starter agent.
+    assert.notEqual(bodies[0].user.id, bodies[1].user.id);
+    const users = await db.execute("SELECT id FROM users WHERE email_normalized LIKE 'demo-%@judges.keus.sandbox'");
+    assert.equal(users.rows.length, 2);
+    for (const body of bodies) {
+      const bootstrap = await workspaceService.getBootstrap({ userId: body.user.id });
+      assert.equal(bootstrap.agents.length, 1);
+      assert.equal(bootstrap.agents[0].name, 'Procure Scout');
+      const onboarding = await db.execute({ sql: 'SELECT status FROM workspace_onboarding WHERE workspace_id = ?', args: [bootstrap.workspace.id] });
+      assert.equal(onboarding.rows[0]?.status, 'completed');
+    }
+    // No shared identity was created on the private path.
+    const shared = await db.execute("SELECT id FROM users WHERE email_normalized = 'judge@paypal.sandbox'");
+    assert.equal(shared.rows.length, 0);
+    // Private demo identities are blocked from PayPal checkout and wallet, like the shared one.
+    const checkout = await fetch(`${base}/api/commerce/paypal/checkout`, { headers: { Cookie: `kues_session=${bodies[0].cookie}` } });
+    assert.equal(checkout.status, 403);
+    assert.equal((await checkout.json()).error, 'checkout_personal_account_required');
+    const wallet = await fetch(`${base}/api/commerce/paypal/wallet`, { headers: { Cookie: `kues_session=${bodies[0].cookie}` } });
+    assert.equal(wallet.status, 403);
+    assert.equal((await wallet.json()).error, 'wallet_personal_account_required');
+    // Per-visitor limit keyed on the proxy-supplied client address: 6 per window, other visitors unaffected.
+    for (let i = 0; i < 4; i += 1) assert.equal((await click(base, { 'X-Forwarded-For': '203.0.113.10' })).status, 200);
+    const limited = await click(base, { 'X-Forwarded-For': '203.0.113.10' });
+    assert.equal(limited.status, 429);
+    assert.equal((await limited.json()).error, 'demo_fastlane_rate_limited');
+    assert.equal((await click(base, { 'X-Forwarded-For': '198.51.100.7, 203.0.113.99' })).status, 200);
+    assert.equal(judgeFastlaneForTest.clientAddress({ headers: { 'x-forwarded-for': '198.51.100.7, 203.0.113.99' }, socket: { remoteAddress: '10.0.0.1' } }), '203.0.113.99');
+    assert.equal(judgeFastlaneForTest.clientAddress({ headers: {}, socket: { remoteAddress: '10.0.0.1' } }), '10.0.0.1');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  // Daily cap reached: degrade to the single shared demo identity, provisioned once, still no PayPal.
+  judgeFastlaneForTest.demoLimiter.reset();
+  ({ db, server, base, workspaceService } = await boot({ DEMO_FASTLANE_DAILY_CAP: '1' }));
+  try {
+    const first = await (await click(base)).json();
+    assert.equal(first.privateDemo, true);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await click(base);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.privateDemo, false);
+      assert.equal(body.demoWorkspaceId, null);
       assert.equal(body.user.email, 'judge@paypal.sandbox');
     }
     const users = await db.execute("SELECT id FROM users WHERE email_normalized = 'judge@paypal.sandbox'");
     assert.equal(users.rows.length, 1);
-    const workspaceService2 = createWorkspaceService({ db });
-    const bootstrap = await workspaceService2.getBootstrap({ userId: users.rows[0].id });
+    const bootstrap = await workspaceService.getBootstrap({ userId: users.rows[0].id });
     assert.equal(bootstrap.agents.length, 1);
     assert.equal(bootstrap.agents[0].name, 'Procure Scout');
-    const onboarding = await db.execute({ sql: 'SELECT status FROM workspace_onboarding WHERE workspace_id = ?', args: [bootstrap.workspace.id] });
-    assert.equal(onboarding.rows[0]?.status, 'completed');
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

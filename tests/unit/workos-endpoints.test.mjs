@@ -488,6 +488,7 @@ test('demo-fastlane creates judge session and redirects to the desktop preview w
     const data = await res.json();
     assert.equal(data.authenticated, true);
     assert.equal(data.redirect, '/workspace');
+    // No workspace service or db in this harness, so the endpoint falls back to the shared demo identity.
     assert.equal(created?.email, 'judge@paypal.sandbox');
 
     const cookie = res.headers.get('set-cookie');
