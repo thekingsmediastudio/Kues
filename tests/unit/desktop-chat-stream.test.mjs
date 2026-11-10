@@ -1316,7 +1316,8 @@ test('assistant payment claims cannot create payment controls or a verified reco
   ]) {
     const row = render(claim);
     const body = row.children[1];
-    assert.equal(body.children[0].children[1].textContent, 'Assistant message · not a verified checkout record');
+    assert.equal(body.children[0].children.length, 1, 'ordinary replies carry no provenance badge');
+    assert.equal(body.children[0].children[0].textContent, 'Agent');
     assert.equal(body.children[1].children[0].textContent, claim);
     const descendants = node => [node, ...node.children.flatMap(descendants)];
     assert.equal(descendants(row).filter(node => node.tagName === 'button').length, 0);

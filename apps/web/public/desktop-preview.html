@@ -6295,10 +6295,15 @@
     const sender = document.createElement('span');
     sender.className = 'msg-sender';
     sender.textContent = String(agent?.name || 'Keus assistant');
-    const provenance = document.createElement('span');
-    provenance.className = 'msg-badge';
-    provenance.textContent = verifiedCheckout ? 'Verified checkout record' : 'Assistant message · not a verified checkout record';
-    senderLine.append(sender, provenance);
+    senderLine.append(sender);
+    if (verifiedCheckout) {
+      // Only server-written checkout facts carry a badge; ordinary replies carry none,
+      // so forged "payment" text in a reply can never look like a verified record.
+      const provenance = document.createElement('span');
+      provenance.className = 'msg-badge';
+      provenance.textContent = 'Verified checkout record';
+      senderLine.append(provenance);
+    }
     const text = document.createElement('div');
     text.className = 'msg-text';
     if (pending) {

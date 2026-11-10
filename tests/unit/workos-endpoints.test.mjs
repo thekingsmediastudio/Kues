@@ -72,7 +72,7 @@ test('WorkOS browser flow uses HttpOnly state cookie, validates callback, and is
       redirect: 'manual',
     });
     assert.equal(callback.status, 302);
-    assert.equal(callback.headers.get('location'), '/app');
+    assert.equal(callback.headers.get('location'), '/desktop-preview');
     assert.deepEqual(completed, {
       code: 'authorization-code',
       ipAddress: '127.0.0.1',
@@ -110,7 +110,7 @@ test('first-time WorkOS OAuth accounts are sent to onboarding after the callback
       headers: { Cookie: `kues_workos_state=${state}` }, redirect: 'manual',
     });
     assert.equal(callback.status, 302);
-    assert.equal(callback.headers.get('location'), '/onboarding');
+    assert.equal(callback.headers.get('location'), '/desktop-preview');
   });
 });
 
@@ -237,7 +237,7 @@ test('WorkOS password signup stores a short-lived HttpOnly challenge and verific
     });
     assert.equal(verifyResponse.status, 200);
     assert.deepEqual(await verifyResponse.json(), {
-      authenticated: true, isNewUser: true, needsOnboarding: true, user: { id: 'local-1' },
+      authenticated: true, isNewUser: true, needsOnboarding: true, redirect: '/desktop-preview', user: { id: 'local-1' },
     });
     assert.equal(verified.code, '123456');
     assert.deepEqual(verified.challenge, {
@@ -451,7 +451,7 @@ test('auth config endpoint reports WorkOS activation without returning secrets',
   });
 });
 
-test('demo-fastlane creates judge session and redirects to /app with established workspace', async () => {
+test('demo-fastlane creates judge session and redirects to the desktop preview with established workspace', async () => {
   let created = null;
   const authService = {
     async createWorkOSSession(payload) {
@@ -484,7 +484,7 @@ test('demo-fastlane creates judge session and redirects to /app with established
     assert.equal(res.status, 200);
     const data = await res.json();
     assert.equal(data.authenticated, true);
-    assert.equal(data.redirect, '/app');
+    assert.equal(data.redirect, '/desktop-preview');
     assert.equal(created?.email, 'judge@paypal.sandbox');
 
     const cookie = res.headers.get('set-cookie');

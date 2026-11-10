@@ -592,3 +592,42 @@ test('repeated onboarding also synchronizes an existing policy without provision
   assert.equal(result.allowed,true);assert.equal(result.dailyBudgetMinor,15000);
   assert.equal((await f.db.execute('SELECT COUNT(*) AS n FROM spend_policies')).rows[0].n,1);
 });
+
+test('sign-in without onboarding gets one starter agent that onboarding later customizes in place', async () => {
+  const db = await createDb();
+  try {
+    const auth = createAuthService({ db, competition });
+    const workspaces = createWorkspaceService({ db, competition });
+    const login = await auth.createWorkOSSession({
+      providerSubject: 'workos_starter_1', email: 'starter@example.test', emailVerified: true,
+      displayName: 'Starter', now: '2026-11-10T09:00:00.000Z',
+    });
+    assert.deepEqual((await workspaces.getBootstrap({ userId: login.user.id })).agents, []);
+    const first = await workspaces.ensureDefaultAgent({ userId: login.user.id, now: '2026-11-10T09:00:01.000Z' });
+    assert.equal(first.created, true);
+    const second = await workspaces.ensureDefaultAgent({ userId: login.user.id, now: '2026-11-10T09:00:02.000Z' });
+    assert.deepEqual(second, { created: false, agentId: null });
+    const bootstrap = await workspaces.getBootstrap({ userId: login.user.id });
+    assert.equal(bootstrap.agents.length, 1);
+    assert.equal(bootstrap.agents[0].id, first.agentId);
+    assert.equal(bootstrap.agents[0].name, 'Scout');
+    assert.equal(bootstrap.agents[0].status, 'active');
+    assert.equal(bootstrap.agents[0].settings.orderCap, 85);
+    assert.equal(bootstrap.agents[0].settings.dailyCap, 250);
+    assert.equal(bootstrap.onboarding.status, 'not_started');
+    assert.equal(bootstrap.onboarding.agent?.id, first.agentId, 'the starter agent occupies the onboarding agent slot');
+    const completed = await workspaces.completeOnboarding({ userId: login.user.id, input: onboardingInput, now: '2026-11-10T09:05:00.000Z' });
+    assert.equal(completed.agents.length, 1, 'finishing onboarding customizes the starter agent instead of adding a second one');
+    assert.equal(completed.agents[0].id, first.agentId);
+    assert.equal(completed.agents[0].name, onboardingInput.name);
+    assert.equal(completed.onboarding.status, 'completed');
+    const other = await auth.createWorkOSSession({
+      providerSubject: 'workos_starter_2', email: 'starter2@example.test', emailVerified: true, now: '2026-11-10T09:10:00.000Z',
+    });
+    await workspaces.createAgent({ userId: other.user.id, input: { ...onboardingInput, name: 'Custom' } });
+    assert.deepEqual(await workspaces.ensureDefaultAgent({ userId: other.user.id }), { created: false, agentId: null }, 'workspaces that already have an agent are left alone');
+    assert.equal((await workspaces.getBootstrap({ userId: other.user.id })).agents.length, 1);
+  } finally {
+    await db.close();
+  }
+});

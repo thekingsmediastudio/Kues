@@ -389,10 +389,10 @@ function showCodePanel(email,message){
   resendButton.textContent='Resend code';
   codeInput.focus();
 }
-function destinationFor(data){return data.needsOnboarding===true||data.isNewUser===true?'/onboarding':'/app'}
+function destinationFor(data){return typeof data.redirect==='string'&&data.redirect.startsWith('/')&&!data.redirect.startsWith('//')?data.redirect:'/desktop-preview'}
 function finishSignIn(data,statusTarget=codeStatus){
   const needsOnboarding=data.needsOnboarding===true||data.isNewUser===true;
-  setStatus(statusTarget,needsOnboarding?'Account ready. Taking you to setup…':'Signed in. Opening your Keus workspace…','success');
+  setStatus(statusTarget,needsOnboarding?'Account ready. Opening your Keus workspace…':'Signed in. Opening your Keus workspace…','success');
   activePassword='';
   passwordInput.value='';
   setTimeout(()=>location.assign(destinationFor(data)),450);

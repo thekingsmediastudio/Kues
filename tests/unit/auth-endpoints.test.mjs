@@ -116,3 +116,30 @@ test('auth endpoints report disabled storage and reject invalid or cross-origin 
     await db.close();
   }
 });
+
+test('first sign-in over HTTP provisions a starter agent and points the browser at the desktop preview', async () => {
+  const { createWorkspaceService } = await import('../../apps/web/lib/workspaces/service.mjs');
+  const db = await createDb();
+  const delivered = [];
+  const authService = createAuthService({ db, emailDelivery: { async sendMagicLink(message) { delivered.push(message); } } });
+  const workspaceService = createWorkspaceService({ db });
+  const server = createServer({ config: loadServerConfig({}), db, authService, workspaceService });
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    await fetch(`${base}/api/auth/email/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'fresh@example.test' }) });
+    const consume = await fetch(`${base}/api/auth/email/consume`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: delivered[0].token }) });
+    assert.equal(consume.status, 200);
+    const body = await consume.json();
+    assert.equal(body.redirect, '/desktop-preview');
+    assert.equal(body.needsOnboarding, true, 'onboarding stays available; it is no longer a gate');
+    const cookie = consume.headers.get('set-cookie').split(';', 1)[0];
+    const bootstrap = await (await fetch(`${base}/api/workspace/bootstrap`, { headers: { Cookie: cookie } })).json();
+    assert.equal(bootstrap.agents.length, 1);
+    assert.equal(bootstrap.agents[0].name, 'Scout');
+    assert.equal(bootstrap.agents[0].status, 'active');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await db.close();
+  }
+});

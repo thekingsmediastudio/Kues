@@ -427,6 +427,51 @@ async function syncAgentPolicyCaps(tx, { workspaceId, agentId, payload, now }) {
   });
 }
 
+/** Starter agent for accounts that sign in without finishing onboarding. Same shape and id as the
+ * onboarding agent, so completing onboarding later customizes it in place instead of adding a second one. */
+export const DEFAULT_AGENT_INPUT = Object.freeze({
+  name: 'Scout',
+  role: 'Web & commerce scout',
+  color: '#32d583',
+  avatar: 'bulb',
+  approvalPath: 'desktop',
+  orderCap: 85,
+  dailyCap: 250,
+  apps: [],
+  memoryPills: [],
+});
+
+export async function ensureDefaultAgentInTransaction(tx, { workspaceId, now = new Date().toISOString() }) {
+  const existing = await tx.execute({
+    sql: 'SELECT id FROM agents WHERE workspace_id = ? LIMIT 1',
+    args: [workspaceId],
+  });
+  if (existing.rows.length) return { created: false, agentId: null };
+  const checkedAt = isoNow(now);
+  const payload = normalizeOnboardingInput(DEFAULT_AGENT_INPUT);
+  const agentId = onboardingAgentId(workspaceId);
+  const settings = {
+    ...defaultAgentExtensions(),
+    ...normalizeAgentExtensions(payload),
+    color: payload.color,
+    approvalPath: payload.approvalPath,
+    orderCap: payload.orderCap,
+    dailyCap: payload.dailyCap,
+    currency: 'USD',
+    apps: payload.apps,
+    memoryPills: payload.memoryPills,
+    previewOnly: true,
+    onboardingVersion: 1,
+  };
+  const inserted = await tx.execute({
+    sql: `INSERT INTO agents(id, workspace_id, name, role, avatar, status, settings_json, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)
+          ON CONFLICT(id) DO NOTHING`,
+    args: [agentId, workspaceId, payload.name, payload.role, payload.avatar, JSON.stringify(settings), checkedAt, checkedAt],
+  });
+  return { created: inserted.rowsAffected === 1, agentId: inserted.rowsAffected === 1 ? agentId : null };
+}
+
 export function createWorkspaceService({ db, competition = null } = {}) {
   if (!db) throw new TypeError('db_required');
 
@@ -517,6 +562,15 @@ export function createWorkspaceService({ db, competition = null } = {}) {
         args: [workspace.id, JSON.stringify(profile), completedAt, checkedAt, checkedAt],
       });
       return workspaceBootstrapInTransaction(tx, { userId, now: checkedAt, competition });
+    });
+  }
+
+  /** Give a signed-in account a starter agent when its workspace has none (sign-up without onboarding). */
+  async function ensureDefaultAgent({ userId, now = new Date().toISOString() }) {
+    const checkedAt = isoNow(now);
+    return withWriteTransaction(db, async (tx) => {
+      const { workspace } = await ensureDefaultWorkspaceInTransaction(tx, { userId, now: checkedAt, competition });
+      return ensureDefaultAgentInTransaction(tx, { workspaceId: workspace.id, now: checkedAt });
     });
   }
 
@@ -667,5 +721,5 @@ export function createWorkspaceService({ db, competition = null } = {}) {
     });
   }
 
-  return Object.freeze({ getBootstrap, completeOnboarding, createAgent, updateWorkspaceName, updateAgent });
+  return Object.freeze({ getBootstrap, completeOnboarding, createAgent, ensureDefaultAgent, updateWorkspaceName, updateAgent });
 }
