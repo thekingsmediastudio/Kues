@@ -1,5 +1,5 @@
 // Resolve narrowly scoped follow-ups into the existing review-only policy pipeline.
-export const CONTEXTUAL_REVIEW_CLARIFICATION = 'Please select one product from your latest results and specify its quantity. No review or payment was created.';
+export const CONTEXTUAL_REVIEW_CLARIFICATION = 'Find the item in your latest search results, click Buy on its card, and enter the quantity. If you cannot find it, search again or tell me its exact name and seller. This prepares a review only; it does not place an order or take payment.';
 export function parseContextualReview(message) {
   const text=String(message||'').normalize('NFKC').trim();
   const m=/^(?:please\s+)?(?:can|could|may)\s+we\s+(?:buy|purchase)\s+(\d{1,2})\s+(?:of|fo)\s+(?:that|this)\s+(?:product|item)[?.!]?$/iu.exec(text);
