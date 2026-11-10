@@ -5286,67 +5286,55 @@
     return items;
   }
 
-  function requestProductPurchase(item) {
-    if (!item || !/^off_[a-f0-9]{32}$/i.test(String(item.offerId || ''))) {
+  function requestProductPurchase(item, trigger) {
+    const offerId = String(item?.offerId || '').toLowerCase();
+    if (!/^off_[a-f0-9]{32}$/.test(offerId)) {
       chatNotice = 'This item has no verifiable saved offer. Search again before requesting a review.';
       syncChatComposer();
       return;
     }
-    const existing = document.getElementById('productQuantityDialog');
-    if (existing) { existing.querySelector('input')?.focus(); return; }
-    const priorFocus = document.activeElement;
-    const overlay = document.createElement('div');
-    overlay.id = 'productQuantityDialog';
-    overlay.className = 'overlay-backdrop open';
-    const dialog = document.createElement('div');
-    dialog.className = 'settings-modal';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    dialog.setAttribute('aria-labelledby', 'productQuantityTitle');
-    dialog.style.cssText = 'width:min(440px,calc(100vw - 32px));padding:24px;display:block;';
-    const title = document.createElement('h2');
-    title.id = 'productQuantityTitle';
-    title.textContent = 'How many would you like?';
-    const product = document.createElement('p');
-    product.textContent = String(item.title || 'Selected product').replace(/[\n\r]+/g, ' ').trim();
+    let button = trigger?.closest?.('.product-card-body') ? trigger : null;
+    if (!button) {
+      const candidates = [...document.querySelectorAll('[data-product-offer]')].filter(e => e.dataset.productOffer === offerId && e.getClientRects().length);
+      button = candidates.at(-1) || null;
+    }
+    const card = button?.closest('.product-card-body');
+    if (!card) {
+      chatNotice = 'Find the item in your latest search results and click Buy on its card to enter a quantity.';
+      syncChatComposer();
+      return;
+    }
+    let form = card.querySelector('[data-product-quantity-form]');
+    if (form) { form.querySelector('input')?.focus(); return; }
+    document.querySelectorAll('[data-product-quantity-form]').forEach(e => e.remove());
+    form = document.createElement('div');
+    form.dataset.productQuantityForm = '';
+    form.style.cssText = 'display:flex;flex-wrap:wrap;align-items:end;gap:8px;margin-top:12px;';
     const label = document.createElement('label');
     label.textContent = 'Quantity (1–20)';
-    label.setAttribute('for', 'productQuantityInput');
+    label.style.cssText = 'display:flex;flex-direction:column;gap:5px;font-size:13px';
     const quantity = document.createElement('input');
-    quantity.id = 'productQuantityInput';
     quantity.type = 'number'; quantity.min = '1'; quantity.max = '20'; quantity.step = '1';
-    quantity.inputMode = 'numeric'; quantity.autocomplete = 'off';
-    quantity.style.cssText = 'display:block;width:100%;box-sizing:border-box;margin:8px 0 14px;padding:10px;font-size:16px';
-    const note = document.createElement('p');
-    note.textContent = 'This prepares a review only. You will see the total before any PayPal approval.';
-    const error = document.createElement('p');
-    error.setAttribute('role', 'status'); error.setAttribute('aria-live', 'polite');
-    const actions = document.createElement('div'); actions.className = 'settings-form-actions';
-    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'pill-btn light'; cancel.textContent = 'Cancel';
+    quantity.required = true; quantity.inputMode = 'numeric'; quantity.autocomplete = 'off';
+    quantity.style.cssText = 'width:90px;box-sizing:border-box;padding:9px;font-size:16px';
+    label.append(quantity);
     const submit = document.createElement('button'); submit.type = 'button'; submit.className = 'pill-btn'; submit.textContent = 'Prepare review';
-    const close = () => { overlay.remove(); if (priorFocus?.isConnected) priorFocus.focus(); };
-    cancel.addEventListener('click', close);
-    submit.addEventListener('click', () => {
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'pill-btn light'; cancel.textContent = 'Cancel';
+    const note = document.createElement('p'); note.textContent = 'Review only. No order or payment yet.'; note.style.cssText = 'flex-basis:100%;margin:0;font-size:12px';
+    const error = document.createElement('p'); error.setAttribute('role', 'status'); error.setAttribute('aria-live', 'polite'); error.style.cssText = 'flex-basis:100%;margin:0';
+    cancel.addEventListener('click', () => { form.remove(); button.focus(); });
+    const prepareReview = () => {
       const clean = quantity.value.trim();
       if (!/^(?:[1-9]|1[0-9]|20)$/.test(clean)) { error.textContent = 'Enter a whole-number quantity from 1 to 20.'; quantity.focus(); return; }
       const input = document.getElementById('chatInput');
       if (chatPending || (input && input.value.trim())) { error.textContent = 'Send or clear your current draft first. Your draft has not been changed.'; return; }
-      const prompt = `Prepare a purchase review for ${Number(clean)} units of saved offer ${String(item.offerId).toLowerCase()}. Do not approve the review, open PayPal, authorize, capture, or pay.`;
-      close();
+      const prompt = `Prepare a purchase review for ${Number(clean)} units of saved offer ${offerId}. Do not approve the review, open PayPal, authorize, capture, or pay.`;
+      form.remove();
       if (typeof sendChatMessage === 'function') void sendChatMessage(prompt);
-    });
-    overlay.addEventListener('keydown', event => {
-      if (event.key === 'Escape') { event.preventDefault(); close(); }
-      if (event.key === 'Enter' && event.target === quantity) { event.preventDefault(); submit.click(); }
-      if (event.key === 'Tab') {
-        const controls = [quantity, cancel, submit];
-        const index = controls.indexOf(document.activeElement);
-        if (event.shiftKey && index <= 0) { event.preventDefault(); submit.focus(); }
-        else if (!event.shiftKey && index === controls.length - 1) { event.preventDefault(); quantity.focus(); }
-      }
-    });
-    actions.append(cancel, submit); dialog.append(title, product, label, quantity, note, error, actions); overlay.append(dialog);
-    document.body.append(overlay); quantity.focus();
+    };
+    submit.addEventListener('click', prepareReview);
+    quantity.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); prepareReview(); } });
+    form.append(label, submit, cancel, note, error); card.append(form); quantity.focus();
   }
 
   function requestBundlePurchase(items) {
@@ -5673,6 +5661,7 @@
       const buyBtn = document.createElement('button');
       buyBtn.type = 'button';
       buyBtn.className = 'product-card-buy-btn';
+      if (/^off_[a-f0-9]{32}$/i.test(String(item.offerId || ''))) buyBtn.dataset.productOffer = String(item.offerId).toLowerCase();
       buyBtn.setAttribute('title', `Buy ${item.title || 'item'} with active agent`);
 
       const buySvg = document.createElementNS ? document.createElementNS('http://www.w3.org/2000/svg', 'svg') : document.createElement('svg');
@@ -5703,7 +5692,7 @@
       buyBtn.addEventListener('click', (e) => {
         if (e && e.stopPropagation) e.stopPropagation();
         if (typeof requestProductPurchase === 'function') {
-          requestProductPurchase(item);
+          requestProductPurchase(item, buyBtn);
         }
       });
       actions.append(buyBtn);
