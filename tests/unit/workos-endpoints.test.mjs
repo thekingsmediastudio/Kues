@@ -110,7 +110,7 @@ test('first-time WorkOS OAuth accounts are sent to onboarding after the callback
       headers: { Cookie: `kues_workos_state=${state}` }, redirect: 'manual',
     });
     assert.equal(callback.status, 302);
-    assert.equal(callback.headers.get('location'), '/desktop-preview');
+    assert.equal(callback.headers.get('location'), '/onboarding');
   });
 });
 
@@ -237,7 +237,7 @@ test('WorkOS password signup stores a short-lived HttpOnly challenge and verific
     });
     assert.equal(verifyResponse.status, 200);
     assert.deepEqual(await verifyResponse.json(), {
-      authenticated: true, isNewUser: true, needsOnboarding: true, redirect: '/desktop-preview', user: { id: 'local-1' },
+      authenticated: true, isNewUser: true, needsOnboarding: true, redirect: '/onboarding', user: { id: 'local-1' },
     });
     assert.equal(verified.code, '123456');
     assert.deepEqual(verified.challenge, {
@@ -431,11 +431,12 @@ test('sign-in-only preview keeps the public landing available and does not expos
     assert.equal((await fetch(`${base}/__dev/workos-setup`)).status, 404);
     assert.equal((await fetch(`${base}/api/dev/workos-setup`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${base}/onboarding`)).status, 200);
-    assert.equal((await fetch(`${base}/app`)).status, 200);
     assert.equal((await fetch(`${base}/desktop-preview`)).status, 200);
-    const oldPreview = await fetch(`${base}/desktop`, { redirect: 'manual' });
-    assert.equal(oldPreview.status, 302);
-    assert.equal(oldPreview.headers.get('location'), '/app');
+    for (const legacy of ['/desktop', '/app']) {
+      const oldPreview = await fetch(`${base}${legacy}`, { redirect: 'manual' });
+      assert.equal(oldPreview.status, 302, legacy);
+      assert.equal(oldPreview.headers.get('location'), '/desktop-preview');
+    }
   });
 });
 

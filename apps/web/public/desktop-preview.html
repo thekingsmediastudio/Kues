@@ -3364,7 +3364,6 @@
       </button>
       <div class="account-menu" id="accountMenu" role="group" aria-label="Account options" hidden>
         <div class="account-menu-user"><span id="accountMenuLabel">Signed in as</span><strong id="accountMenuEmail">Loading account</strong><small id="accountMenuWorkspace">Loading workspace</small></div>
-        <a class="account-menu-item" href="/app"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 7.2 8 2.8l5.5 4.4v6.2H9.8V9.8H6.2v3.6H2.5V7.2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg><span>Account dashboard</span></a>
         <button class="account-menu-item" id="themeToggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.4 12.9A7.1 7.1 0 0 1 7.1 3.6a7.3 7.3 0 1 0 9.3 9.3Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="sun-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="3.2" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.2v1.6M10 16.2v1.6M17.8 10h-1.6M3.8 10H2.2m13.3-5.5-1.1 1.1M5.6 14.4l-1.1 1.1m11.1 0-1.1-1.1M5.6 5.6 4.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="themeLabel">Switch theme</span></button>
         <button class="account-menu-item signout" id="signOutButton" type="button"><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M7 3H3v10h4M9 5l3 3-3 3m3-3H6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Sign out</span></button>
       </div>
@@ -3619,6 +3618,7 @@
           <section class="app-settings-pane" id="settingsPaneAccount" role="tabpanel" aria-labelledby="settingsTabAccount" hidden>
             <div class="app-settings-card">
               <div class="app-settings-card-header"><h3>Profile</h3><span class="app-settings-status neutral">Signed-in account</span></div>
+              <p class="settings-form-hint" id="settingsUsageAllowance" role="status">Checking your AI usage allowance.</p>
               <form class="settings-form" id="profileSettingsForm">
                 <label for="profileDisplayName">Display name<input class="form-input" id="profileDisplayName" name="displayName" maxlength="120" autocomplete="name" required></label>
                 <p class="settings-form-status" id="profileSettingsStatus" role="status" aria-live="polite"></p>
@@ -4675,6 +4675,11 @@
     const displayNameInput = document.getElementById('profileDisplayName');
     if (displayNameInput) displayNameInput.value = String(user.displayName || '');
     textById('settingsCurrentEmail', user.email || 'Email unavailable');
+    const usageAccess = currentBootstrap?.usageAccess || {};
+    const usageLimit = usageAccess.allowed === true && Number.isFinite(Number(usageAccess.tokenLimit)) ? Number(usageAccess.tokenLimit).toLocaleString('en-US') : null;
+    textById('settingsUsageAllowance', usageLimit
+      ? `AI usage allowance: ${usageLimit} tokens per ${usageAccess.periodUnit === 'day' ? 'day' : (usageAccess.periodUnit || 'period')}, shared across your account.`
+      : 'No active AI usage allowance on this account.');
     setSettingsStatus('workspaceSettingsStatus', '');
     setSettingsStatus('profileSettingsStatus', '');
     setSettingsStatus('emailChangeStartStatus', '');

@@ -315,7 +315,7 @@ judgeFastlaneButton?.addEventListener('click', async () => {
     });
     const data = await readJson(res);
     if (res.ok) {
-      window.location.href = data.redirect || '/app';
+      window.location.href = destinationFor(data);
     } else {
       setStatus(formStatus, data.message || data.error || 'Could not launch demo workspace.', 'error');
       judgeFastlaneButton.disabled = false;
@@ -392,7 +392,7 @@ function showCodePanel(email,message){
 function destinationFor(data){return typeof data.redirect==='string'&&data.redirect.startsWith('/')&&!data.redirect.startsWith('//')?data.redirect:'/desktop-preview'}
 function finishSignIn(data,statusTarget=codeStatus){
   const needsOnboarding=data.needsOnboarding===true||data.isNewUser===true;
-  setStatus(statusTarget,needsOnboarding?'Account ready. Opening your Keus workspace…':'Signed in. Opening your Keus workspace…','success');
+  setStatus(statusTarget,needsOnboarding?'Account ready. Setting up your first agent…':'Signed in. Opening your Keus workspace…','success');
   activePassword='';
   passwordInput.value='';
   setTimeout(()=>location.assign(destinationFor(data)),450);

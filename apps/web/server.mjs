@@ -76,12 +76,10 @@ import { WorkOS } from '@workos-inc/node';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
 const landingHtmlPath = path.join(publicDir, 'landing.html');
-const dashboardHtmlPath = path.join(publicDir, 'dashboard.html');
 const desktopPreviewHtmlPath = path.join(publicDir, 'desktop-preview.html');
 const onboardingHtmlPath = path.join(publicDir, 'onboarding.html');
 const loginHtmlPath = path.join(publicDir, 'login.html');
 const authVerifyHtmlPath = path.join(publicDir, 'auth-verify.html');
-const pocketHtmlPath = path.join(publicDir, 'pocket.html');
 const apiHubHtmlPath = path.join(publicDir, 'api-hub.html');
 const aiProviderAdminHtmlPath = path.join(publicDir, 'ai-providers-admin.html');
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -817,10 +815,12 @@ function readHtml(filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-/** Every sign-in lands on the desktop preview for now; onboarding stays available at /onboarding. */
+/** Returning accounts land in the workspace. */
 const POST_SIGN_IN_PATH = '/desktop-preview';
-/** Allowlisted admin accounts land on onboarding instead, so the setup flow can be reviewed end to end. */
-const ADMIN_SIGN_IN_PATH = '/onboarding';
+/** Brand-new accounts (first session ever) and allowlisted reviewer accounts land on onboarding. */
+const ONBOARDING_SIGN_IN_PATH = '/onboarding';
+/** Legacy page aliases that now resolve to the workspace. */
+const WORKSPACE_ALIAS_PATHS = new Set(['/app', '/dashboard', '/desktop', '/desktop.html']);
 
 function normalizedEmail(value) {
   return String(value || '').trim().normalize('NFKC').toLowerCase();
@@ -836,8 +836,10 @@ function isOnboardingReviewer(config, user) {
   return admins.includes(email);
 }
 
-function signInDestination(config, user) {
-  return isOnboardingReviewer(config, user) ? ADMIN_SIGN_IN_PATH : POST_SIGN_IN_PATH;
+function signInDestination(config, user, session = null) {
+  if (isOnboardingReviewer(config, user)) return ONBOARDING_SIGN_IN_PATH;
+  if (session?.isNewUser === true) return ONBOARDING_SIGN_IN_PATH;
+  return POST_SIGN_IN_PATH;
 }
 export const signInDestinationForTest = signInDestination;
 
@@ -987,7 +989,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
             authenticated: true,
             isNewUser: result.isNewUser === true,
             needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-            redirect: signInDestination(config, result.user),
+            redirect: signInDestination(config, result.user, result),
             user: result.user,
           }, {
             'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
@@ -1010,7 +1012,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
             authenticated: true,
             isNewUser: result.isNewUser === true,
             needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-            redirect: signInDestination(config, result.user),
+            redirect: signInDestination(config, result.user, result),
             user: result.user,
           }, {
             'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
@@ -1035,7 +1037,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
           authenticated: true,
           isNewUser: result.isNewUser === true,
           needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-          redirect: signInDestination(config, result.user),
+          redirect: signInDestination(config, result.user, result),
           user: result.user,
         }, {
           'Set-Cookie': [setSessionCookie(config, result.sessionToken), clearPendingAuthCookie(config)],
@@ -1100,7 +1102,7 @@ async function handleAuthRequest(req, res, url, config, authService, workosAuth,
       authenticated: true,
       isNewUser: result.isNewUser === true,
       needsOnboarding: result.needsOnboarding === true || result.isNewUser === true,
-      redirect: signInDestination(config, result.user),
+      redirect: signInDestination(config, result.user, result),
       user: result.user,
     }, {
       'Set-Cookie': setSessionCookie(config, result.sessionToken),
@@ -3447,7 +3449,7 @@ export function createServer({
           });
           await ensureStarterAgentAfterSignIn(workspaceService, result);
           res.writeHead(302, {
-            Location: signInDestination(activeConfig, result.user),
+            Location: signInDestination(activeConfig, result.user, result),
             'Cache-Control': 'no-store',
             'Set-Cookie': [clearWorkOSStateCookie(activeConfig), clearPendingAuthCookie(activeConfig), setSessionCookie(activeConfig, result.sessionToken)],
           });
@@ -3721,8 +3723,8 @@ export function createServer({
         }
       }
 
-      if (url.pathname === '/desktop' || url.pathname === '/desktop.html') {
-        redirect(res, '/app');
+      if (WORKSPACE_ALIAS_PATHS.has(url.pathname)) {
+        redirect(res, POST_SIGN_IN_PATH);
         return;
       }
 
@@ -3740,9 +3742,9 @@ export function createServer({
       }
 
       const pageRoutes = new Map([
-        ['/', landingHtmlPath], ['/app', dashboardHtmlPath], ['/dashboard', dashboardHtmlPath], ['/desktop-preview', desktopPreviewHtmlPath],
+        ['/', landingHtmlPath], ['/desktop-preview', desktopPreviewHtmlPath],
         ['/onboarding', onboardingHtmlPath], ['/onboarding.html', onboardingHtmlPath], ['/login', loginHtmlPath],
-        ['/auth/verify', authVerifyHtmlPath], ['/pocket', pocketHtmlPath], ['/phone', pocketHtmlPath], ['/pocket.html', pocketHtmlPath],
+        ['/auth/verify', authVerifyHtmlPath],
       ]);
       const htmlPath = pageRoutes.get(url.pathname);
       if (!htmlPath) {
@@ -3762,8 +3764,8 @@ export function createServer({
           }
           if (signedIn) {
             html = html
-              .replace('id="headerAccountLink" href="/login">Sign in', 'id="headerAccountLink" href="/app">Dashboard')
-              .replace('id="footerAccountLink" href="/login">Sign in', 'id="footerAccountLink" href="/app">Dashboard');
+              .replace('id="headerAccountLink" href="/login">Sign in', 'id="headerAccountLink" href="/desktop-preview">Open workspace')
+              .replace('id="footerAccountLink" href="/login">Sign in', 'id="footerAccountLink" href="/desktop-preview">Open workspace');
           }
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });

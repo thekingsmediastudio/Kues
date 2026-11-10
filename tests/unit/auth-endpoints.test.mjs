@@ -117,7 +117,7 @@ test('auth endpoints report disabled storage and reject invalid or cross-origin 
   }
 });
 
-test('first sign-in over HTTP provisions a starter agent and points the browser at the desktop preview', async () => {
+test('first sign-in over HTTP provisions a starter agent and points the browser at onboarding', async () => {
   const { createWorkspaceService } = await import('../../apps/web/lib/workspaces/service.mjs');
   const db = await createDb();
   const delivered = [];
@@ -131,8 +131,8 @@ test('first sign-in over HTTP provisions a starter agent and points the browser 
     const consume = await fetch(`${base}/api/auth/email/consume`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: delivered[0].token }) });
     assert.equal(consume.status, 200);
     const body = await consume.json();
-    assert.equal(body.redirect, '/desktop-preview');
-    assert.equal(body.needsOnboarding, true, 'onboarding stays available; it is no longer a gate');
+    assert.equal(body.redirect, '/onboarding', 'first session of a brand-new account starts in onboarding');
+    assert.equal(body.needsOnboarding, true);
     const cookie = consume.headers.get('set-cookie').split(';', 1)[0];
     const bootstrap = await (await fetch(`${base}/api/workspace/bootstrap`, { headers: { Cookie: cookie } })).json();
     assert.equal(bootstrap.agents.length, 1);
@@ -174,9 +174,14 @@ test('allowlisted admin sign-in lands on onboarding and may re-run it to add an 
   const plainBase = `http://127.0.0.1:${plain.address().port}`;
   try {
     const regular = await signIn(plainBase, 'member@example.test');
-    assert.equal(regular.body.redirect, '/desktop-preview');
+    assert.equal(regular.body.isNewUser, true);
+    assert.equal(regular.body.redirect, '/onboarding', 'a brand-new account is taken through onboarding once');
+    const returning = await signIn(plainBase, 'member@example.test');
+    assert.equal(returning.body.isNewUser, false);
+    assert.equal(returning.body.redirect, '/desktop-preview', 'returning accounts land in the workspace even if onboarding was skipped');
     const admin = await signIn(plainBase, 'admin@example.test');
-    assert.equal(admin.body.redirect, '/desktop-preview', 'without an allowlist nobody is a reviewer');
+    assert.equal(admin.body.redirect, '/onboarding', 'new account; without an allowlist nobody is a reviewer');
+    assert.equal((await signIn(plainBase, 'admin@example.test')).body.redirect, '/desktop-preview');
   } finally {
     await new Promise((resolve) => plain.close(resolve));
   }
@@ -184,6 +189,8 @@ test('allowlisted admin sign-in lands on onboarding and may re-run it to add an 
   const { signInDestinationForTest } = await import('../../apps/web/server.mjs').then((m) => ({ signInDestinationForTest: m.signInDestinationForTest }));
   assert.equal(signInDestinationForTest(config, { email: 'Admin@Example.test' }), '/onboarding');
   assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }), '/desktop-preview');
+  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }, { isNewUser: true }), '/onboarding');
+  assert.equal(signInDestinationForTest(config, { email: 'member@example.test' }, { isNewUser: false, needsOnboarding: true }), '/desktop-preview', 'skipped onboarding is not re-forced');
   assert.equal(signInDestinationForTest(config, null), '/desktop-preview');
   const configured = serverFor(config);
   await new Promise((resolve) => configured.listen(0, '127.0.0.1', resolve));

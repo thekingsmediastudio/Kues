@@ -245,16 +245,25 @@ test('user-facing Keus pages avoid em dashes and emoji glyphs', () => {
   }
 });
 
-test('public landing and authenticated dashboard have separate page routes', async () => {
+test('public landing and authenticated workspace have separate page routes; legacy dashboard and pocket routes are gone', async () => {
   await withServer(loadServerConfig({}), async (base) => {
-    for (const route of ['/', '/app', '/dashboard', '/desktop-preview', '/onboarding', '/login', '/auth/verify']) {
+    for (const route of ['/', '/desktop-preview', '/onboarding', '/login', '/auth/verify']) {
       const res = await fetch(`${base}${route}`);
       assert.equal(res.status, 200, route);
       assert.match(res.headers.get('content-type') || '', /text\/html/);
     }
+    for (const legacy of ['/app', '/dashboard']) {
+      const res = await fetch(`${base}${legacy}`, { redirect: 'manual' });
+      assert.equal(res.status, 302, legacy);
+      assert.equal(res.headers.get('location'), '/desktop-preview', legacy);
+    }
+    for (const removed of ['/pocket', '/phone', '/pocket.html']) {
+      assert.equal((await fetch(`${base}${removed}`)).status, 404, removed);
+    }
     const landing = await (await fetch(`${base}/`)).text();
     assert.match(landing, /Your AI workspace/);
-    assert.match(landing, /href="\/app"/);
+    assert.match(landing, /href="\/desktop-preview"/);
+    assert.doesNotMatch(landing, /href="\/app"/);
     assert.doesNotMatch(landing, /href="\/desktop(?:\.html)?"/);
     assert.match(landing, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
     assert.match(landing, /id="themeToggle"/);
@@ -267,32 +276,7 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.match(landing, /footerAccountLink/);
     assert.match(landing, /localStorage\.getItem\('keusTheme'\)/);
     assert.match(landing, /--font:Inter,ui-sans-serif,system-ui/);
-    const dashboard = await (await fetch(`${base}/app`)).text();
-    assert.match(dashboard, /api\/workspace\/bootstrap/);
-    const loadingMark = dashboard.match(/<div class="loading-mark"[\s\S]*?<\/svg>/)?.[0] || '';
-    const dashboardBrandMark = dashboard.match(/<span class="dashboard-home-mark"[\s\S]*?<\/svg>/)?.[0] || '';
-    for (const mark of [loadingMark, dashboardBrandMark]) {
-      assert.match(mark, /fill="#32d583"/);
-      assert.match(mark, /<ellipse cx="15\.2"/);
-      assert.match(mark, /<ellipse cx="25"/);
-      assert.match(mark, /M16\.7 23\.35/);
-      assert.match(mark, /<circle cx="11\.2"/);
-    }
-    assert.match(dashboard, /rel="icon"[^>]+href="\/keus-icon\.svg"/);
-    assert.match(dashboard, /id="themeToggle"/);
-    assert.match(dashboard, /api\/settings\/theme/);
-    assert.match(dashboard, /localStorage\.getItem\('keusTheme'\)/);
-    assert.match(dashboard, /--font:Inter,ui-sans-serif,system-ui/);
-    assert.doesNotMatch(dashboard, /<aside\b|class="sidebar"|id="setupNav"|>Setup<\/a>/);
-    assert.match(dashboard, /class="dashboard-home" href="\/"/);
-    assert.match(dashboard, /class="home-external-icon"/);
-    assert.match(dashboard, /aria-controls="accountMenu"/);
-    const accountMenu = dashboard.indexOf('id="accountMenu"');
-    const accountEmail = dashboard.indexOf('id="accountEmail"', accountMenu);
-    const themeToggle = dashboard.indexOf('id="themeToggle"', accountMenu);
-    const signOutButton = dashboard.indexOf('id="signOutButton"', accountMenu);
-    assert.ok(accountMenu >= 0 && accountEmail < themeToggle && themeToggle < signOutButton, 'theme and sign-out actions belong inside the account dropdown');
-    assert.doesNotMatch(dashboard, /Run a demo|Simulate purchase/i);
+    // /app is a legacy alias now; its former content (account overview) lives in the workspace settings.
     const desktopPreview = await (await fetch(`${base}/desktop-preview`)).text();
     assert.match(desktopPreview, /<aside class="sidebar" id="workspaceSidebar">/);
     assert.match(desktopPreview, /id="agentList"/);
@@ -425,15 +409,15 @@ test('public landing and authenticated dashboard have separate page routes', asy
     assert.doesNotMatch(onboarding, /window\.location\.(?:href|replace)\(?'\/app'/, 'every onboarding exit lands on the preview');
     assert.match(onboarding, /data\.user\.theme/);
     assert.doesNotMatch(onboarding, /window\.location\.(?:href|replace)='\/desktop'/);
-    for (const legacy of ['/desktop', '/desktop.html']) {
+    for (const legacy of ['/desktop', '/desktop.html', '/app', '/dashboard']) {
       const response = await fetch(`${base}${legacy}`, { redirect: 'manual' });
       assert.equal(response.status, 302, legacy);
-      assert.equal(response.headers.get('location'), '/app');
+      assert.equal(response.headers.get('location'), '/desktop-preview');
     }
   });
 });
 
-test('landing renders the signed-in dashboard links before returning HTML', async () => {
+test('landing renders the signed-in workspace links before returning HTML', async () => {
   const sessions = {
     async getSession({ token }) {
       return token === 'valid-session' ? { id: 'user-1', email: 'person@example.test' } : null;
@@ -444,8 +428,9 @@ test('landing renders the signed-in dashboard links before returning HTML', asyn
     assert.equal(signedIn.status, 200);
     assert.equal(signedIn.headers.get('cache-control'), 'no-store');
     const signedInHtml = await signedIn.text();
-    assert.match(signedInHtml, /id="headerAccountLink" href="\/app">Dashboard/);
-    assert.match(signedInHtml, /id="footerAccountLink" href="\/app">Dashboard/);
+    assert.match(signedInHtml, /id="headerAccountLink" href="\/desktop-preview">Open workspace/);
+    assert.match(signedInHtml, /id="footerAccountLink" href="\/desktop-preview">Open workspace/);
+    assert.doesNotMatch(signedInHtml, /href="\/app"|href="\/pocket"/);
     assert.match(signedInHtml, /api\/auth\/session/);
     assert.match(signedInHtml, /api\/settings\/theme/);
 
@@ -506,15 +491,15 @@ test('public landing stays open while dashboard and onboarding require a valid l
     assert.equal(login.status, 200);
   }, sessions);
   await withServer(production, async (base) => {
-    for (const route of ['/app', '/dashboard', '/desktop-preview', '/onboarding']) {
+    for (const route of ['/desktop-preview', '/onboarding']) {
       const response = await fetch(`${base}${route}`, { headers: { Cookie: '__Host-kues_session=valid-session' }, redirect: 'manual' });
       assert.equal(response.status, 200);
       assert.match(await response.text(), /Keus/i);
     }
-    for (const route of ['/desktop', '/desktop.html']) {
+    for (const route of ['/desktop', '/desktop.html', '/app', '/dashboard']) {
       const response = await fetch(`${base}${route}`, { headers: { Cookie: '__Host-kues_session=valid-session' }, redirect: 'manual' });
       assert.equal(response.status, 302, route);
-      assert.equal(response.headers.get('location'), '/app');
+      assert.equal(response.headers.get('location'), '/desktop-preview');
     }
   }, sessions);
 });
