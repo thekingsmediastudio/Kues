@@ -1,6 +1,6 @@
-# Historical checkout design, not the current product
+# Earlier in-hackathon checkout design (October 2026), not the current product
 
-The document below is preserved for reference, not as a description of working capabilities. Its autonomous rails, saved-wallet requirement, automatic holds, simulated fallback, passkey payment execution, capture endpoints, and judge fast-lane wallet claims do not describe the current checkout. See the root README for the active flow.
+This was the first iteration of Keus, written during the PayPal AI Hackathon submission period in October 2026 and superseded by the per-purchase checkout described in the root README. The document below is preserved for reference, not as a description of working capabilities. Its autonomous rails, saved-wallet requirement, automatic holds, simulated fallback, passkey payment execution, capture endpoints, and judge fast-lane wallet claims do not describe the current checkout. See the root README for the active flow.
 
 ---
 

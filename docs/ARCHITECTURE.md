@@ -191,4 +191,4 @@ Kues/                         npm workspaces monorepo, Node 24, MIT
   render.yaml                 Render deployment
 ```
 
-Related reading: [JUDGING.md](JUDGING.md) for the step-by-step judge walkthrough and local setup, [legacy-checkout-design.md](legacy-checkout-design.md) for the retired saved-wallet design (historical, not current behaviour).
+Related reading: [JUDGING.md](JUDGING.md) for the step-by-step judge walkthrough and local setup, [legacy-checkout-design.md](legacy-checkout-design.md) for the first in-hackathon iteration (a saved-wallet design from October 2026, not current behaviour).

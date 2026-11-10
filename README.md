@@ -11,7 +11,7 @@ Architecture, purchase sequence, checkout state machine and trust model, as Merm
 - **Hosted demo:** https://keus-staging.onrender.com. Use the one-click **Launch Judge Workspace** on the sign-in page for a look around; enter the **judge access code** (Devpost testing instructions) for a private workspace with PayPal sandbox checkout enabled, or create an account (email code, Google or GitHub).
 - **Step-by-step judging guide, local setup and code map:** [docs/JUDGING.md](docs/JUDGING.md).
 - **How it is built:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (system overview, sequence diagram, state machine, trust model, repository map).
-- **Built during the submission period:** see [What changed since 1 October 2026](#what-changed-since-1-october-2026).
+- **New project, built entirely during the submission period:** see [Build log, October to November 2026](#build-log-october-to-november-2026).
 
 ## Current payment flow
 
@@ -77,15 +77,15 @@ If authorization is uncertain, use **Recheck PayPal status**, not a replacement 
 - `POST .../reconcile`, `.../void`: provider verification or explicit void of this user's hold.
 - `POST .../return-context`, `.../result`: session-bound callback destination and user/workspace-owned result, with agent identity resolved from the stored purchase rather than client-supplied redirects.
 
-Legacy `/paypal/authorize`, `/paypal/capture`, `/paypal/refund`, `/paypal/void`, and mandate passkey payment-execution routes reject requests. The saved-wallet and old rail implementations are retained outside the active payment path. Their presence is not a claim of real merchant-order support.
+Legacy `/paypal/authorize`, `/paypal/capture`, `/paypal/refund`, `/paypal/void`, and mandate passkey payment-execution routes reject requests. Code from the first in-hackathon iteration (saved-wallet and earlier rails, October 2026) is retained outside the active payment path. Its presence is not a claim of real merchant-order support.
 
-[Historical design, explicitly not current behavior](docs/legacy-checkout-design.md). License: MIT.
+[Earlier in-hackathon design, explicitly not current behavior](docs/legacy-checkout-design.md). License: MIT.
 
-## What changed since 1 October 2026
+## Build log, October to November 2026
 
-The following was built during the hackathon submission period (1 October – 12 November 2026):
+Keus is a new project. Nothing in this repository predates the PayPal AI Hackathon submission period (1 October to 12 November 2026); the first commit to this repository was made on 26 October 2026, and the earliest iteration was written during October. Highlights, in the order they landed:
 
-- **Per-purchase PayPal sandbox checkout** replaced the saved-wallet/Vault design: `AUTHORIZE`-intent Orders v2 flow, server-side verification of amount, currency, merchant reference, quantity breakdown, session binding and live spending limits; reconcile and void; capture disabled; legacy execution routes now reject requests (`docs/legacy-checkout-design.md` documents what was retired).
+- **Per-purchase PayPal sandbox checkout** superseded the first in-hackathon iteration (a saved-wallet/Vault design from early October): `AUTHORIZE`-intent Orders v2 flow, server-side verification of amount, currency, merchant reference, quantity breakdown, session binding and live spending limits; reconcile and void; capture disabled; legacy execution routes now reject requests (`docs/legacy-checkout-design.md` preserves that first iteration's design notes).
 - **Agent purchase reviews with quantities and bundles** (up to ten lines, integer-cent totals), itemized PayPal payloads, checkout batching and fail-closed currency handling.
 - **Grounded product comparison** and search fixes on top of Channel3 discovery.
 - **Authentication**: WorkOS email + password with verification codes, Google/GitHub sign-in, password reset, sign-up provisioning with a starter agent, one-click judge fast lane.
